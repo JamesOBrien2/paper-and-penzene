@@ -62,8 +62,19 @@ jobs:
           if (!(Test-Path smoke.svg)) { throw "packaged app failed to render" }
           Rename-Item .pixi-hidden .pixi
           Compress-Archive dist/penzene penzene-windows-x64.zip
+      - name: Installer
+        shell: pwsh
+        run: |
+          $version = (dist/penzene/penzene.exe --version).Split(' ')[1]
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /Q "/DVersion=$version" "/DSource=$PWD\dist\penzene" cmake/penzene.iss
+          if ($LASTEXITCODE) { throw "iscc failed" }
+          Move-Item cmake/penzene-windows-x64-setup.exe .
+          # Silent install to a temp dir, then run the installed copy.
+          $p = Start-Process ./penzene-windows-x64-setup.exe -ArgumentList "/VERYSILENT","/CURRENTUSER","/DIR=$PWD\installed" -PassThru
+          if (!$p.WaitForExit(300000)) { throw "installer hung" }
+          installed/penzene.exe --version
       - uses: actions/upload-artifact@v4
-        with: {name: windows, path: penzene-windows-x64.zip}
+        with: {name: windows, path: "penzene-windows-x64*"}
 
   linux:
     runs-on: ubuntu-22.04   # older glibc base = runs on more distros
@@ -108,5 +119,5 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: {merge-multiple: true}
-      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes *.dmg *.zip *.AppImage
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes *.dmg *.zip *.exe *.AppImage
         env: {GH_TOKEN: '${{ github.token }}'}

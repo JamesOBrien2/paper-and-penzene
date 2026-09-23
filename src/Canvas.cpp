@@ -26,12 +26,18 @@
 // wedge width, hash spacing and label gap keep ACS's proportions to ours.
 // ponytail: bond length stays 14.4 pt for every preset (JDP's is 14.17, 1.6% off);
 // a per-style bond length needs the drawing tools to read it too.
+constexpr double kRsc = kBondLength / 12.2;
+
 const std::vector<DrawingStyle>& drawingStyles() {
     static const std::vector<DrawingStyle> styles{
         {"ACS 1996", 0.6, 2.0, 4.5, 2.2, 0.18, 5.5, "Arial", QFont::Normal, 10},
         // JDPReport.cds: line 0.879, bold 1.814, hash 1.814, margin 1.162, IBM Plex Sans Light 10 pt.
         {"JDP", 0.879, 1.814, 4.5 * 1.814 / 2.0, 2.2 * 1.814 / 2.5, 0.18, 5.5 - 1.6 + 1.162, "IBM Plex Sans",
          QFont::Light, 10},
+        // RSC (1 Column).cds (2 Column only differs in page size): bond 12.2, line 0.449, bold 1.602,
+        // hash 1.75, margin 1.25, spacing 20%, Helvetica 7 pt; scaled by 14.4/12.2 to our bond length.
+        {"RSC", 0.449 * kRsc, 1.602 * kRsc, 4.5 * 1.602 / 2.0, 2.2 * 1.75 / 2.5, 0.20, 3.9 * 0.826 + 1.25 * kRsc,
+         "Helvetica", QFont::Normal, 7 * kRsc},
     };
     return styles;
 }

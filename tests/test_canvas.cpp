@@ -158,12 +158,13 @@ TEST_CASE("hotkeys: chain, labels, groups, bonds") {
     CHECK(f.doc().atoms.size() == 5);
     CHECK(f.doc().bonds.size() == 4);
 
-    f.key("O");  // Shift+o: OMe
-    REQUIRE(f.doc().atoms.size() == 6);
+    f.key("O");  // Shift+o: OMe, as an abbreviation
+    REQUIRE(f.doc().atoms.size() == 5);
     CHECK(f.doc().atoms[4].z == 8);
-    f.key("F");  // Shift+f: CF3 replaces the O
+    CHECK(f.doc().atoms[4].label == "OMe");
+    f.key("F");  // Shift+f: CF3 replaces it
     CHECK(f.doc().atoms[4].z == 6);
-    CHECK(f.doc().atoms.size() == 9);
+    CHECK(f.doc().atoms[4].label == "CF3");
 
     // Shift+arrow jumps atom to atom back along the chain.
     f.hover(f.doc().atoms[1].pos);
@@ -284,11 +285,39 @@ TEST_CASE("applyLabel understands elements, groups and SMILES") {
     d.bonds = {{0, 1}};
     CHECK(Canvas::applyLabel(d, 1, "Br"));
     CHECK(d.atoms[1].z == 35);
-    CHECK(Canvas::applyLabel(d, 1, "NO2"));
+    CHECK(Canvas::applyLabel(d, 1, "NO2"));  // abbreviation: one labelled atom
+    CHECK(d.atoms[1].label == "NO2");
     CHECK(d.atoms[1].charge == 1);
+    CHECK(d.atoms.size() == 2);
+    CHECK(chem::toSmiles(d) == "C[N+](=O)[O-]");  // chemistry sees the full group
+    CHECK(Canvas::applyLabel(d, 1, "OH"));
+    CHECK(d.atoms[1].z == 8);
+    CHECK(d.atoms[1].label.isEmpty());
+    CHECK(Canvas::applyLabel(d, 1, "C(=O)Cl"));  // SMILES: drawn out
     CHECK(d.atoms.size() == 4);
-    CHECK(chem::toSmiles(d) == "C[N+](=O)[O-]");
     CHECK_FALSE(Canvas::applyLabel(d, 0, "notachem!!"));
+}
+
+TEST_CASE("abbreviations: valence, clean, expand") {
+    Fixture f;
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{2 * kBondLength, 5}}};
+    d.bonds = {{0, 1}, {1, 2}};
+    REQUIRE(Canvas::applyLabel(d, 2, "Boc"));
+    CHECK_FALSE(chem::atomInfo(d)[2].valenceError);
+    CHECK(chem::toSmiles(d) == "CCC(=O)OC(C)(C)C");
+    Document clean = chem::clean2D(d);
+    CHECK(clean.atoms.size() == 3);  // still abbreviated
+    CHECK(clean.bonds.size() == 2);
+    CHECK(clean.atoms[2].label == "Boc");
+    f.canvas.setDocumentSilently(d);
+    f.canvas.expandAbbreviations();
+    CHECK(f.doc().atoms.size() == 9);
+    CHECK(f.doc().atoms[2].label.isEmpty());
+    CHECK(chem::toSmiles(f.doc()) == "CCC(=O)OC(C)(C)C");
+    auto back = Document::fromJson(d.toJson());
+    REQUIRE(back);
+    CHECK(back->atoms[2].label == "Boc");
 }
 
 static double angleAt(const Document& d, int centre, int x, int y) {

@@ -8,6 +8,8 @@
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 
+#include <QHash>
+#include <QStringList>
 #include <cmath>
 #include <memory>
 
@@ -17,7 +19,73 @@ using RDKit::RWMol;
 // MOL files and RDKit use 1.5 Å bonds with y up; scenes use points with y down.
 constexpr double kScale = kBondLength / 1.5;
 
-static std::unique_ptr<RWMol> toRDKit(const Document& doc) {
+// SMILES whose first atom is the attachment point.
+static const QHash<QString, QString>& groups() {
+    static const QHash<QString, QString> g{
+        {"Me", "C"},        {"Et", "CC"},          {"iPr", "C(C)C"},   {"tBu", "C(C)(C)C"},
+        {"Ph", "c1ccccc1"}, {"OMe", "OC"},         {"NO2", "[N+](=O)[O-]"}, {"CF3", "C(F)(F)F"},
+        {"CN", "C#N"},      {"CO2Me", "C(=O)OC"},  {"CO2Et", "C(=O)OCC"}, {"CO2H", "C(=O)O"},
+        {"CHO", "C=O"},     {"Ac", "C(C)=O"},      {"OAc", "OC(C)=O"},  {"N3", "N=[N+]=[N-]"},
+        {"Boc", "C(=O)OC(C)(C)C"}, {"Cbz", "C(=O)OCc1ccccc1"}, {"Fmoc", "C(=O)OCC1c2ccccc2-c2ccccc21"},
+        {"Bn", "Cc1ccccc1"}, {"Bz", "C(=O)c1ccccc1"}, {"MgBr", "[Mg]Br"}, {"SO2Me", "S(=O)(=O)C"},
+        {"Ts", "S(=O)(=O)c1ccc(C)cc1"}, {"Ms", "S(=O)(=O)C"}, {"Tf", "S(=O)(=O)C(F)(F)F"},
+        {"OTf", "OS(=O)(=O)C(F)(F)F"}, {"OTs", "OS(=O)(=O)c1ccc(C)cc1"}, {"TMS", "[Si](C)(C)C"},
+        {"TBS", "[Si](C)(C)C(C)(C)C"}, {"OTBS", "O[Si](C)(C)C(C)(C)C"}, {"PMB", "Cc1ccc(OC)cc1"},
+        {"Bpin", "B1OC(C)(C)C(C)(C)O1"}, {"nBu", "CCCC"}, {"Pr", "CCC"}, {"Cy", "C1CCCCC1"},
+    };
+    return g;
+}
+
+QStringList abbreviations() { return groups().keys(); }
+
+std::optional<Atom> abbreviationHead(const QString& label) {
+    auto it = groups().find(label);
+    if (it == groups().end()) return std::nullopt;
+    auto frag = fromSmiles(it->toStdString());
+    return frag ? std::optional(frag->atoms[0]) : std::nullopt;
+}
+
+bool attach(Document& doc, int at, const std::string& what) {
+    auto frag = fromSmiles(groups().value(QString::fromStdString(what), QString::fromStdString(what)).toStdString());
+    if (!frag || frag->atoms.empty()) return false;
+    doc.atoms[at].z = frag->atoms[0].z;
+    doc.atoms[at].charge = frag->atoms[0].charge;
+    doc.atoms[at].label.clear();
+    if (frag->atoms.size() == 1) return true;
+
+    // Rotate so the fragment's bulk points away from `at`'s bonds.
+    QPointF origin = frag->atoms[0].pos, bulk;
+    for (size_t i = 1; i < frag->atoms.size(); ++i) bulk += frag->atoms[i].pos;
+    bulk = bulk / double(frag->atoms.size() - 1) - origin;
+    QPointF want = doc.neighbors(at).empty() ? QPointF(1, 0) : doc.awayDirection(at);
+    double ang = std::atan2(want.y(), want.x()) - std::atan2(bulk.y(), bulk.x());
+    const int base = int(doc.atoms.size()) - 1;  // frag atom i -> base + i
+    for (size_t i = 1; i < frag->atoms.size(); ++i) {
+        QPointF r = frag->atoms[i].pos - origin;
+        Atom a = frag->atoms[i];
+        a.pos = doc.atoms[at].pos + QPointF(r.x() * std::cos(ang) - r.y() * std::sin(ang),
+                                            r.x() * std::sin(ang) + r.y() * std::cos(ang));
+        doc.atoms.push_back(a);
+    }
+    for (auto b : frag->bonds) {
+        b.a = b.a == 0 ? at : base + b.a;
+        b.b = b.b == 0 ? at : base + b.b;
+        doc.bonds.push_back(b);
+    }
+    return true;
+}
+
+Document expanded(const Document& doc) {
+    Document out = doc;
+    for (int i = 0; i < int(doc.atoms.size()); ++i)
+        if (!doc.atoms[i].label.isEmpty() && !attach(out, i, doc.atoms[i].label.toStdString()))
+            out.atoms[i].label.clear();  // unknown label (e.g. from a newer file): keep the atom as is
+    return out;
+}
+
+// Abbreviations are expanded first; atom i of `doc` is atom i of the mol.
+static std::unique_ptr<RWMol> toRDKit(const Document& in) {
+    const Document doc = expanded(in);
     auto mol = std::make_unique<RWMol>();
     auto* conf = new RDKit::Conformer(doc.atoms.size());
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
@@ -186,7 +254,9 @@ Document clean2D(const Document& doc) {
         frag.removeAtoms(drop);  // keeps order: frag atom k is doc atom ids[k]
         Document clean = cleanFragment(frag);
         for (size_t k = 0; k < ids.size(); ++k) out.atoms[ids[k]].pos = clean.atoms[k].pos;
-        for (auto b : clean.bonds) b.a = ids[b.a], b.b = ids[b.b], out.bonds.push_back(b);
+        const int m = int(ids.size());  // atoms past m are expanded abbreviations: dropped again
+        for (auto b : clean.bonds)
+            if (b.a < m && b.b < m) b.a = ids[b.a], b.b = ids[b.b], out.bonds.push_back(b);
     }
     return out;
 }
@@ -195,6 +265,7 @@ std::vector<AtomInfo> atomInfo(const Document& doc) {
     auto mol = toRDKit(doc);
     std::vector<AtomInfo> info(doc.atoms.size());
     for (auto* a : mol->atoms()) {
+        if (a->getIdx() >= info.size()) break;  // expanded abbreviation atoms
         auto& i = info[a->getIdx()];
         try {
             a->updatePropertyCache(true);

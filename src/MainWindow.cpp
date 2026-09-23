@@ -22,7 +22,7 @@ static const char* kMolMime = "chemical/x-mdl-molfile";
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
     setCentralWidget(canvas_);
-    setWindowTitle("Paper & Penzene");
+    setWindowTitle("Penzene");
     resize(1100, 750);
     buildTools();
     buildMenus();
@@ -32,7 +32,7 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
 
 void MainWindow::updateTitle() {
     QString name = path_.isEmpty() ? tr("Untitled") : QFileInfo(path_).fileName();
-    setWindowTitle(name + "[*] — Paper & Penzene");
+    setWindowTitle(name + "[*] — Penzene");
     setWindowModified(!undo_->isClean());
 }
 
@@ -281,10 +281,10 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 </table>)"));
         box.exec();
     });
-    help->addAction(tr("&About Paper && Penzene"), this, [this] {
-        QMessageBox::about(this, tr("About Paper & Penzene"),
-                           tr("<h3>Paper &amp; Penzene %1</h3><p>An open-source chemical structure editor.</p>"
-                              "<p>GPL-3.0 • <a href='https://github.com/JamesOBrien2/paper-and-penzene'>GitHub</a></p>"
+    help->addAction(tr("&About Penzene"), this, [this] {
+        QMessageBox::about(this, tr("About Penzene"),
+                           tr("<h3>Penzene %1</h3><p>An open-source chemical structure editor.</p>"
+                              "<p>GPL-3.0 • <a href='https://github.com/JamesOBrien2/penzene'>GitHub</a></p>"
                               "<p>Chemistry by RDKit. GUI by Qt.</p>").arg(PENZENE_VERSION));
     });
 }

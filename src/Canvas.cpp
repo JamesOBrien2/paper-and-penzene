@@ -215,7 +215,7 @@ QByteArray renderSvg(const Document& doc) {
     gen.setSize(r.size().toSize());
     gen.setViewBox(QRectF(QPointF(), r.size()));
     gen.setResolution(72);  // 1 unit == 1 pt
-    gen.setTitle("Paper & Penzene");
+    gen.setTitle("Penzene");
     QPainter p(&gen);
     p.translate(-r.topLeft());
     paintDocument(p, doc);
@@ -237,7 +237,7 @@ bool exportDocument(const Document& doc, const QString& path) {
         pdf.setResolution(72);
         pdf.setPageSize(QPageSize(r.size(), QPageSize::Point));
         pdf.setPageMargins({});
-        pdf.setCreator("Paper & Penzene");
+        pdf.setCreator("Penzene");
         QPainter p(&pdf);
         p.translate(-r.topLeft());
         paintDocument(p, doc);

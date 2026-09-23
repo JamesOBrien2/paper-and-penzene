@@ -16,7 +16,8 @@ target_include_directories(penzene_core PUBLIC src)
 target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSION}")
 target_link_libraries(penzene_core PUBLIC
     Qt6::Widgets Qt6::Svg
-    RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol)
+    RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol
+    RDKit::Descriptors RDKit::RDInchiLib)
 
 set(PENZENE_ICNS resources/penzene.icns)
 set_source_files_properties(${PENZENE_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)

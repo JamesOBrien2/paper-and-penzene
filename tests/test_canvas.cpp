@@ -122,6 +122,7 @@ TEST_CASE("main window screenshot") {
     w.resize(1000, 650);
     w.show();
     REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
+    QApplication::processEvents();
     if (auto out = qgetenv("PENZENE_SCREENSHOT"); !out.isEmpty()) w.grab().save(out);
 }
 

@@ -66,6 +66,7 @@ public:
 
 signals:
     void documentChanged();
+    void selectionChanged();
 
 protected:
     void drawBackground(QPainter* p, const QRectF& rect) override;

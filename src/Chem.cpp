@@ -2,6 +2,8 @@
 
 #include <GraphMol/Chirality.h>
 #include <GraphMol/Depictor/RDDepictor.h>
+#include <GraphMol/Descriptors/MolDescriptors.h>
+#include <GraphMol/inchi.h>
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/MolOps.h>
@@ -206,6 +208,27 @@ std::string toSmiles(const Document& doc) {
     auto mol = toRDKit(doc);
     if (!perceive(*mol)) return "";
     return RDKit::MolToSmiles(*mol);
+}
+
+std::optional<Properties> properties(const Document& doc) {
+    if (doc.atoms.empty()) return std::nullopt;
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return std::nullopt;
+    return Properties{RDKit::Descriptors::calcMolFormula(*mol), RDKit::Descriptors::calcAMW(*mol),
+                      RDKit::Descriptors::calcExactMW(*mol)};
+}
+
+std::string toInchi(const Document& doc) {
+    if (doc.atoms.empty()) return "";
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return "";
+    RDKit::ExtraInchiReturnValues rv;
+    return RDKit::MolToInchi(*mol, rv);
+}
+
+std::string toInchiKey(const Document& doc) {
+    std::string inchi = toInchi(doc);
+    return inchi.empty() ? "" : RDKit::InchiToInchiKey(inchi);
 }
 
 // One connected fragment, laid out around its old centroid.

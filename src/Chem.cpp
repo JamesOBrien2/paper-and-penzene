@@ -1,7 +1,7 @@
 #include "Chem.h"
 
 #include <GraphMol/Chirality.h>
-#include <GraphMol/chemdraw.h>
+#include <GraphMol/FileParsers/CDXMLParser.h>
 #include <GraphMol/Depictor/RDDepictor.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
 #include <GraphMol/inchi.h>
@@ -271,7 +271,9 @@ static void chemDrawGraphics(const QByteArray& xml, Document& doc) {
 std::optional<Document> fromChemDraw(const QByteArray& data) {
     std::vector<std::unique_ptr<RWMol>> mols;
     try {
-        mols = RDKit::v2::MolsFromChemDrawBlock(data.toStdString());
+        // Binary .cdx needs RDKit's ChemDraw library, which not every build has.
+        if (!data.trimmed().startsWith('<') && !RDKit::v2::CDXMLParser::hasChemDrawCDXSupport()) return std::nullopt;
+        mols = RDKit::v2::CDXMLParser::MolsFromCDXML(data.toStdString());
     } catch (...) {
         return std::nullopt;
     }

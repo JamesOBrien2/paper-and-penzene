@@ -8,7 +8,8 @@
 namespace chem {
 std::optional<Document> fromSmiles(const std::string& smiles);
 std::optional<Document> fromMolBlock(const std::string& block);
-// ChemDraw .cdxml (molecules, arrows, text) or binary .cdx (molecules only).
+// ChemDraw .cdxml (molecules, arrows, text) or binary .cdx (molecules only,
+// where RDKit was built with ChemDraw support).
 std::optional<Document> fromChemDraw(const QByteArray& data);
 // .penz, .cdxml/.cdx, or MOL/SDF, by extension.
 std::optional<Document> readFile(const QString& path);

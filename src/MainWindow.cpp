@@ -248,26 +248,36 @@ void MainWindow::buildMenus() {
         QMessageBox box(this);
         box.setWindowTitle(tr("Keyboard Shortcuts"));
         box.setTextFormat(Qt::RichText);
-        box.setText(tr(R"(<p>Hover an atom or bond and press a key.</p>
-<table cellspacing="6">
-<tr><th colspan="2" align="left">Atom</th></tr>
-<tr><td><b>1 2 3</b></td><td>add single / double / triple bond (hotspot follows, so 1111 draws a chain)</td></tr>
-<tr><td><b>← ↑ → ↓</b></td><td>move the hotspot to a neighbouring atom</td></tr>
-<tr><td><b>4–8</b></td><td>spiro ring of that size</td></tr>
-<tr><td><b>c n o s P f l b i h B</b></td><td>C N O S P F Cl Br I H B &nbsp;(w = N, q = O)</td></tr>
-<tr><td><b>O N F S</b></td><td>OMe, NO<sub>2</sub>, CF<sub>3</sub>, SiH<sub>3</sub></td></tr>
-<tr><td><b>m e p/a K v u</b></td><td>Me, Et, Ph, tBu, cyclopropyl, cyclobutyl</td></tr>
-<tr><td><b>E x y t Z</b></td><td>CO<sub>2</sub>Me, Ac, CN, Boc, N<sub>3</sub></td></tr>
-<tr><td><b>+ &minus;</b></td><td>charge</td></tr>
-<tr><td><b>Enter</b></td><td>type a label: element, group (OMe, Boc…) or SMILES</td></tr>
-<tr><td><b>Delete</b></td><td>delete atom (or selection)</td></tr>
+        box.setText(tr(R"(<p>Point at an atom or bond to make it the <b>hotspot</b>. It stays put when the mouse
+moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
+<table cellspacing="5">
+<tr><th colspan="2" align="left">Moving the hotspot</th></tr>
+<tr><td><b>←↑→↓</b></td><td>atom → bond → atom; with <b>Shift</b>: atom → atom, bond → bond</td></tr>
+<tr><td><b>Esc</b></td><td>clear hotspot and selection</td></tr>
+<tr><th colspan="2" align="left">Atom: sprout</th></tr>
+<tr><td><b>1</b> / <b>0</b></td><td>single bond, linear / cyclic mode (0 is longer on 2°/3° carbons)</td></tr>
+<tr><td><b>2</b></td><td>acetyl (1°), C=O (2°), CH<sub>2</sub>-acetyl (3°/aromatic)</td></tr>
+<tr><td><b>3</b> or <b>a</b></td><td>phenyl</td></tr>
+<tr><td><b>4</b> / <b>5</b></td><td>wedged / hashed methyl</td></tr>
+<tr><td><b>6 7 u v</b></td><td>cyclohexane, cyclopentane, cyclobutane, cyclopropane (spiro on 2°)</td></tr>
+<tr><td><b>8 9 z</b></td><td>methylidene, dimethyl / gem-dimethyl / isopropyl, alkyne</td></tr>
+<tr><td><b>k K</b></td><td>sulfonyl, t-Bu</td></tr>
+<tr><th colspan="2" align="left">Atom: label</th></tr>
+<tr><td><b>c n/w o/q s p f l b i h</b></td><td>C N O S P F Cl Br I H</td></tr>
+<tr><td><b>B S L</b></td><td>B, Si, Li</td></tr>
+<tr><td><b>m e P A</b></td><td>Me, Et, Ph, Ac</td></tr>
+<tr><td><b>O N F E Z</b></td><td>OMe, NO<sub>2</sub>, CF<sub>3</sub>, CO<sub>2</sub>Me, N<sub>3</sub></td></tr>
+<tr><td><b>Y H Q M</b></td><td>Boc, Cbz, Fmoc, MgBr</td></tr>
+<tr><td><b>+ −</b></td><td>charge</td></tr>
+<tr><td><b>Enter</b> or <b>=</b></td><td>type a label: element, group or SMILES</td></tr>
+<tr><td><b>Delete</b></td><td>remove label (C stays), or delete a carbon</td></tr>
 <tr><th colspan="2" align="left">Bond</th></tr>
-<tr><td><b>1 2 3</b></td><td>bond order</td></tr>
-<tr><td><b>w h</b></td><td>wedge / hashed (press again to flip)</td></tr>
-<tr><td><b>a v 4–8</b></td><td>fuse benzene / cyclopropane / ring of that size</td></tr>
+<tr><td><b>1 2 3</b></td><td>single, double, triple</td></tr>
+<tr><td><b>w</b> / <b>h</b></td><td>wedged / hashed (press again to flip)</td></tr>
+<tr><td><b>a z</b></td><td>fuse benzene / cyclopentadiene</td></tr>
+<tr><td><b>v 4–8</b></td><td>fuse ring of that size (v = 3)</td></tr>
 <tr><th colspan="2" align="left">Selection</th></tr>
-<tr><td><b>Alt+← →</b></td><td>rotate 15°</td></tr>
-<tr><td><b>Alt+drag</b></td><td>rotate freely &nbsp; <b>double-click</b>: select fragment</td></tr>
+<tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment</td></tr>
 </table>)"));
         box.exec();
     });

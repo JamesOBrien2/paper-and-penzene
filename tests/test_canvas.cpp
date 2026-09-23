@@ -149,7 +149,7 @@ TEST_CASE("ring on a terminal atom bisects the outside angle") {
     }
 }
 
-TEST_CASE("hotkeys: chain, groups, bonds, fused rings, arrows") {
+TEST_CASE("hotkeys: chain, labels, groups, bonds") {
     Fixture f;
     f.canvas.setTool(Canvas::Tool::Bond);
     f.click({0, 0});
@@ -158,26 +158,23 @@ TEST_CASE("hotkeys: chain, groups, bonds, fused rings, arrows") {
     CHECK(f.doc().atoms.size() == 5);
     CHECK(f.doc().bonds.size() == 4);
 
-    f.key("O");  // last atom -> OMe
+    f.key("O");  // Shift+o: OMe
     REQUIRE(f.doc().atoms.size() == 6);
     CHECK(f.doc().atoms[4].z == 8);
-    CHECK(f.doc().atoms[5].z == 6);
-
-    f.key("F");  // hotspot still on the O: now CF3 (C + 3 F), replacing O
+    f.key("F");  // Shift+f: CF3 replaces the O
     CHECK(f.doc().atoms[4].z == 6);
     CHECK(f.doc().atoms.size() == 9);
 
-    // Arrow keys walk the hotspot back along the chain.
+    // Shift+arrow jumps atom to atom back along the chain.
     f.hover(f.doc().atoms[1].pos);
     QPointF dir = f.doc().atoms[0].pos - f.doc().atoms[1].pos;
-    QTest::keyClick(f.canvas.viewport(), dir.x() < 0 ? Qt::Key_Left : Qt::Key_Right);
+    QTest::keyClick(f.canvas.viewport(), dir.x() < 0 ? Qt::Key_Left : Qt::Key_Right, Qt::ShiftModifier);
     f.key("n");
     CHECK(f.doc().atoms[0].z == 7);
 
-    // Bond hotkeys.
+    // Bond hotkeys: 2 on a bond makes it double (on an atom it sprouts a carbonyl).
     const auto& d = f.doc();
-    QPointF mid = (d.atoms[d.bonds[1].a].pos + d.atoms[d.bonds[1].b].pos) / 2;
-    f.hover(mid);
+    f.hover((d.atoms[d.bonds[1].a].pos + d.atoms[d.bonds[1].b].pos) / 2);
     f.key("2");
     CHECK(f.doc().bonds[1].order == 2);
     f.key("w");
@@ -185,6 +182,90 @@ TEST_CASE("hotkeys: chain, groups, bonds, fused rings, arrows") {
     int a = f.doc().bonds[1].a;
     f.key("w");
     CHECK(f.doc().bonds[1].b == a);  // flipped
+}
+
+static std::string noStereo(std::string smi) {
+    std::erase(smi, '@');
+    return chem::toSmiles(*chem::fromSmiles(smi));
+}
+
+// The worked example from ChemDraw's cheat sheet: from H2N-CH3, "42n152o" builds Ala-Ala.
+TEST_CASE("hotkeys: ChemDraw dipeptide example") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Bond);
+    f.click({0, 0});
+    f.hover(f.doc().atoms[0].pos);
+    f.key("n");
+    f.hover(f.doc().atoms[1].pos);
+    f.key("42n152o");
+    CHECK(noStereo(chem::toSmiles(f.doc())) == noStereo("CC(N)C(=O)NC(C)C(=O)O"));
+    int wedges = 0, hashes = 0;
+    for (auto& b : f.doc().bonds) wedges += b.stereo == BondStereo::Wedge, hashes += b.stereo == BondStereo::Hash;
+    CHECK(wedges == 1);
+    CHECK(hashes == 1);
+}
+
+TEST_CASE("hotkeys: context-dependent sprouts") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Chain);
+    f.drag({0, 0}, {40, 0});  // propane-ish chain
+    REQUIRE(f.doc().atoms.size() >= 3);
+    f.hover(f.doc().atoms[1].pos);  // secondary carbon
+    f.key("2");
+    CHECK(f.doc().atoms.back().z == 8);  // ketone on the hotspot
+    CHECK(f.doc().bonds.back().order == 2);
+
+    Fixture g;
+    g.canvas.setTool(Canvas::Tool::Ring);
+    g.canvas.setRing(6, false);
+    g.click({0, 0});
+    g.hover(g.doc().atoms[0].pos);  // secondary ring carbon
+    g.key("9");                     // gem-dimethyl
+    CHECK(g.doc().atoms.size() == 8);
+    CHECK(g.doc().neighbors(0).size() == 4);
+
+    Fixture t;  // tertiary ring carbon: "6" adds a C-C bond, then a cyclohexane
+    t.canvas.setTool(Canvas::Tool::Ring);
+    t.canvas.setRing(6, false);
+    t.click({0, 0});
+    t.hover(t.doc().atoms[0].pos);
+    t.key("1");
+    t.hover(t.doc().atoms[0].pos);
+    t.key("6");
+    CHECK(t.doc().atoms.size() == 6 + 1 + 1 + 5);
+    CHECK(t.doc().neighbors(0).size() == 4);
+
+    Fixture h;  // phenyl on an aromatic carbon goes via a C-C bond (biphenyl)
+    h.canvas.setTool(Canvas::Tool::Ring);
+    h.canvas.setRing(6, true);
+    h.click({0, 0});
+    h.hover(h.doc().atoms[0].pos);
+    h.key("a");
+    CHECK(noStereo(chem::toSmiles(h.doc())) == noStereo("c1ccc(-c2ccccc2)cc1"));
+}
+
+TEST_CASE("hotspot is sticky and arrows walk atom -> bond -> atom") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Bond);
+    f.click({0, 0});
+    f.hover(f.doc().atoms[1].pos);
+    f.hover({300, 300});  // drift off into empty space
+    CHECK(f.canvas.hotspotAtom() == 1);
+    f.key("1");
+    CHECK(f.doc().atoms.size() == 3);
+    CHECK(f.canvas.hotspotAtom() == 2);
+
+    QPointF back = f.doc().atoms[1].pos - f.doc().atoms[2].pos;
+    auto toward = [&](QPointF v) {
+        return std::abs(v.x()) > std::abs(v.y()) ? (v.x() < 0 ? Qt::Key_Left : Qt::Key_Right)
+                                                 : (v.y() < 0 ? Qt::Key_Up : Qt::Key_Down);
+    };
+    QTest::keyClick(f.canvas.viewport(), toward(back));
+    CHECK(f.canvas.hotspotBond() == 1);
+    QTest::keyClick(f.canvas.viewport(), toward(back));
+    CHECK(f.canvas.hotspotAtom() == 1);
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Escape);
+    CHECK(f.canvas.hotspotAtom() == -1);
 }
 
 TEST_CASE("hotkeys: fused ring on a bond") {

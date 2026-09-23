@@ -7,7 +7,8 @@
 #include <cmath>
 #include <numbers>
 
-static const char* kStereo[] = {"none", "wedge", "hash"};
+static const char* kStereo[] = {"none", "wedge", "hash", "bold", "dashed", "wavy"};
+static const char* kPosition[] = {"auto", "left", "centre", "right"};
 static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook"};
 
 QByteArray Document::toJson() const {
@@ -21,6 +22,7 @@ QByteArray Document::toJson() const {
     for (const auto& b : bonds) {
         QJsonObject o{{"a", b.a}, {"b", b.b}, {"order", b.order}};
         if (b.stereo != BondStereo::None) o["stereo"] = kStereo[int(b.stereo)];
+        if (b.position != BondPosition::Auto) o["position"] = kPosition[int(b.position)];
         bs.append(o);
     }
     QJsonObject root{{"format", "penzene"}, {"version", 1}, {"atoms", as}, {"bonds", bs}};
@@ -54,8 +56,12 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         // Untrusted file: reject dangling or self bonds rather than crash later.
         if (b.a < 0 || b.a >= n || b.b < 0 || b.b >= n || b.a == b.b) return std::nullopt;
         b.order = std::clamp(b.order, 1, 3);
-        auto s = o["stereo"].toString();
-        b.stereo = s == "wedge" ? BondStereo::Wedge : s == "hash" ? BondStereo::Hash : BondStereo::None;
+        auto index = [](const auto& names, const QString& s) {
+            auto it = std::find(std::begin(names), std::end(names), s);
+            return it == std::end(names) ? 0 : int(it - std::begin(names));  // unknown: default
+        };
+        b.stereo = BondStereo(index(kStereo, o["stereo"].toString()));
+        b.position = BondPosition(index(kPosition, o["position"].toString()));
         doc.bonds.push_back(b);
     }
     auto finite = [](std::initializer_list<double> v) {

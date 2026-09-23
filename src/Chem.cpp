@@ -106,12 +106,13 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in) {
                     : b.order == 3 ? RDKit::Bond::TRIPLE
                                    : RDKit::Bond::SINGLE;
         mol->addBond(b.a, b.b, type);
-        if (b.stereo != BondStereo::None) {
+        if (b.stereo == BondStereo::Wedge || b.stereo == BondStereo::Hash || b.stereo == BondStereo::Wavy) {
             auto* bond = mol->getBondBetweenAtoms(b.a, b.b);
-            bond->setBondDir(b.stereo == BondStereo::Wedge ? RDKit::Bond::BEGINWEDGE
-                                                           : RDKit::Bond::BEGINDASH);
+            bond->setBondDir(b.stereo == BondStereo::Wedge  ? RDKit::Bond::BEGINWEDGE
+                             : b.stereo == BondStereo::Hash ? RDKit::Bond::BEGINDASH
+                                                            : RDKit::Bond::UNKNOWN);
             bond->setProp(RDKit::common_properties::_MolFileBondStereo,
-                          b.stereo == BondStereo::Wedge ? 1u : 6u);
+                          b.stereo == BondStereo::Wedge ? 1u : b.stereo == BondStereo::Hash ? 6u : 4u);
         }
     }
     conf->set3D(false);
@@ -170,6 +171,7 @@ static Document fromRDKit(RWMol& mol, double scale = 0) {
                                                               : 1;
         out.stereo = b->getBondDir() == RDKit::Bond::BEGINWEDGE  ? BondStereo::Wedge
                      : b->getBondDir() == RDKit::Bond::BEGINDASH ? BondStereo::Hash
+                     : b->getBondDir() == RDKit::Bond::UNKNOWN   ? BondStereo::Wavy
                                                                  : BondStereo::None;
         doc.bonds.push_back(out);
     }

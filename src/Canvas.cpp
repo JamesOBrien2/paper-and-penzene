@@ -27,6 +27,7 @@ constexpr double kLineWidth = 0.6;
 constexpr double kBondSpacing = 0.18 * kBondLength;  // double-bond gap
 constexpr double kWedgeWidth = 4.5;
 constexpr double kHashSpacing = 2.2;
+constexpr double kBoldWidth = 2.0;
 constexpr double kFontSize = 10;
 constexpr double kLabelRadius = 5.5;  // bonds stop short of labels
 constexpr double kMergeRadius = 0.3 * kBondLength;
@@ -143,8 +144,30 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
         return;
     }
 
+    if (b.stereo == BondStereo::Wavy) {
+        QPainterPath wave(a);
+        const double L = len(e - a);
+        const int bumps = std::max(2, int(std::round(L / 3)));
+        for (int k = 0; k < bumps; ++k) {
+            QPointF from = a + (e - a) * (double(k) / bumps), to = a + (e - a) * (double(k + 1) / bumps);
+            wave.quadTo((from + to) / 2 + n * (k % 2 ? -2.0 : 2.0) * 1.3, to);
+        }
+        p.drawPath(wave);
+        return;
+    }
+    // Bold styles the main line, Dashed the other one (or the only one).
+    const QPen pen = p.pen();
+    auto line = [&](QPointF x, QPointF y, bool main) {
+        QPen q = pen;
+        if (b.stereo == BondStereo::Bold && main) q.setWidthF(kBoldWidth), q.setCapStyle(Qt::FlatCap);
+        if (b.stereo == BondStereo::Dashed && (!main || b.order == 1)) q.setDashPattern({2.5, 2.5});
+        p.setPen(q);
+        p.drawLine(x, y);
+        p.setPen(pen);
+    };
+
     if (b.order == 1) {
-        p.drawLine(a, e);
+        line(a, e, true);
     } else if (b.order == 3) {
         p.drawLine(a, e);
         p.drawLine(a + n * kBondSpacing, e + n * kBondSpacing);
@@ -160,16 +183,18 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
         // both lines would cross into the adjoining single bonds.
         // Also centred at an sp centre, so cumulated C=C=C lines meet.
         bool centred = degree[b.a] == 1 || degree[b.b] == 1 || isSp(doc, b.a) || isSp(doc, b.b);
+        if (b.position == BondPosition::Centre) centred = true;
+        else if (b.position != BondPosition::Auto) centred = false, side = b.position == BondPosition::Right ? 1 : -1;
         if (centred) {
             QPointF o = n * kBondSpacing / 2;
-            p.drawLine(a + o, e + o);
-            p.drawLine(a - o, e - o);
+            line(a + o, e + o, true);
+            line(a - o, e - o, false);
         } else {
             QPointF o = n * (side >= 0 ? kBondSpacing : -kBondSpacing);
             QPointF shrink = d * (0.15 * kBondLength);
             QPointF ia = labeled[b.a] ? a : a + shrink, ie = labeled[b.b] ? e : e - shrink;
-            p.drawLine(a, e);
-            p.drawLine(ia + o, ie + o);
+            line(a, e, true);
+            line(ia + o, ie + o, false);
         }
     }
 }
@@ -495,6 +520,37 @@ void ringOnBond(Document& doc, int bond, int n, bool aromatic) {
     auto verts = polygon(centre, pa, n);
     if (len(verts[1] - pb) > 1) verts = polygon(centre, pb, n);  // wind the right way
     addRing(doc, verts, aromatic);
+}
+
+// Chair cyclohexane fused onto the bond, built on template edge `edge` (0 or 1,
+// the ChemDraw 9 / 0 keys), mirrored to the side away from the other neighbours.
+void chairOnBond(Document& doc, int bond, int edge) {
+    // Opposite edges parallel; roughly unit bonds.
+    static const QPointF chair[6] = {{0, 0}, {0.95, 0.35}, {1.95, 0.05}, {2.55, 0.75}, {1.6, 0.4}, {0.6, 0.7}};
+    const Bond& b = doc.bonds[bond];
+    QPointF pa = doc.atoms[b.a].pos, pb = doc.atoms[b.b].pos, d = pb - pa;
+    double side = 0;
+    for (int end : {b.a, b.b})
+        for (int nb : doc.neighbors(end))
+            if (nb != b.a && nb != b.b) side += cross(d, doc.atoms[nb].pos - pa);
+    QPointF t0 = chair[edge], t1 = chair[edge + 1], td = t1 - t0;
+    const double scale = len(d) / len(td);
+    std::vector<QPointF> best;
+    for (int mirror : {1, -1}) {
+        std::vector<QPointF> verts;
+        for (int k = 0; k < 6; ++k) {
+            QPointF r = chair[(edge + k) % 6] - t0;
+            r.setY(r.y() * mirror);
+            QPointF td2(td.x(), td.y() * mirror);
+            double rr = std::atan2(d.y(), d.x()) - std::atan2(td2.y(), td2.x());
+            verts.push_back(pa + QPointF(r.x() * std::cos(rr) - r.y() * std::sin(rr),
+                                         r.x() * std::sin(rr) + r.y() * std::cos(rr)) * scale);
+        }
+        QPointF c;
+        for (QPointF v : verts) c += v / 6;
+        if (best.empty() || (cross(d, c - pa) > 0) != (side > 0)) best = verts;
+    }
+    addRing(doc, best, false);
 }
 
 // After a bond order change: if an end became an sp centre with two neighbours,
@@ -1235,6 +1291,29 @@ void Canvas::expandAbbreviations() {
     if (!(next == doc_)) commit(next, tr("Expand"));
 }
 
+// Copies the selection to the far side of the next arrow in `dir` (ChemDraw's
+// Ctrl+arrow), or just past the selection when there is no arrow that way.
+void Canvas::duplicateSelection(QPointF dir) {
+    Document copy = selectedSubset();
+    if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return;
+    const QRectF box = documentBounds(copy);
+    const QPointF c = box.center();
+    const double half = std::abs(QPointF::dotProduct(QPointF(box.width(), box.height()) / 2, dir));
+    double shift = 2 * half + 2 * kBondLength;
+    double nearest = std::numeric_limits<double>::infinity();
+    for (const auto& a : doc_.arrows) {
+        double from = QPointF::dotProduct(a.from - c, dir), to = QPointF::dotProduct(a.to - c, dir);
+        double lo = std::min(from, to), hi = std::max(from, to);
+        if (lo > half - 1 && lo < nearest) nearest = lo, shift = hi + (lo - half) + half;
+    }
+    Document next = doc_;
+    next.append(copy, dir * shift);
+    commit(next, tr("Duplicate"));
+    setSelection(range(int(doc_.atoms.size() - copy.atoms.size()), int(doc_.atoms.size())),
+                 range(int(doc_.arrows.size() - copy.arrows.size()), int(doc_.arrows.size())),
+                 range(int(doc_.texts.size() - copy.texts.size()), int(doc_.texts.size())));
+}
+
 void Canvas::editText(int i, QPointF pos) {
     // The editor uses the canvas font and tab stops, so spacing looks the same on both.
     QInputDialog dialog(this);
@@ -1268,6 +1347,8 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
     }
     if (arrow && !(e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)))
         return moveHotspot(arrowDirection(key), e->modifiers() & Qt::ShiftModifier);
+    if (arrow && (e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)))
+        return duplicateSelection(arrowDirection(key));
     if (key == Qt::Key_Escape) {
         hoverAtom_ = hoverBond_ = -1;
         return setSelection({});
@@ -1312,6 +1393,10 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
         viewport()->update();
         return;
     }
+    if (hoverAtom_ < 0 && hoverBond_ < 0) {  // no hotspot: tool keys
+        static const QStringList tools{"x", "X", "j", "t", "e", " "};
+        if (tools.contains(t)) return emit toolKey(t);
+    }
     if (hoverBond_ >= 0) {
         Bond& b = next.bonds[hoverBond_];
         static const QHash<QString, std::pair<int, bool>> fuse{
@@ -1326,6 +1411,17 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
             b.stereo = s, b.order = 1;
         } else if (fuse.contains(t)) {
             ringOnBond(next, hoverBond_, fuse[t].first, fuse[t].second);
+        } else if (t == "9" || t == "0") {
+            chairOnBond(next, hoverBond_, t == "9" ? 0 : 1);
+        } else if (t == "d" || t == "b" || t == "y" || t == "D" || t == "B") {
+            static const QHash<QString, BondStereo> styles{{"d", BondStereo::Dashed}, {"b", BondStereo::Bold},
+                                                           {"y", BondStereo::Wavy},   {"D", BondStereo::Dashed},
+                                                           {"B", BondStereo::Bold}};
+            b.stereo = styles[t];
+            b.order = t == "D" || t == "B" ? 2 : 1;
+        } else if (t == "l" || t == "c" || t == "r") {
+            if (b.order != 2) b.order = 2, b.stereo = BondStereo::None;
+            b.position = t == "l" ? BondPosition::Left : t == "c" ? BondPosition::Centre : BondPosition::Right;
         } else {
             return QGraphicsView::keyPressEvent(e);
         }

@@ -83,7 +83,7 @@ jobs:
             -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
           mv Paper*.AppImage penzene-linux-x86_64.AppImage
           mv .pixi .pixi-hidden
-          QT_DEBUG_PLUGINS=1 xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
+          xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
           test -s smoke.svg
           mv .pixi-hidden .pixi
       - uses: actions/upload-artifact@v4

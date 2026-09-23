@@ -23,7 +23,6 @@
 #include <limits>
 
 // ACS 1996 document settings, in points.
-constexpr double kLineWidth = 0.6;
 constexpr double kBondSpacing = 0.18 * kBondLength;  // double-bond gap
 constexpr double kWedgeWidth = 4.5;
 constexpr double kHashSpacing = 2.2;
@@ -307,13 +306,13 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     for (size_t i = 0; i < doc.atoms.size(); ++i) labeled[i] = hasLabel(doc, int(i), degree);
     auto info = chem::atomInfo(doc);
 
-    QPen pen(style.ink, kLineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(style.ink, style.lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
     for (const auto& b : doc.bonds) drawBond(p, doc, b, degree, labeled);
 
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
         const auto& a = doc.atoms[i];
-        p.setPen(QPen(info[i].valenceError ? style.error : style.ink, kLineWidth));
+        p.setPen(QPen(info[i].valenceError ? style.error : style.ink, style.lineWidth));
         if (labeled[i]) {
             // H goes on the side away from the bonds.
             double dx = 0;
@@ -328,7 +327,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         }
         if (info[i].valenceError && !labeled[i]) p.drawEllipse(a.pos, 3, 3);
     }
-    p.setPen(QPen(style.ink, kLineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
+    p.setPen(QPen(style.ink, style.lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
     for (const auto& a : doc.arrows) drawArrow(p, a);
     for (const auto& t : doc.texts) p.fillPath(textPath(t), style.ink);
     p.restore();

@@ -13,6 +13,7 @@ class QUndoStack;
 struct RenderStyle {
     QColor ink = Qt::black;
     QColor error = QColor(220, 40, 40);
+    double lineWidth = 0.6;  // ACS 1996
 };
 
 // Paints a document with ACS 1996 proportions. Shared by the canvas and export.

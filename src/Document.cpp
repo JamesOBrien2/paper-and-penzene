@@ -46,3 +46,34 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     }
     return doc;
 }
+
+int Document::addAtom(QPointF pos, int z) {
+    atoms.push_back({pos, z});
+    return int(atoms.size()) - 1;
+}
+
+int Document::bondBetween(int a, int b) const {
+    for (size_t i = 0; i < bonds.size(); ++i)
+        if ((bonds[i].a == a && bonds[i].b == b) || (bonds[i].a == b && bonds[i].b == a))
+            return int(i);
+    return -1;
+}
+
+std::vector<int> Document::neighbors(int atom) const {
+    std::vector<int> out;
+    for (const auto& b : bonds)
+        if (b.a == atom) out.push_back(b.b);
+        else if (b.b == atom) out.push_back(b.a);
+    return out;
+}
+
+void Document::removeAtoms(const std::vector<int>& drop) {
+    std::vector<int> remap(atoms.size(), 0);
+    for (int i : drop) remap[i] = -1;
+    std::vector<Atom> kept;
+    for (size_t i = 0; i < atoms.size(); ++i)
+        if (remap[i] != -1) remap[i] = int(kept.size()), kept.push_back(atoms[i]);
+    atoms = std::move(kept);
+    std::erase_if(bonds, [&](const Bond& b) { return remap[b.a] < 0 || remap[b.b] < 0; });
+    for (auto& b : bonds) b.a = remap[b.a], b.b = remap[b.b];
+}

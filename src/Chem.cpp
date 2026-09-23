@@ -5,6 +5,7 @@
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/MolOps.h>
+#include <GraphMol/PeriodicTable.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 
@@ -172,6 +173,18 @@ std::vector<AtomInfo> atomInfo(const Document& doc) {
         i.hydrogens = int(a->getNumImplicitHs());
     }
     return info;
+}
+
+std::string symbol(int z) {
+    return RDKit::PeriodicTable::getTable()->getElementSymbol(z);
+}
+
+int atomicNumber(const std::string& sym) {
+    try {
+        return RDKit::PeriodicTable::getTable()->getAtomicNumber(sym);
+    } catch (...) {
+        return 0;
+    }
 }
 
 }  // namespace chem

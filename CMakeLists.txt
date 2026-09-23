@@ -11,7 +11,7 @@ find_package(RDKit REQUIRED CONFIG)
 
 # Everything except main.cpp, so tests link the same code as the app.
 add_library(penzene_core STATIC
-    src/Document.cpp src/Chem.cpp)
+    src/Document.cpp src/Chem.cpp src/Canvas.cpp src/MainWindow.cpp)
 target_include_directories(penzene_core PUBLIC src)
 target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSION}")
 target_link_libraries(penzene_core PUBLIC
@@ -21,7 +21,8 @@ target_link_libraries(penzene_core PUBLIC
 add_executable(penzene WIN32 src/main.cpp)
 target_link_libraries(penzene PRIVATE penzene_core)
 find_package(Catch2 3 REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Test)
 enable_testing()
-add_executable(penzene_tests tests/test_core.cpp)
-target_link_libraries(penzene_tests PRIVATE penzene_core Catch2::Catch2WithMain)
+add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
+target_link_libraries(penzene_tests PRIVATE penzene_core Qt6::Test Catch2::Catch2WithMain)
 add_test(NAME core COMMAND penzene_tests)

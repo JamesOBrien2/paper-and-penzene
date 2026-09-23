@@ -29,6 +29,11 @@ struct Document {
     // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...]}
     QByteArray toJson() const;
     static std::optional<Document> fromJson(const QByteArray& data);
+
+    int addAtom(QPointF pos, int z = 6);
+    int bondBetween(int a, int b) const;  // bond index or -1
+    std::vector<int> neighbors(int atom) const;
+    void removeAtoms(const std::vector<int>& atoms);  // also drops their bonds
 };
 
 inline bool operator==(const Atom& x, const Atom& y) {

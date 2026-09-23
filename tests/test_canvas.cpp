@@ -31,6 +31,13 @@ struct Fixture : App {
         QApplication::sendEvent(canvas.viewport(), &move);
         QTest::mouseRelease(canvas.viewport(), Qt::LeftButton, {}, at(to));
     }
+    void hover(QPointF scene) {
+        QMouseEvent move(QEvent::MouseMove, at(scene), canvas.viewport()->mapToGlobal(at(scene)), Qt::NoButton,
+                         Qt::NoButton, {});
+        QApplication::sendEvent(canvas.viewport(), &move);
+    }
+    void key(const QString& k) { QTest::keyClicks(canvas.viewport(), k); }
+    const Document& doc() const { return canvas.document(); }
     int doubles() const {
         int n = 0;
         for (auto& b : canvas.document().bonds) n += b.order == 2;
@@ -116,4 +123,89 @@ TEST_CASE("main window screenshot") {
     w.show();
     REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
     if (auto out = qgetenv("PENZENE_SCREENSHOT"); !out.isEmpty()) w.grab().save(out);
+}
+
+// #42: a ring on a terminal atom must continue straight on, so the substituent
+// bond bisects the ring's outside angle.
+TEST_CASE("ring on a terminal atom bisects the outside angle") {
+    for (int n : {3, 6}) {
+        Fixture f;
+        f.canvas.setTool(Canvas::Tool::Bond);
+        f.click({0, 0});
+        const QPointF stem = f.doc().atoms[0].pos;
+        f.canvas.setTool(Canvas::Tool::Ring);
+        f.canvas.setRing(n, n == 6);
+        f.click(f.doc().atoms[1].pos);
+        REQUIRE(f.doc().atoms.size() == size_t(n + 1));
+        QPointF p = f.doc().atoms[1].pos, sum;
+        for (int nb : f.doc().neighbors(1))
+            if (f.doc().atoms[nb].pos != stem) {
+                QPointF v = f.doc().atoms[nb].pos - p;
+                sum += v / std::hypot(v.x(), v.y());
+            }
+        QPointF s = stem - p;
+        double cosang = (sum.x() * s.x() + sum.y() * s.y()) / (std::hypot(sum.x(), sum.y()) * std::hypot(s.x(), s.y()));
+        CHECK(cosang < -0.999);
+    }
+}
+
+TEST_CASE("hotkeys: chain, groups, bonds, fused rings, arrows") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Bond);
+    f.click({0, 0});
+    f.hover(f.doc().atoms[1].pos);
+    f.key("111");  // hotspot follows each new atom
+    CHECK(f.doc().atoms.size() == 5);
+    CHECK(f.doc().bonds.size() == 4);
+
+    f.key("O");  // last atom -> OMe
+    REQUIRE(f.doc().atoms.size() == 6);
+    CHECK(f.doc().atoms[4].z == 8);
+    CHECK(f.doc().atoms[5].z == 6);
+
+    f.key("F");  // hotspot still on the O: now CF3 (C + 3 F), replacing O
+    CHECK(f.doc().atoms[4].z == 6);
+    CHECK(f.doc().atoms.size() == 9);
+
+    // Arrow keys walk the hotspot back along the chain.
+    f.hover(f.doc().atoms[1].pos);
+    QPointF dir = f.doc().atoms[0].pos - f.doc().atoms[1].pos;
+    QTest::keyClick(f.canvas.viewport(), dir.x() < 0 ? Qt::Key_Left : Qt::Key_Right);
+    f.key("n");
+    CHECK(f.doc().atoms[0].z == 7);
+
+    // Bond hotkeys.
+    const auto& d = f.doc();
+    QPointF mid = (d.atoms[d.bonds[1].a].pos + d.atoms[d.bonds[1].b].pos) / 2;
+    f.hover(mid);
+    f.key("2");
+    CHECK(f.doc().bonds[1].order == 2);
+    f.key("w");
+    CHECK(f.doc().bonds[1].stereo == BondStereo::Wedge);
+    int a = f.doc().bonds[1].a;
+    f.key("w");
+    CHECK(f.doc().bonds[1].b == a);  // flipped
+}
+
+TEST_CASE("hotkeys: fused ring on a bond") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Bond);
+    f.click({0, 0});
+    f.hover((f.doc().atoms[0].pos + f.doc().atoms[1].pos) / 2);
+    f.key("a");
+    CHECK(f.doc().atoms.size() == 6);  // benzene shares the bond's 2 atoms
+    CHECK(f.doubles() == 3);
+}
+
+TEST_CASE("applyLabel understands elements, groups and SMILES") {
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    d.bonds = {{0, 1}};
+    CHECK(Canvas::applyLabel(d, 1, "Br"));
+    CHECK(d.atoms[1].z == 35);
+    CHECK(Canvas::applyLabel(d, 1, "NO2"));
+    CHECK(d.atoms[1].charge == 1);
+    CHECK(d.atoms.size() == 4);
+    CHECK(chem::toSmiles(d) == "C[N+](=O)[O-]");
+    CHECK_FALSE(Canvas::applyLabel(d, 0, "notachem!!"));
 }

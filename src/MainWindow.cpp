@@ -242,4 +242,39 @@ void MainWindow::buildMenus() {
     view->addAction(tr("Zoom &In"), QKeySequence::ZoomIn, this, [this] { canvas_->zoomBy(1.25); });
     view->addAction(tr("Zoom &Out"), QKeySequence::ZoomOut, this, [this] { canvas_->zoomBy(0.8); });
     view->addAction(tr("&Fit to Window"), QKeySequence(tr("Ctrl+0")), canvas_, &Canvas::fitToDocument);
+
+    auto* help = menuBar()->addMenu(tr("&Help"));
+    help->addAction(tr("&Keyboard Shortcuts"), QKeySequence(tr("F1")), this, [this] {
+        QMessageBox box(this);
+        box.setWindowTitle(tr("Keyboard Shortcuts"));
+        box.setTextFormat(Qt::RichText);
+        box.setText(tr(R"(<p>Hover an atom or bond and press a key.</p>
+<table cellspacing="6">
+<tr><th colspan="2" align="left">Atom</th></tr>
+<tr><td><b>1 2 3</b></td><td>add single / double / triple bond (hotspot follows, so 1111 draws a chain)</td></tr>
+<tr><td><b>← ↑ → ↓</b></td><td>move the hotspot to a neighbouring atom</td></tr>
+<tr><td><b>4–8</b></td><td>spiro ring of that size</td></tr>
+<tr><td><b>c n o s P f l b i h B</b></td><td>C N O S P F Cl Br I H B &nbsp;(w = N, q = O)</td></tr>
+<tr><td><b>O N F S</b></td><td>OMe, NO<sub>2</sub>, CF<sub>3</sub>, SiH<sub>3</sub></td></tr>
+<tr><td><b>m e p/a K v u</b></td><td>Me, Et, Ph, tBu, cyclopropyl, cyclobutyl</td></tr>
+<tr><td><b>E x y t Z</b></td><td>CO<sub>2</sub>Me, Ac, CN, Boc, N<sub>3</sub></td></tr>
+<tr><td><b>+ &minus;</b></td><td>charge</td></tr>
+<tr><td><b>Enter</b></td><td>type a label: element, group (OMe, Boc…) or SMILES</td></tr>
+<tr><td><b>Delete</b></td><td>delete atom (or selection)</td></tr>
+<tr><th colspan="2" align="left">Bond</th></tr>
+<tr><td><b>1 2 3</b></td><td>bond order</td></tr>
+<tr><td><b>w h</b></td><td>wedge / hashed (press again to flip)</td></tr>
+<tr><td><b>a v 4–8</b></td><td>fuse benzene / cyclopropane / ring of that size</td></tr>
+<tr><th colspan="2" align="left">Selection</th></tr>
+<tr><td><b>Alt+← →</b></td><td>rotate 15°</td></tr>
+<tr><td><b>Alt+drag</b></td><td>rotate freely &nbsp; <b>double-click</b>: select fragment</td></tr>
+</table>)"));
+        box.exec();
+    });
+    help->addAction(tr("&About Paper && Penzene"), this, [this] {
+        QMessageBox::about(this, tr("About Paper & Penzene"),
+                           tr("<h3>Paper &amp; Penzene %1</h3><p>An open-source chemical structure editor.</p>"
+                              "<p>GPL-3.0 • <a href='https://github.com/JamesOBrien2/paper-and-penzene'>GitHub</a></p>"
+                              "<p>Chemistry by RDKit. GUI by Qt.</p>").arg(PENZENE_VERSION));
+    });
 }

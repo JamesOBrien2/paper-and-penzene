@@ -21,6 +21,7 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
 - Live formula, MW and exact mass for the selection; copy as InChI / InChIKey
 - Export SVG, PNG and PDF; copy as image + MOL + SMILES
 - Abbreviations (Me, OMe, CO2Me, Boc, TBS, Ts, Bpin…) drawn as labels and expanded for chemistry; Structure → Expand draws them out
+- Ring fill: click inside a ring with the fill tool to shade it
 - Themes: follow the OS, Light, Dark, or Catppuccin Latte / Frappé / Macchiato / Mocha (View → Theme); exports always stay black on clear
 - ACS 1996 drawing style, implicit hydrogens and valence warnings
 

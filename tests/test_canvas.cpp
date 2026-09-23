@@ -491,3 +491,29 @@ TEST_CASE("themes: Catppuccin palettes; exports stay black") {
             if (QColor c = img.pixelColor(x, y); c.alpha() > 200 && c.lightness() < 60) dark = true;
     CHECK(dark);  // black ink, not the theme's pale text
 }
+
+TEST_CASE("ring fill: click inside toggles; survives delete, copy and save") {
+    Fixture f;
+    auto nap = chem::fromSmiles("c1ccc2ccccc2c1");
+    REQUIRE(nap);
+    f.canvas.setDocumentSilently(*nap);
+    // Centre of one ring: mean of the atoms in its fill.
+    auto rings = chem::rings(f.doc());
+    REQUIRE(rings.size() == 2);
+    QPointF c;
+    for (int i : rings[0]) c += f.doc().atoms[i].pos / 6;
+    f.canvas.setTool(Canvas::Tool::Fill);
+    f.click(c);
+    REQUIRE(f.doc().fills.size() == 1);
+    CHECK(f.doc().fills[0].atoms.size() == 6);
+    auto back = Document::fromJson(f.doc().toJson());
+    REQUIRE(back);
+    CHECK(*back == f.doc());
+    f.click(c);  // same colour again: cleared
+    CHECK(f.doc().fills.empty());
+    f.click(c);
+    REQUIRE(f.doc().fills.size() == 1);
+    Document d = f.doc();
+    d.removeAtoms({d.fills[0].atoms[0]});
+    CHECK(d.fills.empty());  // a ring missing an atom loses its fill
+}

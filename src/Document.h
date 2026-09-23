@@ -1,6 +1,7 @@
 #pragma once
 #include <QByteArray>
 #include <QPointF>
+#include <QColor>
 #include <QString>
 #include <optional>
 #include <vector>
@@ -46,11 +47,19 @@ struct Text {
     bool operator==(const Text&) const = default;
 };
 
+// A shaded ring interior (ChemDraw ring fill); atoms in ring order.
+struct Fill {
+    std::vector<int> atoms;
+    QColor color;
+    bool operator==(const Fill&) const = default;
+};
+
 struct Document {
     std::vector<Atom> atoms;
     std::vector<Bond> bonds;
     std::vector<Arrow> arrows;
     std::vector<Text> texts;
+    std::vector<Fill> fills;
     QString style;  // drawing style preset name; empty means ACS 1996
     bool operator==(const Document&) const = default;
     bool empty() const { return atoms.empty() && arrows.empty() && texts.empty(); }

@@ -25,6 +25,9 @@ std::optional<Properties> properties(const Document& doc);  // nullopt if empty 
 std::string toInchi(const Document& doc);                   // "" if invalid
 std::string toInchiKey(const Document& doc);
 
+// Smallest set of smallest rings, each in ring order (abbreviations excluded).
+std::vector<std::vector<int>> rings(const Document& doc);
+
 struct AtomInfo {
     int hydrogens = 0;
     bool valenceError = false;

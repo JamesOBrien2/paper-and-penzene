@@ -36,6 +36,13 @@ QByteArray Document::toJson() const {
     for (const auto& t : texts) ts.append(QJsonObject{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}});
     if (!ar.isEmpty()) root["arrows"] = ar;
     if (!ts.isEmpty()) root["texts"] = ts;
+    QJsonArray fs;
+    for (const auto& f : fills) {
+        QJsonArray ids;
+        for (int i : f.atoms) ids.append(i);
+        fs.append(QJsonObject{{"atoms", ids}, {"color", f.color.name()}});
+    }
+    if (!fs.isEmpty()) root["fills"] = fs;
     if (!style.isEmpty()) root["style"] = style;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
@@ -85,6 +92,15 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         if (!finite({t.pos.x(), t.pos.y()})) return std::nullopt;
         doc.texts.push_back(t);
     }
+    for (const auto& v : root["fills"].toArray()) {
+        auto o = v.toObject();
+        Fill f{{}, QColor(o["color"].toString())};
+        for (const auto& i : o["atoms"].toArray()) f.atoms.push_back(i.toInt(-1));
+        if (!f.color.isValid() || f.atoms.size() < 3 ||
+            std::any_of(f.atoms.begin(), f.atoms.end(), [n](int i) { return i < 0 || i >= n; }))
+            return std::nullopt;
+        doc.fills.push_back(f);
+    }
     return doc;
 }
 
@@ -94,6 +110,10 @@ void Document::append(const Document& o, QPointF shift) {
     for (auto b : o.bonds) b.a += base, b.b += base, bonds.push_back(b);
     for (auto a : o.arrows) a.from += shift, a.to += shift, arrows.push_back(a);
     for (auto t : o.texts) t.pos += shift, texts.push_back(t);
+    for (auto f : o.fills) {
+        for (int& i : f.atoms) i += base;
+        fills.push_back(f);
+    }
 }
 
 int Document::addAtom(QPointF pos, int z) {
@@ -125,6 +145,11 @@ void Document::removeAtoms(const std::vector<int>& drop) {
     atoms = std::move(kept);
     std::erase_if(bonds, [&](const Bond& b) { return remap[b.a] < 0 || remap[b.b] < 0; });
     for (auto& b : bonds) b.a = remap[b.a], b.b = remap[b.b];
+    std::erase_if(fills, [&](const Fill& f) {
+        return std::any_of(f.atoms.begin(), f.atoms.end(), [&](int i) { return remap[i] < 0; });
+    });
+    for (auto& f : fills)
+        for (int& i : f.atoms) i = remap[i];
 }
 
 // Direction pointing away from all of the atom's bonds: the bisector of the

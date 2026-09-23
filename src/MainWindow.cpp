@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QFile>
 #include <QFileDialog>
@@ -263,6 +264,9 @@ void MainWindow::buildTools() {
     };
     keys["j"] = add(docIcon(ringDoc(6, true)), tr("Benzene — j"), ring(6, true));
     for (int n = 3; n <= 8; ++n) add(docIcon(ringDoc(n, false)), tr("%1-membered ring").arg(n), ring(n, false));
+    Document filled = ringDoc(6, false);
+    filled.fills.push_back({{0, 1, 2, 3, 4, 5}, QColor(120, 170, 255)});
+    add(docIcon(filled), tr("Ring fill (click inside a ring; again to clear) — colour in Structure menu"), tool(T::Fill));
     bar->addSeparator();
 
     auto* elements = new QComboBox;
@@ -417,6 +421,10 @@ void MainWindow::buildMenus() {
     };
     connect(canvas_, &Canvas::documentChanged, this, syncStyle);
     syncStyle();
+    structure->addAction(tr("Ring &Fill Colour…"), this, [this] {
+        QColor c = QColorDialog::getColor(canvas_->fillColor(), this, tr("Ring fill colour"));
+        if (c.isValid()) canvas_->setFillColor(c);
+    });
     structure->addAction(tr("&Expand Abbreviations"), QKeySequence(tr("Ctrl+Shift+E")), canvas_,
                          &Canvas::expandAbbreviations);
 

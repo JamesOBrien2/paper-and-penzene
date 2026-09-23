@@ -60,6 +60,15 @@ static bool perceive(RWMol& mol) {
     return true;
 }
 
+// ponytail: RDKit depictor + ring templates. CoordGen looks nicer for macrocycles,
+// but its preferCoordGen switch is a global the Windows DLL doesn't export.
+static void layout(RWMol& mol) {
+    RDDepict::Compute2DCoordParameters params;
+    params.canonOrient = true;
+    params.useRingTemplates = true;
+    RDDepict::compute2DCoords(mol, params);
+}
+
 static Document fromRDKit(RWMol& mol) {
     try {
         RDKit::MolOps::Kekulize(mol, true);  // draw explicit double bonds
@@ -99,8 +108,7 @@ std::optional<Document> fromSmiles(const std::string& smiles) {
         return std::nullopt;
     }
     if (!mol) return std::nullopt;
-    RDDepict::preferCoordGen = true;
-    RDDepict::compute2DCoords(*mol);
+    layout(*mol);
     RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
     return fromRDKit(*mol);
 }
@@ -136,8 +144,7 @@ Document clean2D(const Document& doc) {
     if (doc.atoms.empty()) return doc;
     auto mol = toRDKit(doc);
     perceive(*mol);
-    RDDepict::preferCoordGen = true;
-    RDDepict::compute2DCoords(*mol);
+    layout(*mol);
     RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
     Document out = fromRDKit(*mol);
 

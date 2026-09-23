@@ -17,6 +17,18 @@ struct RenderStyle {
     double lineWidth = 0;  // > 0 overrides the drawing style's (toolbar icons)
 };
 
+// Screen colours. Exports and copies always use black ink on a clear
+// background, so a dark theme never leaks into a paper.
+struct Theme {
+    QString name;
+    bool dark = false;
+    QColor paper = Qt::white, ink = Qt::black, error = QColor(220, 40, 40);
+    QColor accent = QColor(40, 120, 255), hotspot = QColor(40, 170, 60);
+    QColor window, surface, text;  // UI palette; invalid = leave Qt's own
+};
+const std::vector<Theme>& themes();  // "System" first; "System" follows the OS light/dark
+const Theme& theme(const QString& name);
+
 // A document style preset, like ChemDraw stationery. Lengths in points.
 struct DrawingStyle {
     QString name;
@@ -79,6 +91,7 @@ public:
     void setBondOrder(int order) { bondOrder_ = order; }
     void setRing(int size, bool aromatic) { ringSize_ = size, ringAromatic_ = aromatic; }
     void setArrow(ArrowKind kind, bool curved) { arrowKind_ = kind, arrowCurved_ = curved; }
+    void setTheme(const Theme& t) { theme_ = t, refresh(); }
 
 signals:
     void documentChanged();
@@ -106,6 +119,7 @@ private:
 
     Document doc_;
     QPicture picture_;
+    Theme theme_;
     std::vector<QPointF> preview_;
     QUndoStack* undo_;
     Tool tool_ = Tool::Bond;

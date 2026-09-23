@@ -3,6 +3,7 @@
 #include "MainWindow.h"
 
 #include <QApplication>
+#include <QSettings>
 #include <QTest>
 #include <QUndoStack>
 #include <catch2/catch_test_macros.hpp>
@@ -14,6 +15,7 @@ struct App {  // base class so the QApplication exists before any widget member
         static char name[] = "tests";
         static char* argv[] = {name};
         static QApplication app(argc, argv);
+        QApplication::setOrganizationName("penzene-tests");  // keep the user's settings out of it
     }
 };
 
@@ -118,6 +120,7 @@ TEST_CASE("insert centres the fragment and selects it") {
 
 TEST_CASE("main window screenshot") {
     App app;
+    QSettings().setValue("theme", qEnvironmentVariable("PENZENE_THEME", "Light"));
     MainWindow w;
     w.resize(1000, 650);
     w.show();
@@ -470,4 +473,21 @@ TEST_CASE("drawing style presets: JDP from its ChemDraw stationery") {
     j.style = "JDP";
     CHECK(renderSvg(d) != renderSvg(j));
     CHECK(renderSvg(j).contains("0.879"));  // JDP line width in the SVG strokes
+}
+
+TEST_CASE("themes: Catppuccin palettes; exports stay black") {
+    CHECK(theme("Catppuccin Mocha").paper == QColor("#1e1e2e"));
+    CHECK(theme("Catppuccin Latte").ink == QColor("#4c4f69"));
+    CHECK(theme("no such theme").name == "System");
+    App app;
+    Fixture f;
+    f.canvas.setTheme(theme("Catppuccin Mocha"));
+    auto doc = chem::fromSmiles("CO");
+    REQUIRE(doc);
+    QImage img = renderImage(*doc, 72);
+    bool dark = false;
+    for (int y = 0; y < img.height(); ++y)
+        for (int x = 0; x < img.width(); ++x)
+            if (QColor c = img.pixelColor(x, y); c.alpha() > 200 && c.lightness() < 60) dark = true;
+    CHECK(dark);  // black ink, not the theme's pale text
 }

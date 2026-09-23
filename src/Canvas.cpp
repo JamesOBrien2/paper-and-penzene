@@ -693,22 +693,49 @@ void Canvas::fitToDocument() {
     fitInView(documentBounds(doc_).adjusted(-20, -20, 20, 20), Qt::KeepAspectRatio);
 }
 
+const std::vector<Theme>& themes() {
+    auto cat = [](const char* name, bool dark, const char* base, const char* mantle, const char* surface,
+                  const char* text, const char* red, const char* blue, const char* green) {
+        return Theme{name, dark, QColor(base), QColor(text), QColor(red), QColor(blue), QColor(green),
+                     QColor(mantle), QColor(surface), QColor(text)};
+    };
+    static const std::vector<Theme> t{
+        {"System"},
+        {"Light"},
+        {"Dark", true, QColor(0x1e, 0x1e, 0x1e), QColor(0xe6, 0xe6, 0xe6), QColor(255, 105, 97),
+         QColor(90, 160, 255), QColor(80, 200, 120)},
+        // https://catppuccin.com/palette: base, mantle, surface0, text, red, blue, green
+        cat("Catppuccin Latte", false, "#eff1f5", "#e6e9ef", "#ccd0da", "#4c4f69", "#d20f39", "#1e66f5", "#40a02b"),
+        cat("Catppuccin Frappé", true, "#303446", "#292c3c", "#414559", "#c6d0f5", "#e78284", "#8caaee", "#a6d189"),
+        cat("Catppuccin Macchiato", true, "#24273a", "#1e2030", "#363a4f", "#cad3f5", "#ed8796", "#8aadf4", "#a6da95"),
+        cat("Catppuccin Mocha", true, "#1e1e2e", "#181825", "#313244", "#cdd6f4", "#f38ba8", "#89b4fa", "#a6e3a1"),
+    };
+    return t;
+}
+
+const Theme& theme(const QString& name) {
+    for (const auto& t : themes())
+        if (t.name == name) return t;
+    return themes()[0];
+}
+
 // Cache the drawing as a QPicture; hover/selection repaints just replay it.
 void Canvas::refresh() {
     picture_ = QPicture();
     QPainter p(&picture_);
-    paintDocument(p, doc_);
+    paintDocument(p, doc_, {theme_.ink, theme_.error});
     p.end();
     viewport()->update();
 }
 
 void Canvas::drawBackground(QPainter* p, const QRectF& rect) {
-    p->fillRect(rect, Qt::white);
+    p->fillRect(rect, theme_.paper);
     picture_.play(p);
 }
 
 void Canvas::drawForeground(QPainter* p, const QRectF&) {
-    const QColor sel(40, 120, 255, 90), hover(40, 120, 255, 60);
+    QColor sel = theme_.accent, hover = theme_.accent, line = theme_.accent;
+    sel.setAlpha(90), hover.setAlpha(60);
     p->setRenderHint(QPainter::Antialiasing);
     p->setPen(Qt::NoPen);
     for (const auto& b : doc_.bonds)
@@ -726,7 +753,7 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
     p->setBrush(hover);
     if (hoverAtom_ >= 0) {
         p->drawEllipse(doc_.atoms[hoverAtom_].pos, 5, 5);
-        p->setBrush(QColor(40, 170, 60));
+        p->setBrush(theme_.hotspot);
         p->drawEllipse(doc_.atoms[hoverAtom_].pos, 1.2, 1.2);
     } else if (hoverBond_ >= 0) {
         const auto& b = doc_.bonds[hoverBond_];
@@ -736,15 +763,15 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
 
     p->setBrush(Qt::NoBrush);
     if (drag_ == Drag::Rubber) {
-        p->setPen(QPen(QColor(40, 120, 255), 0, Qt::DashLine));
+        p->setPen(QPen(line, 0, Qt::DashLine));
         p->drawRect(QRectF(pressPos_, curPos_).normalized());
     } else if (drag_ == Drag::Bond || drag_ == Drag::Chain) {
-        p->setPen(QPen(QColor(40, 120, 255), 0.8));
+        p->setPen(QPen(line, 0.8));
         for (size_t k = 1; k < preview_.size(); ++k) p->drawLine(preview_[k - 1], preview_[k]);
     } else if (drag_ == Drag::Arrow) {
         Document preview;
         preview.arrows.push_back(draggedArrow());
-        paintDocument(*p, preview, {QColor(40, 120, 255)});
+        paintDocument(*p, preview, {line});
     }
 }
 

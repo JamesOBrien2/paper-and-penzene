@@ -1,5 +1,7 @@
 #pragma once
+#include <QByteArray>
 #include <QPointF>
+#include <optional>
 #include <vector>
 
 // Scene units are points; a standard bond is 14.4 pt (ACS 1996).
@@ -23,6 +25,10 @@ struct Document {
     std::vector<Atom> atoms;
     std::vector<Bond> bonds;
     bool operator==(const Document&) const = default;
+
+    // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...]}
+    QByteArray toJson() const;
+    static std::optional<Document> fromJson(const QByteArray& data);
 };
 
 inline bool operator==(const Atom& x, const Atom& y) {

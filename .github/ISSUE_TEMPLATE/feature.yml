@@ -1,0 +1,11 @@
+name: Feature request
+description: Suggest something new
+labels: [feature]
+body:
+  - type: textarea
+    id: what
+    attributes: {label: What should it do?, description: ChemDraw/Ketcher equivalent if any.}
+    validations: {required: true}
+  - type: textarea
+    id: why
+    attributes: {label: Why is it useful?}

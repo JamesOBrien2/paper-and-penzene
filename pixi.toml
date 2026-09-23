@@ -1,0 +1,22 @@
+[workspace]
+name = "paper-and-penzene"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
+
+[dependencies]
+librdkit-dev = ">=2025.9,<2027"  # RDKit C++ headers + libs
+libboost-devel = "*"             # RDKit public headers include Boost
+qt6-main = ">=6.8,<7"            # Widgets, Svg, PDF
+catch2 = ">=3.5,<4"
+cmake = ">=3.28"
+ninja = "*"
+
+[target.win-64.dependencies]
+vs2022_win-64 = "*"              # activates MSVC for Ninja
+
+[tasks]
+configure = "cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release"
+build = { cmd = "cmake --build build", depends-on = ["configure"] }
+test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], env = { QT_QPA_PLATFORM = "offscreen" } }
+run = { cmd = "build/bin/penzene", depends-on = ["build"] }
+penzene-version = { cmd = "build/bin/penzene --version", depends-on = ["build"] }

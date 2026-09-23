@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QIcon>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 int main(int argc, char** argv) {
@@ -13,6 +14,9 @@ int main(int argc, char** argv) {
             std::printf("penzene %s\n", PENZENE_VERSION);
             return 0;
         }
+    // In an AppImage, conda's Qt doesn't find the bundled plugins on its own.
+    if (const char* appdir = std::getenv("APPDIR"); appdir && !std::getenv("QT_PLUGIN_PATH"))
+        qputenv("QT_PLUGIN_PATH", QByteArray(appdir) + "/usr/plugins");
     QApplication app(argc, argv);
     // Headless: penzene --render <SMILES> <out.svg|png|pdf>
     if (argc == 4 && !std::strcmp(argv[1], "--render")) {

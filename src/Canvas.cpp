@@ -320,6 +320,14 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     for (size_t i = 0; i < doc.atoms.size(); ++i) labeled[i] = hasLabel(doc, int(i), degree);
     auto info = chem::atomInfo(doc);
 
+    p.setPen(Qt::NoPen);
+    for (const auto& f : doc.fills) {  // under everything else
+        QPolygonF poly;
+        for (int i : f.atoms) poly << doc.atoms[i].pos;
+        p.setBrush(f.color);
+        p.drawPolygon(poly);
+    }
+    p.setBrush(Qt::NoBrush);
     QPen pen(style.ink, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
     for (const auto& b : doc.bonds) drawBond(p, doc, b, st, degree, labeled);
@@ -1022,6 +1030,28 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             break;
         case Tool::Text:
             return editText(textAt(pressPos_), pressPos_);
+        case Tool::Fill: {
+            // Smallest ring around the click; clicking a ring in the same colour clears it.
+            std::vector<int> best;
+            double bestArea = std::numeric_limits<double>::infinity();
+            for (const auto& ring : chem::rings(next)) {
+                QPolygonF poly;
+                for (int i : ring) poly << next.atoms[i].pos;
+                QRectF r = poly.boundingRect();
+                if (poly.containsPoint(pressPos_, Qt::OddEvenFill) && r.width() * r.height() < bestArea)
+                    bestArea = r.width() * r.height(), best = ring;
+            }
+            if (best.empty()) break;
+            auto same = [&](const ::Fill& f) {
+                return QSet<int>(f.atoms.begin(), f.atoms.end()) == QSet<int>(best.begin(), best.end());
+            };
+            auto it = std::find_if(next.fills.begin(), next.fills.end(), same);
+            if (it == next.fills.end()) next.fills.push_back({best, fillColor_});
+            else if (it->color == fillColor_) next.fills.erase(it);
+            else it->color = fillColor_;
+            what = tr("Ring fill");
+            break;
+        }
         case Tool::Ring:
             if (bond >= 0) ringOnBond(next, bond, ringSize_, ringAromatic_);
             else if (pressAtom_ >= 0) ringOnAtom(next, pressAtom_, ringSize_, ringAromatic_);

@@ -55,7 +55,7 @@ QPainterPath textPath(const Text& t, const DrawingStyle& s = drawingStyles()[0])
 class Canvas : public QGraphicsView {
     Q_OBJECT
 public:
-    enum class Tool { Select, Atom, Bond, Wedge, Hash, Chain, Ring, ChargePlus, ChargeMinus, Erase, Arrow, Text };
+    enum class Tool { Select, Atom, Bond, Wedge, Hash, Chain, Ring, ChargePlus, ChargeMinus, Erase, Arrow, Text, Fill };
 
     explicit Canvas(QUndoStack* undo, QWidget* parent = nullptr);
 
@@ -92,6 +92,8 @@ public:
     void setRing(int size, bool aromatic) { ringSize_ = size, ringAromatic_ = aromatic; }
     void setArrow(ArrowKind kind, bool curved) { arrowKind_ = kind, arrowCurved_ = curved; }
     void setTheme(const Theme& t) { theme_ = t, refresh(); }
+    void setFillColor(QColor c) { fillColor_ = c; }
+    QColor fillColor() const { return fillColor_; }
 
 signals:
     void documentChanged();
@@ -127,6 +129,7 @@ private:
     bool ringAromatic_ = true;
     ArrowKind arrowKind_ = ArrowKind::Reaction;
     bool arrowCurved_ = false;
+    QColor fillColor_ = QColor(207, 227, 255);
 
     QSet<int> selectedAtoms_, selectedArrows_, selectedTexts_;
     int hoverAtom_ = -1, hoverBond_ = -1;

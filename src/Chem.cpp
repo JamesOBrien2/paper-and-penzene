@@ -395,6 +395,20 @@ Document clean2D(const Document& doc) {
     return out;
 }
 
+std::vector<std::vector<int>> rings(const Document& doc) {
+    auto mol = toRDKit(doc);
+    std::vector<std::vector<int>> out;
+    try {
+        RDKit::MolOps::findSSSR(*mol);
+    } catch (...) {
+        return out;
+    }
+    const int n = int(doc.atoms.size());
+    for (const auto& r : mol->getRingInfo()->atomRings())
+        if (std::all_of(r.begin(), r.end(), [n](int i) { return i < n; })) out.push_back(r);
+    return out;
+}
+
 std::vector<AtomInfo> atomInfo(const Document& doc) {
     auto mol = toRDKit(doc);
     std::vector<AtomInfo> info(doc.atoms.size());

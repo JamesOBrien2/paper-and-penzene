@@ -255,9 +255,14 @@ QPainterPath textPath(const Text& t) {
                 ++i, sub_ = false;
                 continue;
             }
+            if (s[i] == ' ') {  // by hand: some platforms drop leading spaces from a shaped run
+                x += fm.horizontalAdvance(' ');
+                ++i, sub_ = false;
+                continue;
+            }
             const bool runSub = subscripted(s, i, sub_);
             int j = i + 1;
-            while (j < s.size() && s[j] != '\t' && subscripted(s, j, runSub) == runSub) ++j;
+            while (j < s.size() && s[j] != '\t' && s[j] != ' ' && subscripted(s, j, runSub) == runSub) ++j;
             sub_ = runSub;
             const QString run = s.mid(i, j - i);
             path.addText(t.pos.x() + x, runSub ? y + fm.capHeight() * 0.35 : y, runSub ? sub : f, run);

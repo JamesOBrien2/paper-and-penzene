@@ -19,6 +19,7 @@
 #include <QUndoStack>
 
 static const char* kMolMime = "chemical/x-mdl-molfile";
+static const char* kPenzMime = "application/x-penzene";  // full fidelity: arrows and text too
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
     setCentralWidget(canvas_);
@@ -116,18 +117,23 @@ void MainWindow::importSmiles() {
 
 void MainWindow::copy() {
     Document doc = canvas_->selectedSubset();
-    if (doc.atoms.empty()) return;
+    if (doc.empty()) return;
     auto* mime = new QMimeData;
     mime->setImageData(renderImage(doc));
     mime->setData("image/svg+xml", renderSvg(doc));
-    std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);
-    mime->setData(kMolMime, QByteArray::fromStdString(mol));
-    mime->setText(QString::fromStdString(smi.empty() ? mol : smi));
+    mime->setData(kPenzMime, doc.toJson());
+    if (!doc.atoms.empty()) {
+        std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);
+        mime->setData(kMolMime, QByteArray::fromStdString(mol));
+        mime->setText(QString::fromStdString(smi.empty() ? mol : smi));
+    }
     QApplication::clipboard()->setMimeData(mime);
 }
 
 void MainWindow::paste() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
+    if (auto doc = Document::fromJson(mime->data(kPenzMime)); doc && !doc->empty())
+        return canvas_->insert(*doc, tr("Paste"));
     std::string text = mime->hasFormat(kMolMime) ? mime->data(kMolMime).toStdString()
                                                  : mime->text().trimmed().toStdString();
     if (text.empty()) return;
@@ -183,6 +189,19 @@ void MainWindow::buildTools() {
         canvas_->setTool(T::Atom);
         atom->setChecked(true);
     });
+    bar->addSeparator();
+    auto arrow = [this](ArrowKind k, bool curved) {
+        return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
+    };
+    const QString drag = tr(" (drag to draw; click an arrow to restyle it)");
+    add("→", tr("Reaction arrow") + drag, arrow(ArrowKind::Reaction, false));
+    add("⇌", tr("Equilibrium arrow") + drag, arrow(ArrowKind::Equilibrium, false));
+    add("↔", tr("Resonance arrow") + drag, arrow(ArrowKind::Resonance, false));
+    add("⇒", tr("Retrosynthesis arrow") + drag, arrow(ArrowKind::Retro, false));
+    add("↷", tr("Curved arrow, electron pair (click it again to flip the curve)"), arrow(ArrowKind::Reaction, true));
+    add("⇀", tr("Fishhook arrow, single electron (click it again to flip)"), arrow(ArrowKind::Fishhook, true));
+    add("T", tr("Text (click to add or edit; H2O is set as H₂O)"), tool(T::Text));
+    bar->addSeparator();
     add("⊕", tr("Positive charge"), tool(T::ChargePlus));
     add("⊖", tr("Negative charge"), tool(T::ChargeMinus));
     add("⌫", tr("Eraser"), tool(T::Erase));
@@ -277,7 +296,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>a z</b></td><td>fuse benzene / cyclopentadiene</td></tr>
 <tr><td><b>v 4–8</b></td><td>fuse ring of that size (v = 3)</td></tr>
 <tr><th colspan="2" align="left">Selection</th></tr>
-<tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment</td></tr>
+<tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment, or edit text</td></tr>
 </table>)"));
         box.exec();
     });

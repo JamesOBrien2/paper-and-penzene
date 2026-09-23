@@ -325,3 +325,46 @@ TEST_CASE("allene and alkyne centres are linear") {
     h.key("1");
     CHECK(angleAt(h.doc(), 1, 0, 2) > 179);
 }
+
+TEST_CASE("arrows: draw, restyle, select, move, delete; text subscripts") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Arrow);
+    f.canvas.setArrow(ArrowKind::Reaction, false);
+    f.drag({0, 0}, {50, 3});  // snaps to horizontal
+    REQUIRE(f.doc().arrows.size() == 1);
+    CHECK(std::abs(f.doc().arrows[0].to.y()) < 0.5);
+
+    f.canvas.setArrow(ArrowKind::Equilibrium, false);
+    f.click({25, 0});  // restyles instead of adding
+    REQUIRE(f.doc().arrows.size() == 1);
+    CHECK(f.doc().arrows[0].kind == ArrowKind::Equilibrium);
+
+    f.canvas.setArrow(ArrowKind::Reaction, true);
+    f.drag({0, 40}, {40, 40});
+    REQUIRE(f.doc().arrows.size() == 2);
+    const double bend = f.doc().arrows[1].bend;
+    CHECK(bend != 0);
+    QPointF mid = arrowPath(f.doc().arrows[1]).pointAtPercent(0.5);
+    f.click(mid);  // same tool again: flips the curve
+    CHECK(f.doc().arrows[1].bend == -bend);
+
+    Document withText = f.doc();
+    withText.texts.push_back({{0, -30}, "CH2Cl2"});
+    f.canvas.setDocumentSilently(withText);
+    f.canvas.setTool(Canvas::Tool::Select);
+    f.drag({-10, -50}, {60, 10});  // rubber band: straight arrow and text, not the curve
+    CHECK(f.canvas.selectedArrows() == QSet<int>{0});
+    CHECK(f.canvas.selectedTexts() == QSet<int>{0});
+    f.drag({25, 0}, {25, 20});  // drag the arrow: text moves with it
+    CHECK(std::abs(f.doc().arrows[0].from.y() - 20) < 1);
+    CHECK(std::abs(f.doc().texts[0].pos.y() + 10) < 1);
+    f.canvas.deleteSelection();
+    CHECK(f.doc().arrows.size() == 1);
+    CHECK(f.doc().texts.empty());
+
+    // Formula subscripts sit below the baseline; digits after a space don't.
+    auto bottom = [](const QString& s) { return textPath({{0, 0}, s}).boundingRect().bottom(); };
+    CHECK(bottom("H2") > bottom("H") + 1);
+    CHECK(bottom("80 C") <= bottom("H") + 0.5);
+    CHECK(bottom("(2 equiv)") <= bottom("(") + 0.5);
+}

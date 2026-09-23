@@ -3,6 +3,7 @@
 #include "MainWindow.h"
 
 #include <QApplication>
+#include <QFile>
 #include <QIcon>
 #include <cstdio>
 #include <cstdlib>
@@ -18,9 +19,10 @@ int main(int argc, char** argv) {
     if (const char* appdir = std::getenv("APPDIR"); appdir && !std::getenv("QT_PLUGIN_PATH"))
         qputenv("QT_PLUGIN_PATH", QByteArray(appdir) + "/usr/plugins");
     QApplication app(argc, argv);
-    // Headless: penzene --render <SMILES> <out.svg|png|pdf>
+    // Headless: penzene --render <SMILES|file.penz> <out.svg|png|pdf>
     if (argc == 4 && !std::strcmp(argv[1], "--render")) {
-        auto doc = chem::fromSmiles(argv[2]);
+        QFile in(QString::fromLocal8Bit(argv[2]));
+        auto doc = in.open(QIODevice::ReadOnly) ? Document::fromJson(in.readAll()) : chem::fromSmiles(argv[2]);
         if (!doc || !exportDocument(*doc, argv[3])) {
             std::fprintf(stderr, "penzene: could not render %s\n", argv[2]);
             return 1;

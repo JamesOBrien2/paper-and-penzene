@@ -4,8 +4,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
+#include <cmath>
 
 static const char* kStereo[] = {"none", "wedge", "hash"};
+static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook"};
 
 QByteArray Document::toJson() const {
     QJsonArray as, bs;
@@ -20,6 +22,16 @@ QByteArray Document::toJson() const {
         bs.append(o);
     }
     QJsonObject root{{"format", "penzene"}, {"version", 1}, {"atoms", as}, {"bonds", bs}};
+    QJsonArray ar, ts;
+    for (const auto& a : arrows) {
+        QJsonObject o{{"x1", a.from.x()}, {"y1", a.from.y()}, {"x2", a.to.x()}, {"y2", a.to.y()},
+                      {"kind", kArrow[int(a.kind)]}};
+        if (a.bend) o["bend"] = a.bend;
+        ar.append(o);
+    }
+    for (const auto& t : texts) ts.append(QJsonObject{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}});
+    if (!ar.isEmpty()) root["arrows"] = ar;
+    if (!ts.isEmpty()) root["texts"] = ts;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -44,7 +56,34 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         b.stereo = s == "wedge" ? BondStereo::Wedge : s == "hash" ? BondStereo::Hash : BondStereo::None;
         doc.bonds.push_back(b);
     }
+    auto finite = [](std::initializer_list<double> v) {
+        return std::all_of(v.begin(), v.end(), [](double x) { return std::isfinite(x); });
+    };
+    for (const auto& v : root["arrows"].toArray()) {
+        auto o = v.toObject();
+        Arrow a{{o["x1"].toDouble(), o["y1"].toDouble()}, {o["x2"].toDouble(), o["y2"].toDouble()}};
+        auto k = std::find(std::begin(kArrow), std::end(kArrow), o["kind"].toString("reaction"));
+        a.bend = o["bend"].toDouble();
+        if (k == std::end(kArrow) || !finite({a.from.x(), a.from.y(), a.to.x(), a.to.y(), a.bend}))
+            return std::nullopt;
+        a.kind = ArrowKind(k - std::begin(kArrow));
+        doc.arrows.push_back(a);
+    }
+    for (const auto& v : root["texts"].toArray()) {
+        auto o = v.toObject();
+        Text t{{o["x"].toDouble(), o["y"].toDouble()}, o["text"].toString()};
+        if (!finite({t.pos.x(), t.pos.y()})) return std::nullopt;
+        doc.texts.push_back(t);
+    }
     return doc;
+}
+
+void Document::append(const Document& o, QPointF shift) {
+    const int base = int(atoms.size());
+    for (auto a : o.atoms) a.pos += shift, atoms.push_back(a);
+    for (auto b : o.bonds) b.a += base, b.b += base, bonds.push_back(b);
+    for (auto a : o.arrows) a.from += shift, a.to += shift, arrows.push_back(a);
+    for (auto t : o.texts) t.pos += shift, texts.push_back(t);
 }
 
 int Document::addAtom(QPointF pos, int z) {

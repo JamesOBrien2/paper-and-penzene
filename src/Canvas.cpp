@@ -18,6 +18,7 @@
 #include <QtMath>
 #include <algorithm>
 #include <functional>
+#include <limits>
 
 // ACS 1996 document settings, in points.
 constexpr double kLineWidth = 0.6;
@@ -149,6 +150,86 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
     }
 }
 
+// ---- arrows and text
+
+constexpr double kHeadLength = 6, kHeadWidth = 2.2, kEquilibriumGap = 1.6;
+
+// Quadratic control point: puts the curve's midpoint `bend` to the left of from->to.
+static QPointF control(const Arrow& a) { return (a.from + a.to) / 2 - perp(unit(a.to - a.from)) * (2 * a.bend); }
+
+QPainterPath arrowPath(const Arrow& a) {
+    QPainterPath path(a.from);
+    if (a.bend) path.quadTo(control(a), a.to);
+    else path.lineTo(a.to);
+    return path;
+}
+
+// Filled head at `tip` pointing along `dir`; `sides` +1/-1 for a half head.
+static void drawHead(QPainter& p, QPointF tip, QPointF dir, int sides = 0) {
+    QPointF d = unit(dir), n = perp(d), base = tip - d * kHeadLength;
+    QPolygonF head{tip, base + n * (sides >= 0 ? kHeadWidth : 0), tip - d * (kHeadLength * 0.8),
+                   base - n * (sides <= 0 ? kHeadWidth : 0)};
+    p.setBrush(p.pen().color());
+    p.drawPolygon(head);
+    p.setBrush(Qt::NoBrush);
+}
+
+static void drawArrow(QPainter& p, const Arrow& a) {
+    QPointF d = unit(a.to - a.from), n = perp(d);
+    if (a.kind == ArrowKind::Equilibrium) {  // ⇌: two half-headed lines
+        QPointF o = n * kEquilibriumGap;
+        p.drawLine(a.from - o, a.to - o - d * kHeadLength * 0.8);
+        drawHead(p, a.to - o, d, -1);
+        p.drawLine(a.to + o, a.from + o + d * kHeadLength * 0.8);
+        drawHead(p, a.from + o, -d, -1);
+        return;
+    }
+    if (a.kind == ArrowKind::Retro) {  // ⇒: open double arrow
+        QPointF o = n * kEquilibriumGap, back = a.to - d * kHeadLength;
+        p.drawLine(a.from + o, back + o + d * kEquilibriumGap);
+        p.drawLine(a.from - o, back - o + d * kEquilibriumGap);
+        p.drawPolyline(QPolygonF{back + n * (kHeadWidth + kEquilibriumGap), a.to, back - n * (kHeadWidth + kEquilibriumGap)});
+        return;
+    }
+    // Stop the shaft inside the head so it doesn't poke through the tip.
+    QPointF endDir = a.bend ? a.to - control(a) : a.to - a.from;
+    QPointF startDir = a.bend ? a.from - control(a) : a.from - a.to;
+    Arrow shaft = a;
+    shaft.to -= unit(endDir) * kHeadLength * 0.7;
+    if (a.kind == ArrowKind::Resonance) shaft.from -= unit(startDir) * kHeadLength * 0.7;
+    p.drawPath(arrowPath(shaft));
+    // Fishhook: the barb sits on the outside of the curve.
+    drawHead(p, a.to, endDir, a.kind == ArrowKind::Fishhook ? (a.bend >= 0 ? -1 : 1) : 0);
+    if (a.kind == ArrowKind::Resonance) drawHead(p, a.from, startDir);
+}
+
+static bool subscripted(const QString& s, int i, bool prevSub) {
+    if (!s[i].isDigit() || i == 0) return false;
+    QChar c = s[i - 1];
+    return prevSub || c.isLetter() || c == ')' || c == ']';
+}
+
+// Text as outlines, formula-style subscripts, one line per '\n'.
+QPainterPath textPath(const Text& t) {
+    QFont f = labelFont(), sub = f;
+    sub.setPixelSize(int(kFontSize * 0.7));
+    QFontMetricsF fm(f), sm(sub);
+    QPainterPath path;
+    const auto lines = t.text.split('\n');
+    for (int li = 0; li < lines.size(); ++li) {
+        const QString& s = lines[li];
+        double x = t.pos.x(), y = t.pos.y() + li * fm.lineSpacing();
+        bool sub_ = false;
+        for (int i = 0; i < s.size(); ++i) {
+            sub_ = subscripted(s, i, sub_);
+            const QFont& g = sub_ ? sub : f;
+            path.addText(x, sub_ ? y + fm.capHeight() * 0.35 : y, g, s.mid(i, 1));
+            x += (sub_ ? sm : fm).horizontalAdvance(s[i]);
+        }
+    }
+    return path;
+}
+
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
@@ -179,18 +260,26 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         }
         if (info[i].valenceError && !labeled[i]) p.drawEllipse(a.pos, 3, 3);
     }
+    p.setPen(QPen(style.ink, kLineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
+    for (const auto& a : doc.arrows) drawArrow(p, a);
+    for (const auto& t : doc.texts) p.fillPath(textPath(t), style.ink);
     p.restore();
 }
 
 QRectF documentBounds(const Document& doc) {
-    if (doc.atoms.empty()) return {};
+    if (doc.empty()) return {};
     // Not QRectF::united: it ignores zero-size rects.
-    QPointF lo = doc.atoms[0].pos, hi = lo;
-    for (const auto& a : doc.atoms) {
-        lo = {std::min(lo.x(), a.pos.x()), std::min(lo.y(), a.pos.y())};
-        hi = {std::max(hi.x(), a.pos.x()), std::max(hi.y(), a.pos.y())};
-    }
-    return QRectF(lo, hi).adjusted(-kFontSize * 1.5, -kFontSize, kFontSize * 1.5, kFontSize);  // room for labels
+    double inf = std::numeric_limits<double>::infinity();
+    QPointF lo(inf, inf), hi(-inf, -inf);
+    auto grow = [&](QRectF r) {
+        lo = {std::min(lo.x(), r.left()), std::min(lo.y(), r.top())};
+        hi = {std::max(hi.x(), r.right()), std::max(hi.y(), r.bottom())};
+    };
+    for (const auto& a : doc.atoms)  // room for labels
+        grow(QRectF(a.pos, a.pos).adjusted(-kFontSize * 1.5, -kFontSize, kFontSize * 1.5, kFontSize));
+    for (const auto& a : doc.arrows) grow(arrowPath(a).boundingRect().adjusted(-4, -4, 4, 4));
+    for (const auto& t : doc.texts) grow(textPath(t).boundingRect().adjusted(-2, -2, 2, 2));
+    return QRectF(lo, hi);
 }
 
 QImage renderImage(const Document& doc, double dpi) {
@@ -225,7 +314,7 @@ QByteArray renderSvg(const Document& doc) {
 
 bool exportDocument(const Document& doc, const QString& path) {
     QRectF r = documentBounds(doc);
-    if (r.isEmpty()) return false;
+    if (doc.empty()) return false;
     const QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "png") return renderImage(doc).save(path);
     if (ext == "svg") {
@@ -430,64 +519,69 @@ void Canvas::commit(const Document& next, const QString& text) {
 
 void Canvas::setDocumentSilently(const Document& doc) {
     doc_ = doc;
-    QSet<int> keep;
-    for (int i : selectedAtoms_)
-        if (i < int(doc_.atoms.size())) keep.insert(i);
-    selectedAtoms_ = keep;
+    auto clamp = [](QSet<int>& sel, size_t n) { sel.removeIf([n](int i) { return i >= int(n); }); };
+    clamp(selectedAtoms_, doc_.atoms.size());
+    clamp(selectedArrows_, doc_.arrows.size());
+    clamp(selectedTexts_, doc_.texts.size());
     if (hoverAtom_ >= int(doc_.atoms.size())) hoverAtom_ = -1;
     if (hoverBond_ >= int(doc_.bonds.size())) hoverBond_ = -1;
     refresh();
     emit documentChanged();
 }
 
-void Canvas::setSelection(QSet<int> atoms) {
-    selectedAtoms_ = std::move(atoms);
+void Canvas::setSelection(QSet<int> atoms, QSet<int> arrows, QSet<int> texts) {
+    selectedAtoms_ = std::move(atoms), selectedArrows_ = std::move(arrows), selectedTexts_ = std::move(texts);
     viewport()->update();
 }
 
-void Canvas::selectAll() {
-    QSet<int> all;
-    for (int i = 0; i < int(doc_.atoms.size()); ++i) all.insert(i);
-    setSelection(all);
-}
-
-Document Canvas::selectedSubset() const {
-    if (selectedAtoms_.isEmpty()) return doc_;
-    std::vector<int> drop;
-    for (int i = 0; i < int(doc_.atoms.size()); ++i)
-        if (!selectedAtoms_.contains(i)) drop.push_back(i);
-    Document out = doc_;
-    out.removeAtoms(drop);
+static QSet<int> range(int from, int to) {
+    QSet<int> out;
+    for (int i = from; i < to; ++i) out.insert(i);
     return out;
 }
 
+void Canvas::selectAll() {
+    setSelection(range(0, int(doc_.atoms.size())), range(0, int(doc_.arrows.size())), range(0, int(doc_.texts.size())));
+}
+
+// Drops every item not in the given sets.
+static Document keepOnly(const Document& doc, const QSet<int>& atoms, const QSet<int>& arrows, const QSet<int>& texts) {
+    Document out = doc;
+    std::vector<int> drop;
+    for (int i = 0; i < int(doc.atoms.size()); ++i)
+        if (!atoms.contains(i)) drop.push_back(i);
+    out.removeAtoms(drop);
+    out.arrows.clear(), out.texts.clear();
+    for (int i = 0; i < int(doc.arrows.size()); ++i)
+        if (arrows.contains(i)) out.arrows.push_back(doc.arrows[i]);
+    for (int i = 0; i < int(doc.texts.size()); ++i)
+        if (texts.contains(i)) out.texts.push_back(doc.texts[i]);
+    return out;
+}
+
+Document Canvas::selectedSubset() const {
+    if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return doc_;
+    return keepOnly(doc_, selectedAtoms_, selectedArrows_, selectedTexts_);
+}
+
 void Canvas::deleteSelection() {
-    if (selectedAtoms_.isEmpty()) return;
-    Document next = doc_;
-    next.removeAtoms({selectedAtoms_.begin(), selectedAtoms_.end()});
-    selectedAtoms_.clear();
+    if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return;
+    auto others = [](const QSet<int>& sel, size_t n) { return range(0, int(n)).subtract(sel); };
+    Document next = keepOnly(doc_, others(selectedAtoms_, doc_.atoms.size()), others(selectedArrows_, doc_.arrows.size()),
+                             others(selectedTexts_, doc_.texts.size()));
+    hoverAtom_ = hoverBond_ = -1;
+    setSelection({});
     commit(next, tr("Delete"));
 }
 
 void Canvas::insert(Document frag, const QString& text) {
-    if (frag.atoms.empty()) return;
-    QPointF c;
-    for (const auto& a : frag.atoms) c += a.pos;
-    QPointF shift = viewCenter() - c / double(frag.atoms.size());
+    if (frag.empty()) return;
     Document next = doc_;
-    const int base = int(next.atoms.size());
-    QSet<int> added;
-    for (auto a : frag.atoms) {
-        a.pos += shift;
-        added.insert(int(next.atoms.size()));
-        next.atoms.push_back(a);
-    }
-    for (auto b : frag.bonds) {
-        b.a += base, b.b += base;
-        next.bonds.push_back(b);
-    }
+    next.append(frag, viewCenter() - documentBounds(frag).center());
     commit(next, text);
-    setSelection(added);
+    setSelection(range(int(doc_.atoms.size() - frag.atoms.size()), int(doc_.atoms.size())),
+                 range(int(doc_.arrows.size() - frag.arrows.size()), int(doc_.arrows.size())),
+                 range(int(doc_.texts.size() - frag.texts.size()), int(doc_.texts.size())));
 }
 
 QPointF Canvas::viewCenter() const { return mapToScene(viewport()->rect().center()); }
@@ -498,7 +592,7 @@ void Canvas::zoomBy(double factor) {
 }
 
 void Canvas::fitToDocument() {
-    if (doc_.atoms.empty()) return;
+    if (doc_.empty()) return;
     fitInView(documentBounds(doc_).adjusted(-20, -20, 20, 20), Qt::KeepAspectRatio);
 }
 
@@ -529,6 +623,9 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
     p->setBrush(sel);
     for (int i : selectedAtoms_) p->drawEllipse(doc_.atoms[i].pos, 4, 4);
 
+    for (int i : selectedArrows_) p->strokePath(arrowPath(doc_.arrows[i]), QPen(sel, 4, Qt::SolidLine, Qt::RoundCap));
+    for (int i : selectedTexts_) p->drawRect(textPath(doc_.texts[i]).boundingRect().adjusted(-1.5, -1.5, 1.5, 1.5));
+
     p->setBrush(hover);
     if (hoverAtom_ >= 0) {
         p->drawEllipse(doc_.atoms[hoverAtom_].pos, 5, 5);
@@ -547,7 +644,39 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
     } else if (drag_ == Drag::Bond || drag_ == Drag::Chain) {
         p->setPen(QPen(QColor(40, 120, 255), 0.8));
         for (size_t k = 1; k < preview_.size(); ++k) p->drawLine(preview_[k - 1], preview_[k]);
+    } else if (drag_ == Drag::Arrow) {
+        Document preview;
+        preview.arrows.push_back(draggedArrow());
+        paintDocument(*p, preview, {QColor(40, 120, 255)});
     }
+}
+
+int Canvas::arrowAt(QPointF p) const {
+    double tol = 5 / transform().m11() + 1;
+    QPainterPathStroker stroker;
+    stroker.setWidth(2 * tol);
+    for (int i = int(doc_.arrows.size()) - 1; i >= 0; --i)
+        if (stroker.createStroke(arrowPath(doc_.arrows[i])).contains(p)) return i;
+    return -1;
+}
+
+int Canvas::textAt(QPointF p) const {
+    for (int i = int(doc_.texts.size()) - 1; i >= 0; --i)
+        if (textPath(doc_.texts[i]).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
+    return -1;
+}
+
+// The arrow being dragged out: straight ones snap to 15°, curved ones bow left.
+Arrow Canvas::draggedArrow() const {
+    Arrow a{pressPos_, curPos_, arrowKind_};
+    if (arrowCurved_) {
+        a.bend = 0.3 * len(curPos_ - pressPos_);
+    } else {
+        QPointF v = curPos_ - pressPos_;
+        double deg = std::round(qRadiansToDegrees(std::atan2(v.y(), v.x())) / 15) * 15;
+        a.to = pressPos_ + dirAt(deg) * len(v);
+    }
+    return a;
 }
 
 int Canvas::atomAt(QPointF p) const {
@@ -596,24 +725,35 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
     beforeDrag_ = doc_;
 
     switch (tool_) {
-    case Tool::Select:
-        if (pressAtom_ >= 0 || bond >= 0) {
-            QSet<int> hit = pressAtom_ >= 0 ? QSet<int>{pressAtom_}
-                                            : QSet<int>{doc_.bonds[bond].a, doc_.bonds[bond].b};
-            bool already = std::all_of(hit.begin(), hit.end(), [&](int i) { return selectedAtoms_.contains(i); });
-            if (e->modifiers() & Qt::ShiftModifier) selectedAtoms_ |= hit;
-            else if (!already) selectedAtoms_ = hit;
+    case Tool::Select: {
+        const int arrow = pressAtom_ < 0 && bond < 0 ? arrowAt(pressPos_) : -1;
+        const int text = pressAtom_ < 0 && bond < 0 && arrow < 0 ? textAt(pressPos_) : -1;
+        const bool shift = e->modifiers() & Qt::ShiftModifier;
+        if (pressAtom_ >= 0 || bond >= 0 || arrow >= 0 || text >= 0) {
+            QSet<int> atoms = pressAtom_ >= 0 ? QSet<int>{pressAtom_}
+                              : bond >= 0     ? QSet<int>{doc_.bonds[bond].a, doc_.bonds[bond].b}
+                                              : QSet<int>{};
+            QSet<int> arrows = arrow >= 0 ? QSet<int>{arrow} : QSet<int>{};
+            QSet<int> texts = text >= 0 ? QSet<int>{text} : QSet<int>{};
+            bool already = selectedAtoms_.contains(atoms) && selectedArrows_.contains(arrows) &&
+                           selectedTexts_.contains(texts);
+            if (shift) selectedAtoms_ |= atoms, selectedArrows_ |= arrows, selectedTexts_ |= texts;
+            else if (!already) selectedAtoms_ = atoms, selectedArrows_ = arrows, selectedTexts_ = texts;
             drag_ = (e->modifiers() & Qt::AltModifier) ? Drag::Rotate : Drag::Move;
         } else {
-            if (!(e->modifiers() & Qt::ShiftModifier)) selectedAtoms_.clear();
+            if (!shift) selectedAtoms_.clear(), selectedArrows_.clear(), selectedTexts_.clear();
             drag_ = Drag::Rubber;
         }
         break;
+    }
     case Tool::Bond: case Tool::Wedge: case Tool::Hash:
         drag_ = Drag::Bond;
         break;
     case Tool::Chain:
         drag_ = Drag::Chain;
+        break;
+    case Tool::Arrow:
+        drag_ = Drag::Arrow;
         break;
     default:
         drag_ = Drag::None;  // click tools act on release
@@ -632,19 +772,22 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
     curPos_ = mapToScene(e->pos());
     if (drag_ == Drag::Move || drag_ == Drag::Rotate) {
         Document next = beforeDrag_;
+        std::vector<QPointF*> pts;
+        for (int i : selectedAtoms_) pts.push_back(&next.atoms[i].pos);
+        for (int i : selectedArrows_) pts.push_back(&next.arrows[i].from), pts.push_back(&next.arrows[i].to);
+        for (int i : selectedTexts_) pts.push_back(&next.texts[i].pos);
         QPointF c;
-        for (int i : selectedAtoms_) c += beforeDrag_.atoms[i].pos;
-        c /= std::max<qsizetype>(1, selectedAtoms_.size());
+        for (QPointF* p : pts) c += *p;
+        c /= std::max<double>(1, pts.size());
         double ang = std::atan2(curPos_.y() - c.y(), curPos_.x() - c.x()) -
                      std::atan2(pressPos_.y() - c.y(), pressPos_.x() - c.x());
-        for (int i : selectedAtoms_) {
-            QPointF& p = next.atoms[i].pos;
+        for (QPointF* p : pts) {
             if (drag_ == Drag::Move) {
-                p += curPos_ - pressPos_;
+                *p += curPos_ - pressPos_;
             } else {
-                QPointF r = p - c;
-                p = c + QPointF(r.x() * std::cos(ang) - r.y() * std::sin(ang),
-                                r.x() * std::sin(ang) + r.y() * std::cos(ang));
+                QPointF r = *p - c;
+                *p = c + QPointF(r.x() * std::cos(ang) - r.y() * std::sin(ang),
+                                 r.x() * std::sin(ang) + r.y() * std::cos(ang));
             }
         }
         doc_ = next;
@@ -691,6 +834,20 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         QRectF r = QRectF(pressPos_, curPos_).normalized();
         for (int i = 0; i < int(doc_.atoms.size()); ++i)
             if (r.contains(doc_.atoms[i].pos)) selectedAtoms_.insert(i);
+        for (int i = 0; i < int(doc_.arrows.size()); ++i)
+            if (r.contains(doc_.arrows[i].from) && r.contains(doc_.arrows[i].to)) selectedArrows_.insert(i);
+        for (int i = 0; i < int(doc_.texts.size()); ++i)
+            if (r.intersects(textPath(doc_.texts[i]).boundingRect())) selectedTexts_.insert(i);
+    } else if (drag == Drag::Arrow) {
+        if (int hit = arrowAt(pressPos_); click && hit >= 0) {  // click an arrow: restyle, or flip a curve
+            Arrow& a = next.arrows[hit];
+            if (arrowCurved_ && a.bend && a.kind == arrowKind_) a.bend = -a.bend;
+            else a.kind = arrowKind_, a.bend = arrowCurved_ ? 0.3 * len(a.to - a.from) : 0;
+        } else {
+            if (click) curPos_ = pressPos_ + QPointF(3 * kBondLength, 0);  // default length
+            next.arrows.push_back(draggedArrow());
+        }
+        what = tr("Arrow");
     } else if ((drag == Drag::Bond || drag == Drag::Chain) && click) {
         if (bond >= 0) {  // click on a bond: change it in place
             Bond& b = next.bonds[bond];
@@ -734,8 +891,12 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         case Tool::Erase:
             if (pressAtom_ >= 0) next.removeAtoms({pressAtom_});
             else if (bond >= 0) next.bonds.erase(next.bonds.begin() + bond);
+            else if (int a = arrowAt(pressPos_); a >= 0) next.arrows.erase(next.arrows.begin() + a);
+            else if (int t = textAt(pressPos_); t >= 0) next.texts.erase(next.texts.begin() + t);
             what = tr("Erase");
             break;
+        case Tool::Text:
+            return editText(textAt(pressPos_), pressPos_);
         case Tool::Ring:
             if (bond >= 0) ringOnBond(next, bond, ringSize_, ringAromatic_);
             else if (pressAtom_ >= 0) ringOnAtom(next, pressAtom_, ringSize_, ringAromatic_);
@@ -753,6 +914,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
 void Canvas::mouseDoubleClickEvent(QMouseEvent* e) {
     if (tool_ != Tool::Select) return QGraphicsView::mouseDoubleClickEvent(e);
     int start = atomAt(mapToScene(e->pos()));
+    if (int t = textAt(mapToScene(e->pos())); start < 0 && t >= 0) return editText(t);
     if (start < 0) return;
     // Select the whole connected fragment.
     QSet<int> seen{start};
@@ -1003,12 +1165,16 @@ int bestToward(int count, QPointF dir, double minDot, F vectorOf) {
 }  // namespace
 
 void Canvas::rotateSelection(double degrees) {
-    if (selectedAtoms_.isEmpty()) return;
     Document next = doc_;
+    std::vector<QPointF*> pts;
+    for (int i : selectedAtoms_) pts.push_back(&next.atoms[i].pos);
+    for (int i : selectedArrows_) pts.push_back(&next.arrows[i].from), pts.push_back(&next.arrows[i].to);
+    for (int i : selectedTexts_) pts.push_back(&next.texts[i].pos);
+    if (pts.empty()) return;
     QPointF c;
-    for (int i : selectedAtoms_) c += doc_.atoms[i].pos;
-    c /= double(selectedAtoms_.size());
-    for (int i : selectedAtoms_) next.atoms[i].pos = c + rotated(doc_.atoms[i].pos - c, degrees);
+    for (QPointF* p : pts) c += *p;
+    c /= double(pts.size());
+    for (QPointF* p : pts) *p = c + rotated(*p - c, degrees);
     commit(next, tr("Rotate"));
 }
 
@@ -1062,6 +1228,20 @@ void Canvas::editLabel(int at) {
     if (ok && !label.isEmpty() && applyLabel(next, at, label)) commit(next, tr("Edit label"));
 }
 
+void Canvas::editText(int i, QPointF pos) {
+    bool ok = false;
+    QString s = QInputDialog::getMultiLineText(this, tr("Text"),
+                                               tr("Text (digits after letters become subscripts):"),
+                                               i >= 0 ? doc_.texts[i].text : QString(), &ok)
+                    .trimmed();
+    if (!ok) return;
+    Document next = doc_;
+    if (i < 0 && !s.isEmpty()) next.texts.push_back({pos, s});
+    else if (i >= 0 && s.isEmpty()) next.texts.erase(next.texts.begin() + i);
+    else if (i >= 0) next.texts[i].text = s;
+    if (!(next == doc_)) commit(next, tr("Text"));
+}
+
 void Canvas::keyPressEvent(QKeyEvent* e) {
     const int key = e->key();
     const bool arrow = key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down;
@@ -1076,7 +1256,8 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
         return setSelection({});
     }
     if (key == Qt::Key_Delete || key == Qt::Key_Backspace) {
-        if (!selectedAtoms_.isEmpty()) return deleteSelection();
+        if (!selectedAtoms_.isEmpty() || !selectedArrows_.isEmpty() || !selectedTexts_.isEmpty())
+            return deleteSelection();
         Document next = doc_;
         if (hoverAtom_ >= 0) {
             Atom& a = next.atoms[hoverAtom_];

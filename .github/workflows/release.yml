@@ -45,10 +45,13 @@ jobs:
         run: |
           New-Item -ItemType Directory dist/penzene | Out-Null
           Copy-Item build/bin/penzene.exe dist/penzene/
-          pixi run windeployqt6 --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
+          $qtpaths = (Get-ChildItem .pixi/envs/default/Library -Recurse -Filter "qtpaths*.exe" | Select-Object -First 1).FullName
+          if (!$qtpaths) { throw "qtpaths not found in the pixi env" }
+          pixi run windeployqt6 --qtpaths "$qtpaths" --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
+          if (!(Test-Path dist/penzene/platforms/qwindows.dll)) { throw "windeployqt did not bundle the platform plugin" }
           pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/.pixi/envs/default/Library/bin"
           Rename-Item .pixi .pixi-hidden
-          $env:QT_QPA_PLATFORM = "offscreen"
+          dist/penzene/penzene.exe --version
           $p = Start-Process dist/penzene/penzene.exe -ArgumentList "--render","c1ccccc1O","smoke.svg" -NoNewWindow -PassThru
           if (!$p.WaitForExit(120000)) { $p.Kill(); throw "packaged app hung" }
           if (!(Test-Path smoke.svg)) { throw "packaged app failed to render" }

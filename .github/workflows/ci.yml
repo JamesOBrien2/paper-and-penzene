@@ -26,4 +26,3 @@ jobs:
         with:
           cache: true
       - run: pixi run test
-      - run: pixi run penzene-version

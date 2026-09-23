@@ -538,6 +538,7 @@ void Canvas::setDocumentSilently(const Document& doc) {
 void Canvas::setSelection(QSet<int> atoms, QSet<int> arrows, QSet<int> texts) {
     selectedAtoms_ = std::move(atoms), selectedArrows_ = std::move(arrows), selectedTexts_ = std::move(texts);
     viewport()->update();
+    emit selectionChanged();
 }
 
 static QSet<int> range(int from, int to) {
@@ -765,6 +766,7 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
         drag_ = Drag::None;  // click tools act on release
     }
     viewport()->update();
+    emit selectionChanged();
 }
 
 void Canvas::mouseMoveEvent(QMouseEvent* e) {
@@ -915,6 +917,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
     }
     if (!what.isEmpty() && !(next == beforeDrag_)) commit(next, what);
     viewport()->update();
+    emit selectionChanged();
 }
 
 void Canvas::mouseDoubleClickEvent(QMouseEvent* e) {

@@ -2,6 +2,7 @@
 #include <QMainWindow>
 
 class Canvas;
+class QLabel;
 class QUndoStack;
 struct Document;
 
@@ -26,8 +27,10 @@ private:
     void copy();
     void paste();
     void updateTitle();
+    void updateInfo();
 
     QUndoStack* undo_;
     Canvas* canvas_;
     QString path_;
+    QLabel* info_;
 };

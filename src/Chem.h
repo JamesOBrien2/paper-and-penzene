@@ -12,6 +12,14 @@ std::string toMolBlock(const Document& doc);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
 Document clean2D(const Document& doc);      // new layout, same atom order and centroid
 
+struct Properties {
+    std::string formula;  // Hill order, all fragments together
+    double mw = 0, exactMass = 0;
+};
+std::optional<Properties> properties(const Document& doc);  // nullopt if empty or invalid
+std::string toInchi(const Document& doc);                   // "" if invalid
+std::string toInchiKey(const Document& doc);
+
 struct AtomInfo {
     int hydrogens = 0;
     bool valenceError = false;

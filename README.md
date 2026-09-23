@@ -18,6 +18,7 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
   (Help → Keyboard Shortcuts)
 - Open/save `.penz`, MOL and SDF; paste or import SMILES; Clean structure (RDKit)
 - Reaction, equilibrium, resonance, retrosynthesis, curved and fishhook arrows; text with automatic formula subscripts (H2O → H₂O)
+- Live formula, MW and exact mass for the selection; copy as InChI / InChIKey
 - Export SVG, PNG and PDF; copy as image + MOL + SMILES
 - Abbreviations (Me, OMe, CO2Me, Boc, TBS, Ts, Bpin…) drawn as labels and expanded for chemistry; Structure → Expand draws them out
 - ACS 1996 drawing style, implicit hydrogens and valence warnings

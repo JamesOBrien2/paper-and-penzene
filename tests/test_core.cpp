@@ -112,3 +112,16 @@ TEST_CASE("clean lays out each fragment in place and keeps arrows and text") {
     for (int i : {0, 1, 2}) CHECK(clean.atoms[i].pos.x() < -50);  // reactant stays left
     for (int i : {3, 4, 5}) CHECK(clean.atoms[i].pos.x() > 50);
 }
+
+TEST_CASE("formula, weights and InChI") {
+    auto aspirin = chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    REQUIRE(aspirin);
+    auto p = chem::properties(*aspirin);
+    REQUIRE(p);
+    CHECK(p->formula == "C9H8O4");
+    CHECK(std::abs(p->mw - 180.159) < 0.01);
+    CHECK(std::abs(p->exactMass - 180.0423) < 0.001);
+    CHECK(chem::toInchiKey(*aspirin) == "BSYNRYMUTXBXSQ-UHFFFAOYSA-N");
+    CHECK(chem::toInchi(*aspirin).rfind("InChI=1S/C9H8O4/", 0) == 0);
+    CHECK_FALSE(chem::properties(Document{}));
+}

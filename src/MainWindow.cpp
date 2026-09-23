@@ -11,6 +11,8 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QLabel>
+#include <QRegularExpression>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
@@ -29,6 +31,23 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     buildMenus();
     connect(undo_, &QUndoStack::cleanChanged, this, &MainWindow::updateTitle);
     updateTitle();
+    info_ = new QLabel;
+    info_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    statusBar()->addPermanentWidget(info_);
+    connect(canvas_, &Canvas::documentChanged, this, &MainWindow::updateInfo);
+    connect(canvas_, &Canvas::selectionChanged, this, &MainWindow::updateInfo);
+}
+
+// Formula and masses of the selection, or of everything.
+void MainWindow::updateInfo() {
+    auto p = chem::properties(canvas_->selectedSubset());
+    if (!p) return info_->clear();
+    QString f = QString::fromStdString(p->formula).toHtmlEscaped();
+    f.replace(QRegularExpression("(\\d+)"), "<sub>\\1</sub>").replace(QRegularExpression("([+-])$"), "<sup>\\1</sup>");
+    info_->setText(tr("%1 &nbsp;·&nbsp; MW %2 &nbsp;·&nbsp; exact mass %3")
+                       .arg(f)
+                       .arg(p->mw, 0, 'f', 2)
+                       .arg(p->exactMass, 0, 'f', 4));
 }
 
 void MainWindow::updateTitle() {
@@ -245,6 +264,12 @@ void MainWindow::buildMenus() {
     edit->addAction(tr("&Copy"), QKeySequence::Copy, this, &MainWindow::copy);
     edit->addAction(tr("Copy as S&MILES"), QKeySequence(tr("Ctrl+Alt+C")), this, [this] {
         QApplication::clipboard()->setText(QString::fromStdString(chem::toSmiles(canvas_->selectedSubset())));
+    });
+    edit->addAction(tr("Copy as &InChI"), this, [this] {
+        QApplication::clipboard()->setText(QString::fromStdString(chem::toInchi(canvas_->selectedSubset())));
+    });
+    edit->addAction(tr("Copy as InChI&Key"), this, [this] {
+        QApplication::clipboard()->setText(QString::fromStdString(chem::toInchiKey(canvas_->selectedSubset())));
     });
     edit->addAction(tr("&Paste"), QKeySequence::Paste, this, &MainWindow::paste);
     edit->addAction(tr("&Delete"), canvas_, &Canvas::deleteSelection);

@@ -8,7 +8,7 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
 > Status: early development. See the [roadmap](https://github.com/users/JamesOBrien2/projects) and
 > [issues](https://github.com/JamesOBrien2/penzene/issues).
 
-<p align="center"><img src="docs/screenshot.png" width="720" alt="Penzene main window showing aspirin"></p>
+<p align="center"><img src="docs/screenshot.png" width="720" alt="Penzene main window showing caffeine"></p>
 
 ## Features
 
@@ -30,8 +30,8 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
 Render without opening a window, for scripts, notebooks and batch figures:
 
 ```sh
-penzene --render aspirin.mol aspirin.svg                    # one file
-penzene --render "CC(=O)Oc1ccccc1C(=O)O" aspirin.pdf        # a SMILES string
+penzene --render caffeine.mol caffeine.svg                  # one file
+penzene --render "CN1C=NC2=C1C(=O)N(C(=O)N2C)C" caffeine.pdf   # a SMILES string
 penzene --render library.sdf hits.smi --out figs --format png --drawing-style RSC --clean
 ```
 

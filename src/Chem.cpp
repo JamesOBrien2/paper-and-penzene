@@ -174,4 +174,18 @@ std::vector<AtomInfo> atomInfo(const Document& doc) {
     return info;
 }
 
+// Via Atom, not PeriodicTable: its inline methods reference a logger global
+// that the Windows RDKit DLL doesn't export.
+std::string symbol(int z) {
+    return RDKit::Atom(z).getSymbol();
+}
+
+int atomicNumber(const std::string& sym) {
+    try {
+        return int(RDKit::Atom(sym).getAtomicNum());
+    } catch (...) {
+        return 0;
+    }
+}
+
 }  // namespace chem

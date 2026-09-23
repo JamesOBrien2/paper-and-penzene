@@ -17,4 +17,7 @@ struct AtomInfo {
     bool valenceError = false;
 };
 std::vector<AtomInfo> atomInfo(const Document& doc);
+
+std::string symbol(int z);
+int atomicNumber(const std::string& symbol);  // 0 if unknown
 }  // namespace chem

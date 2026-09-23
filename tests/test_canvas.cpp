@@ -290,3 +290,38 @@ TEST_CASE("applyLabel understands elements, groups and SMILES") {
     CHECK(chem::toSmiles(d) == "C[N+](=O)[O-]");
     CHECK_FALSE(Canvas::applyLabel(d, 0, "notachem!!"));
 }
+
+static double angleAt(const Document& d, int centre, int x, int y) {
+    QPointF u = d.atoms[x].pos - d.atoms[centre].pos, v = d.atoms[y].pos - d.atoms[centre].pos;
+    return std::acos((u.x() * v.x() + u.y() * v.y()) / (std::hypot(u.x(), u.y()) * std::hypot(v.x(), v.y()))) * 180 / M_PI;
+}
+
+// #43: sp centres (allenes, alkynes) are linear.
+TEST_CASE("allene and alkyne centres are linear") {
+    Fixture f;  // drawing double bonds onto a double bond
+    f.canvas.setTool(Canvas::Tool::Bond);
+    f.canvas.setBondOrder(2);
+    f.click({0, 0});
+    f.click(f.doc().atoms[1].pos);
+    REQUIRE(f.doc().atoms.size() == 3);
+    CHECK(angleAt(f.doc(), 1, 0, 2) > 179);
+
+    Fixture g;  // zig-zag chain, then make both bonds double: terminal atom swings into line
+    g.canvas.setTool(Canvas::Tool::Chain);
+    g.drag({0, 0}, {40, 0});
+    REQUIRE(g.doc().atoms.size() == 4);
+    for (int bi : {1, 2}) {
+        const auto& d = g.doc();
+        g.hover((d.atoms[d.bonds[bi].a].pos + d.atoms[d.bonds[bi].b].pos) / 2);
+        g.key("2");
+    }
+    CHECK(angleAt(g.doc(), 2, 1, 3) > 179);
+
+    Fixture h;  // growing from an alkyne carbon continues straight
+    h.canvas.setTool(Canvas::Tool::Bond);
+    h.canvas.setBondOrder(3);
+    h.click({0, 0});
+    h.hover(h.doc().atoms[1].pos);
+    h.key("1");
+    CHECK(angleAt(h.doc(), 1, 0, 2) > 179);
+}

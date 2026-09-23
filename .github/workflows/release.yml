@@ -79,7 +79,8 @@ jobs:
           env="$PWD/.pixi/envs/default"
           QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$env/lib" EXTRA_PLATFORM_PLUGINS=libqoffscreen.so \
             ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/bin/penzene \
-            -d penzene.desktop -i penzene.svg --plugin qt --output appimage
+            -d penzene.desktop -i penzene.svg --plugin qt --output appimage \
+            -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
           mv Paper*.AppImage penzene-linux-x86_64.AppImage
           mv .pixi .pixi-hidden
           QT_QPA_PLATFORM=offscreen ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg

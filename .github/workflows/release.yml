@@ -12,7 +12,12 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-14   # Apple silicon
+    strategy:
+      matrix:
+        include:
+          - {runner: macos-14, arch: arm64}          # Apple silicon
+          - {runner: macos-15-intel, arch: x86_64}   # Intel
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
@@ -28,9 +33,9 @@ jobs:
           dist/penzene.app/Contents/MacOS/penzene --version
           dist/penzene.app/Contents/MacOS/penzene --render 'c1ccccc1O' smoke.svg
           mv .pixi-hidden .pixi
-          hdiutil create -volname "Penzene" -srcfolder dist -ov -format UDZO penzene-macos-arm64.dmg
+          hdiutil create -volname "Penzene" -srcfolder dist -ov -format UDZO penzene-macos-${{ matrix.arch }}.dmg
       - uses: actions/upload-artifact@v4
-        with: {name: macos, path: penzene-macos-arm64.dmg}
+        with: {name: 'macos-${{ matrix.arch }}', path: 'penzene-macos-${{ matrix.arch }}.dmg'}
 
   windows:
     runs-on: windows-2022

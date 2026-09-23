@@ -11,6 +11,9 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QPainter>
+#include <QtMath>
+#include <functional>
 #include <QLabel>
 #include <QRegularExpression>
 #include <QMenuBar>
@@ -154,15 +157,68 @@ void MainWindow::paste() {
     else statusBar()->showMessage(tr("Clipboard has no structure or SMILES"), 4000);
 }
 
+// Tool icons are drawn with the same renderer as the canvas, in the palette's ink.
+// ponytail: built once; regenerate on palette change when themes land (#18).
+static QIcon paintedIcon(const std::function<void(QPainter&, QColor)>& paint) {
+    QPixmap pm(48, 48);
+    pm.setDevicePixelRatio(2);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    paint(p, QApplication::palette().color(QPalette::WindowText));
+    return QIcon(pm);
+}
+
+static QIcon docIcon(const Document& d) {
+    return paintedIcon([d](QPainter& p, QColor ink) {
+        QRectF r;
+        for (const auto& a : d.atoms) r |= QRectF(a.pos, QSizeF(0.01, 0.01));
+        for (const auto& a : d.arrows) r |= arrowPath(a).boundingRect().adjusted(-3, -3, 3, 3);
+        for (const auto& t : d.texts) r |= textPath(t).boundingRect();
+        const double s = 18 / std::max(r.width(), r.height());
+        p.translate(12, 12);
+        p.scale(s, s);
+        p.translate(-r.center());
+        paintDocument(p, d, {ink, ink, 1.3 / s});  // constant stroke whatever the scale
+    });
+}
+
+static Document chainDoc(std::vector<QPointF> pts, int order = 1, BondStereo stereo = BondStereo::None) {
+    Document d;
+    for (QPointF q : pts) d.addAtom(q * kBondLength);
+    for (int i = 1; i < int(pts.size()); ++i) d.bonds.push_back({i - 1, i, i == 1 ? order : 1, i == 1 ? stereo : BondStereo::None});
+    return d;
+}
+
+static Document ringDoc(int n, bool aromatic) {
+    Document d;
+    const double r = kBondLength / (2 * std::sin(M_PI / n));
+    for (int k = 0; k < n; ++k) d.addAtom(r * QPointF(std::sin(2 * M_PI * k / n), -std::cos(2 * M_PI * k / n)));
+    for (int k = 0; k < n; ++k) d.bonds.push_back({k, (k + 1) % n, aromatic && k % 2 == 0 ? 2 : 1});
+    return d;
+}
+
+static Document arrowDoc(ArrowKind kind, double bend = 0) {
+    Document d;
+    d.arrows.push_back({{0, 0}, {16, 0}, kind, bend});
+    return d;
+}
+
+static Document textDoc(const QString& s) {
+    Document d;
+    d.texts.push_back({{0, 0}, s});
+    return d;
+}
+
 void MainWindow::buildTools() {
     auto* bar = addToolBar(tr("Tools"));
     bar->setObjectName("tools");
     addToolBar(Qt::LeftToolBarArea, bar);
+    bar->setIconSize({22, 22});
     auto* group = new QActionGroup(this);
 
-    // ponytail: text glyphs for tool icons; draw real icons when someone cares.
-    auto add = [&](const QString& label, const QString& tip, auto setup) {
-        auto* a = bar->addAction(label);
+    auto add = [&](const QIcon& icon, const QString& tip, auto setup) {
+        auto* a = bar->addAction(icon, {});
         a->setToolTip(tip);
         a->setCheckable(true);
         group->addAction(a);
@@ -176,29 +232,36 @@ void MainWindow::buildTools() {
     };
     // Keys that pick a tool when no atom or bond is the hotspot (ChemDraw).
     QHash<QString, QAction*> keys;
-    keys[" "] = add("⬚", tr("Select (drag to move, Alt+drag to rotate, double-click for fragment) — Space"),
+    const QIcon select = paintedIcon([](QPainter& p, QColor ink) {
+        p.setPen(QPen(ink, 1.2, Qt::DashLine));
+        p.drawRect(QRectF(4.5, 5.5, 15, 13));
+    });
+    keys[" "] = add(select, tr("Select (drag to move, Alt+drag to rotate, double-click for fragment) — Space"),
                     tool(T::Select));
-    keys["x"] = add("╱", tr("Single bond / chain start — x"), bond(1));
+    const QPointF bondPts[] = {{0, 0}, {0.87, -0.5}};
+    auto bondIcon = [&](int order, BondStereo st = BondStereo::None) {
+        return docIcon(chainDoc({std::begin(bondPts), std::end(bondPts)}, order, st));
+    };
+    keys["x"] = add(bondIcon(1), tr("Single bond / chain start — x"), bond(1));
     keys["x"]->setChecked(true);
-    add("═", tr("Double bond"), bond(2));
-    add("≡", tr("Triple bond"), bond(3));
-    add("▶", tr("Wedge bond"), tool(T::Wedge));
-    add("┇", tr("Hashed bond"), tool(T::Hash));
-    keys["X"] = add("⦚", tr("Chain — X"), tool(T::Chain));
+    add(bondIcon(2), tr("Double bond"), bond(2));
+    add(bondIcon(3), tr("Triple bond"), bond(3));
+    add(bondIcon(1, BondStereo::Wedge), tr("Wedge bond"), tool(T::Wedge));
+    add(bondIcon(1, BondStereo::Hash), tr("Hashed bond"), tool(T::Hash));
+    keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X"), tool(T::Chain));
     bar->addSeparator();
 
     auto ring = [this](int n, bool arom) {
         return [this, n, arom] { canvas_->setTool(T::Ring), canvas_->setRing(n, arom); };
     };
-    keys["j"] = add("⌬", tr("Benzene — j"), ring(6, true));
-    const char* shapes[] = {"△", "□", "⬠", "⬡", "7", "8"};
-    for (int n = 3; n <= 8; ++n) add(shapes[n - 3], tr("%1-membered ring").arg(n), ring(n, false));
+    keys["j"] = add(docIcon(ringDoc(6, true)), tr("Benzene — j"), ring(6, true));
+    for (int n = 3; n <= 8; ++n) add(docIcon(ringDoc(n, false)), tr("%1-membered ring").arg(n), ring(n, false));
     bar->addSeparator();
 
     auto* elements = new QComboBox;
     for (auto s : {"C", "N", "O", "S", "P", "F", "Cl", "Br", "I", "H", "B", "Si"}) elements->addItem(s);
     elements->setToolTip(tr("Element for the atom tool (or hover an atom and press C, N, O…)"));
-    auto* atom = add("A", tr("Atom"), tool(T::Atom));
+    auto* atom = add(docIcon(textDoc("N")), tr("Atom"), tool(T::Atom));
     bar->addWidget(elements);
     connect(elements, &QComboBox::currentTextChanged, this, [this, atom](const QString& s) {
         canvas_->setElement(chem::atomicNumber(s.toStdString()));
@@ -210,20 +273,38 @@ void MainWindow::buildTools() {
         return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
     };
     const QString drag = tr(" (drag to draw; click an arrow to restyle it)");
-    keys["e"] = add("→", tr("Reaction arrow — e") + drag, arrow(ArrowKind::Reaction, false));
-    add("⇌", tr("Equilibrium arrow") + drag, arrow(ArrowKind::Equilibrium, false));
-    add("↔", tr("Resonance arrow") + drag, arrow(ArrowKind::Resonance, false));
-    add("⇒", tr("Retrosynthesis arrow") + drag, arrow(ArrowKind::Retro, false));
-    add("↷", tr("Curved arrow, electron pair (click it again to flip the curve)"), arrow(ArrowKind::Reaction, true));
-    add("⇀", tr("Fishhook arrow, single electron (click it again to flip)"), arrow(ArrowKind::Fishhook, true));
-    keys["t"] = add("T", tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
+    keys["e"] = add(docIcon(arrowDoc(ArrowKind::Reaction)), tr("Reaction arrow — e") + drag,
+                    arrow(ArrowKind::Reaction, false));
+    add(docIcon(arrowDoc(ArrowKind::Equilibrium)), tr("Equilibrium arrow") + drag, arrow(ArrowKind::Equilibrium, false));
+    add(docIcon(arrowDoc(ArrowKind::Resonance)), tr("Resonance arrow") + drag, arrow(ArrowKind::Resonance, false));
+    add(docIcon(arrowDoc(ArrowKind::Retro)), tr("Retrosynthesis arrow") + drag, arrow(ArrowKind::Retro, false));
+    add(docIcon(arrowDoc(ArrowKind::Reaction, 10)), tr("Curved arrow, electron pair (click it again to flip the curve)"),
+        arrow(ArrowKind::Reaction, true));
+    add(docIcon(arrowDoc(ArrowKind::Fishhook, 10)), tr("Fishhook arrow, single electron (click it again to flip)"),
+        arrow(ArrowKind::Fishhook, true));
+    keys["t"] = add(docIcon(textDoc("T")), tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
     connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
         if (auto* a = keys.value(k)) a->trigger();
     });
     bar->addSeparator();
-    add("⊕", tr("Positive charge"), tool(T::ChargePlus));
-    add("⊖", tr("Negative charge"), tool(T::ChargeMinus));
-    add("⌫", tr("Eraser"), tool(T::Erase));
+    auto charge = [](bool plus) {
+        return paintedIcon([plus](QPainter& p, QColor ink) {
+            p.setPen(QPen(ink, 1.3));
+            p.drawEllipse(QPointF(12, 12), 7, 7);
+            p.drawLine(QPointF(8.5, 12), QPointF(15.5, 12));
+            if (plus) p.drawLine(QPointF(12, 8.5), QPointF(12, 15.5));
+        });
+    };
+    add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
+    add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
+    const QIcon eraser = paintedIcon([](QPainter& p, QColor ink) {
+        p.translate(12, 12);
+        p.rotate(-40);
+        p.setPen(QPen(ink, 1.3));
+        p.drawRoundedRect(QRectF(-8, -4, 16, 8), 1.5, 1.5);
+        p.drawLine(QPointF(-2, -4), QPointF(-2, 4));
+    });
+    add(eraser, tr("Eraser"), tool(T::Erase));
 }
 
 void MainWindow::buildMenus() {

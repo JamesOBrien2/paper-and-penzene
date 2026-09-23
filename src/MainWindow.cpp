@@ -11,6 +11,9 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QSettings>
+#include <QStyle>
+#include <QStyleHints>
 #include <QPainter>
 #include <QtMath>
 #include <functional>
@@ -158,8 +161,10 @@ void MainWindow::paste() {
 }
 
 // Tool icons are drawn with the same renderer as the canvas, in the palette's ink.
-// ponytail: built once; regenerate on palette change when themes land (#18).
-static QIcon paintedIcon(const std::function<void(QPainter&, QColor)>& paint) {
+// Returned as makers so they can be repainted when the theme changes.
+using IconMaker = std::function<QIcon()>;
+static IconMaker paintedIcon(std::function<void(QPainter&, QColor)> paint) {
+    return [paint] {
     QPixmap pm(48, 48);
     pm.setDevicePixelRatio(2);
     pm.fill(Qt::transparent);
@@ -167,9 +172,10 @@ static QIcon paintedIcon(const std::function<void(QPainter&, QColor)>& paint) {
     p.setRenderHint(QPainter::Antialiasing);
     paint(p, QApplication::palette().color(QPalette::WindowText));
     return QIcon(pm);
+    };
 }
 
-static QIcon docIcon(const Document& d) {
+static IconMaker docIcon(const Document& d) {
     return paintedIcon([d](QPainter& p, QColor ink) {
         QRectF r;
         for (const auto& a : d.atoms) r |= QRectF(a.pos, QSizeF(0.01, 0.01));
@@ -217,8 +223,9 @@ void MainWindow::buildTools() {
     bar->setIconSize({22, 22});
     auto* group = new QActionGroup(this);
 
-    auto add = [&](const QIcon& icon, const QString& tip, auto setup) {
-        auto* a = bar->addAction(icon, {});
+    auto add = [&](const IconMaker& icon, const QString& tip, auto setup) {
+        auto* a = bar->addAction(icon(), {});
+        icons_.push_back({a, icon});
         a->setToolTip(tip);
         a->setCheckable(true);
         group->addAction(a);
@@ -232,7 +239,7 @@ void MainWindow::buildTools() {
     };
     // Keys that pick a tool when no atom or bond is the hotspot (ChemDraw).
     QHash<QString, QAction*> keys;
-    const QIcon select = paintedIcon([](QPainter& p, QColor ink) {
+    const IconMaker select = paintedIcon([](QPainter& p, QColor ink) {
         p.setPen(QPen(ink, 1.2, Qt::DashLine));
         p.drawRect(QRectF(4.5, 5.5, 15, 13));
     });
@@ -297,7 +304,7 @@ void MainWindow::buildTools() {
     };
     add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
     add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
-    const QIcon eraser = paintedIcon([](QPainter& p, QColor ink) {
+    const IconMaker eraser = paintedIcon([](QPainter& p, QColor ink) {
         p.translate(12, 12);
         p.rotate(-40);
         p.setPen(QPen(ink, 1.3));
@@ -305,6 +312,35 @@ void MainWindow::buildTools() {
         p.drawLine(QPointF(-2, -4), QPointF(-2, 4));
     });
     add(eraser, tr("Eraser"), tool(T::Erase));
+}
+
+// "System" follows the OS; the others force light or dark, and Catppuccin
+// also recolours the UI. Canvas colours always come from the theme.
+void MainWindow::applyTheme(const QString& name) {
+    const Theme& chosen = theme(name);
+    auto* hints = QGuiApplication::styleHints();
+    hints->setColorScheme(chosen.name == "System" ? Qt::ColorScheme::Unknown
+                          : chosen.dark           ? Qt::ColorScheme::Dark
+                                                  : Qt::ColorScheme::Light);
+    QPalette pal = QApplication::style()->standardPalette();
+    if (chosen.window.isValid()) {
+        for (auto role : {QPalette::Window, QPalette::Button}) pal.setColor(role, chosen.window);
+        for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText, QPalette::ToolTipText})
+            pal.setColor(role, chosen.text);
+        pal.setColor(QPalette::Base, chosen.paper);
+        pal.setColor(QPalette::AlternateBase, chosen.surface);
+        pal.setColor(QPalette::ToolTipBase, chosen.surface);
+        pal.setColor(QPalette::Highlight, chosen.accent);
+        pal.setColor(QPalette::HighlightedText, chosen.paper);
+        pal.setColor(QPalette::Mid, chosen.surface);
+        QApplication::setPalette(pal);
+    } else {
+        QApplication::setPalette(QPalette());  // back to the platform's own
+    }
+    const bool dark = chosen.name == "System" ? hints->colorScheme() == Qt::ColorScheme::Dark : chosen.dark;
+    canvas_->setTheme(chosen.name == "System" ? theme(dark ? "Dark" : "Light") : chosen);
+    for (auto& [action, make] : icons_) action->setIcon(make());
+    QSettings().setValue("theme", chosen.name);
 }
 
 void MainWindow::buildMenus() {
@@ -388,6 +424,21 @@ void MainWindow::buildMenus() {
     view->addAction(tr("Zoom &In"), QKeySequence::ZoomIn, this, [this] { canvas_->zoomBy(1.25); });
     view->addAction(tr("Zoom &Out"), QKeySequence::ZoomOut, this, [this] { canvas_->zoomBy(0.8); });
     view->addAction(tr("&Fit to Window"), QKeySequence(tr("Ctrl+0")), canvas_, &Canvas::fitToDocument);
+    auto* themeMenu = view->addMenu(tr("&Theme"));
+    auto* themeGroup = new QActionGroup(this);
+    const QString current = QSettings().value("theme", "System").toString();
+    for (const auto& t : themes()) {
+        auto* a = themeMenu->addAction(t.name, this, [this, n = t.name] { applyTheme(n); });
+        a->setCheckable(true);
+        a->setChecked(t.name == theme(current).name);
+        themeGroup->addAction(a);
+        if (t.name == "Dark") themeMenu->addSeparator();
+    }
+    applyTheme(current);
+    // Following the OS: repaint the canvas and icons when it switches.
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this] {
+        if (QSettings().value("theme", "System").toString() == "System") applyTheme("System");
+    });
 
     auto* help = menuBar()->addMenu(tr("&Help"));
     help->addAction(tr("&Keyboard Shortcuts"), QKeySequence(tr("F1")), this, [this] {

@@ -30,6 +30,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     QApplication::setApplicationName("Penzene");
+    QApplication::setOrganizationName("Penzene");
     QApplication::setWindowIcon(QIcon(":/logo.svg"));
     MainWindow w;
     if (argc == 2) w.openFile(QString::fromLocal8Bit(argv[1]));

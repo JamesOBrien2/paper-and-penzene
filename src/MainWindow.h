@@ -1,5 +1,7 @@
 #pragma once
 #include <QMainWindow>
+#include <functional>
+#include <vector>
 
 class Canvas;
 class QLabel;
@@ -28,9 +30,11 @@ private:
     void paste();
     void updateTitle();
     void updateInfo();
+    void applyTheme(const QString& name);
 
     QUndoStack* undo_;
     Canvas* canvas_;
     QString path_;
     QLabel* info_;
+    std::vector<std::pair<QAction*, std::function<QIcon()>>> icons_;
 };

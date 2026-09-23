@@ -1,4 +1,5 @@
 #include "Chem.h"
+#include "Edit.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -142,4 +143,19 @@ TEST_CASE("CDXML import: molecules, arrows and text in place") {
     CHECK(std::abs(doc->arrows[2].bend - 7.32) < 0.1);
     REQUIRE(doc->texts.size() == 1);
     CHECK(doc->texts[0].text == "PCC");
+}
+
+TEST_CASE("hotkeys without a canvas: ChemDraw's dipeptide example") {
+    Document doc;
+    int n = doc.addAtom({0, 0}, 7);
+    edit::link(doc, n, doc.addAtom({kBondLength, 0}));
+    edit::Hotspot h{1, -1};
+    for (QChar k : QString("42n152o")) {
+        h = edit::hotkey(doc, h, k);
+        REQUIRE(h.valid());
+    }
+    std::string smi = chem::toSmiles(doc);
+    std::erase(smi, '@');
+    CHECK(chem::toSmiles(*chem::fromSmiles(smi)) == chem::toSmiles(*chem::fromSmiles("CC(N)C(=O)NC(C)C(=O)O")));
+    CHECK_FALSE(edit::hotkey(doc, {0, -1}, "~").valid());  // not a hotkey
 }

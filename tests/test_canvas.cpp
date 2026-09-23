@@ -1,5 +1,6 @@
 #include "Canvas.h"
 #include "Chem.h"
+#include "Edit.h"
 #include "MainWindow.h"
 
 #include <QApplication>
@@ -287,19 +288,19 @@ TEST_CASE("applyLabel understands elements, groups and SMILES") {
     Document d;
     d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
     d.bonds = {{0, 1}};
-    CHECK(Canvas::applyLabel(d, 1, "Br"));
+    CHECK(edit::applyLabel(d, 1, "Br"));
     CHECK(d.atoms[1].z == 35);
-    CHECK(Canvas::applyLabel(d, 1, "NO2"));  // abbreviation: one labelled atom
+    CHECK(edit::applyLabel(d, 1, "NO2"));  // abbreviation: one labelled atom
     CHECK(d.atoms[1].label == "NO2");
     CHECK(d.atoms[1].charge == 1);
     CHECK(d.atoms.size() == 2);
     CHECK(chem::toSmiles(d) == "C[N+](=O)[O-]");  // chemistry sees the full group
-    CHECK(Canvas::applyLabel(d, 1, "OH"));
+    CHECK(edit::applyLabel(d, 1, "OH"));
     CHECK(d.atoms[1].z == 8);
     CHECK(d.atoms[1].label.isEmpty());
-    CHECK(Canvas::applyLabel(d, 1, "C(=O)Cl"));  // SMILES: drawn out
+    CHECK(edit::applyLabel(d, 1, "C(=O)Cl"));  // SMILES: drawn out
     CHECK(d.atoms.size() == 4);
-    CHECK_FALSE(Canvas::applyLabel(d, 0, "notachem!!"));
+    CHECK_FALSE(edit::applyLabel(d, 0, "notachem!!"));
 }
 
 TEST_CASE("abbreviations: valence, clean, expand") {
@@ -307,7 +308,7 @@ TEST_CASE("abbreviations: valence, clean, expand") {
     Document d;
     d.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{2 * kBondLength, 5}}};
     d.bonds = {{0, 1}, {1, 2}};
-    REQUIRE(Canvas::applyLabel(d, 2, "Boc"));
+    REQUIRE(edit::applyLabel(d, 2, "Boc"));
     CHECK_FALSE(chem::atomInfo(d)[2].valenceError);
     CHECK(chem::toSmiles(d) == "CCC(=O)OC(C)(C)C");
     Document clean = chem::clean2D(d);

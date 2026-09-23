@@ -7,11 +7,17 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QColorDialog>
-#include <QComboBox>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <memory>
+#include <QSet>
+#include <QWidgetAction>
+#include <QToolButton>
+#include <QMenu>
+#include <QGridLayout>
+#include <QFrame>
 #include <QSettings>
 #include <QStyle>
 #include <QStyleHints>
@@ -200,7 +206,9 @@ static Document chainDoc(std::vector<QPointF> pts, int order = 1, BondStereo ste
 static Document ringDoc(int n, bool aromatic) {
     Document d;
     const double r = kBondLength / (2 * std::sin(M_PI / n));
-    for (int k = 0; k < n; ++k) d.addAtom(r * QPointF(std::sin(2 * M_PI * k / n), -std::cos(2 * M_PI * k / n)));
+    const double turn = n % 4 == 0 ? M_PI / n : 0;  // squares sit flat, not as diamonds
+    for (int k = 0; k < n; ++k)
+        d.addAtom(r * QPointF(std::sin(2 * M_PI * k / n + turn), -std::cos(2 * M_PI * k / n + turn)));
     for (int k = 0; k < n; ++k) d.bonds.push_back({k, (k + 1) % n, aromatic && k % 2 == 0 ? 2 : 1});
     return d;
 }
@@ -217,20 +225,83 @@ static Document textDoc(const QString& s) {
     return d;
 }
 
+// Periodic table: main block by group and period, lanthanides and actinides
+// underneath. Organic elements are bold, since they're the ones drawn most.
+static QWidget* periodicTable(const std::function<void(int)>& picked) {
+    auto* w = new QWidget;
+    auto* grid = new QGridLayout(w);
+    grid->setSpacing(2);
+    grid->setContentsMargins(6, 6, 6, 6);
+    auto place = [&](int z, int row, int col) {
+        const QString sym = QString::fromStdString(chem::symbol(z));
+        auto* b = new QToolButton;
+        b->setText(sym);
+        b->setToolTip(QString("%1 (%2)").arg(sym).arg(z));
+        b->setFixedSize(30, 26);
+        b->setAutoRaise(true);
+        static const QSet<int> organic{1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53};
+        if (organic.contains(z)) {
+            QFont f = b->font();
+            f.setBold(true);
+            b->setFont(f);
+        }
+        QObject::connect(b, &QToolButton::clicked, w, [picked, z] { picked(z); });
+        grid->addWidget(b, row, col);
+    };
+    place(1, 0, 0), place(2, 0, 17);
+    for (int p = 1, z = 3; p <= 2; ++p) {  // periods 2-3: s block, then p block
+        place(z++, p, 0), place(z++, p, 1);
+        for (int c = 12; c < 18; ++c) place(z++, p, c);
+    }
+    for (int p = 3, z = 19; p <= 4; ++p)  // periods 4-5 are full
+        for (int c = 0; c < 18; ++c) place(z++, p, c);
+    for (int p = 5, z = 55; p <= 6; ++p, z += 32) {  // periods 6-7: Cs/Fr, Ba/Ra, then Hf/Rf onwards
+        place(z, p, 0), place(z + 1, p, 1);
+        for (int c = 3; c < 18; ++c) place(z + 14 + c, p, c);  // 72 (Hf) at column 3
+        for (int k = 0; k < 15; ++k) place(z + 2 + k, p + 3, 2 + k);  // La-Lu, Ac-Lr below
+    }
+    grid->setRowMinimumHeight(7, 8);  // gap above the f block
+    return w;
+}
+
 void MainWindow::buildTools() {
     auto* bar = addToolBar(tr("Tools"));
     bar->setObjectName("tools");
     addToolBar(Qt::LeftToolBarArea, bar);
-    bar->setIconSize({22, 22});
+    bar->setMovable(false);
+    // A two-column palette, like ChemDraw's, so related tools sit together.
+    auto* palette = new QWidget;
+    auto* grid = new QGridLayout(palette);
+    grid->setSpacing(2);
+    grid->setContentsMargins(4, 4, 4, 4);
+    bar->addWidget(palette);
+    int slot = 0;  // next free cell, counted left to right
+    auto section = [&] {
+        if (slot % 2) ++slot;
+        auto* line = new QFrame;
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        grid->addWidget(line, slot / 2, 0, 1, 2);
+        slot += 2;
+    };
     auto* group = new QActionGroup(this);
-
+    auto button = [&](QAction* a) {
+        auto* b = new QToolButton;
+        b->setDefaultAction(a);
+        b->setIconSize({26, 26});
+        b->setAutoRaise(true);
+        grid->addWidget(b, slot / 2, slot % 2);
+        ++slot;
+        return b;
+    };
     auto add = [&](const IconMaker& icon, const QString& tip, auto setup) {
-        auto* a = bar->addAction(icon(), {});
+        auto* a = new QAction(icon(), {}, this);
         icons_.push_back({a, icon});
         a->setToolTip(tip);
         a->setCheckable(true);
         group->addAction(a);
         connect(a, &QAction::triggered, this, setup);
+        button(a);
         return a;
     };
     using T = Canvas::Tool;
@@ -246,6 +317,15 @@ void MainWindow::buildTools() {
     });
     keys[" "] = add(select, tr("Select (drag to move, Alt+drag to rotate, double-click for fragment) — Space"),
                     tool(T::Select));
+    const IconMaker eraser = paintedIcon([](QPainter& p, QColor ink) {
+        p.translate(12, 12);
+        p.rotate(-40);
+        p.setPen(QPen(ink, 1.3));
+        p.drawRoundedRect(QRectF(-8, -4, 16, 8), 1.5, 1.5);
+        p.drawLine(QPointF(-2, -4), QPointF(-2, 4));
+    });
+    add(eraser, tr("Eraser (click an atom, bond, arrow or text)"), tool(T::Erase));
+    section();
     const QPointF bondPts[] = {{0, 0}, {0.87, -0.5}};
     auto bondIcon = [&](int order, BondStereo st = BondStereo::None) {
         return docIcon(chainDoc({std::begin(bondPts), std::end(bondPts)}, order, st));
@@ -257,7 +337,7 @@ void MainWindow::buildTools() {
     add(bondIcon(1, BondStereo::Wedge), tr("Wedge bond"), tool(T::Wedge));
     add(bondIcon(1, BondStereo::Hash), tr("Hashed bond"), tool(T::Hash));
     keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X"), tool(T::Chain));
-    bar->addSeparator();
+    section();
 
     auto ring = [this](int n, bool arom) {
         return [this, n, arom] { canvas_->setTool(T::Ring), canvas_->setRing(n, arom); };
@@ -267,19 +347,49 @@ void MainWindow::buildTools() {
     Document filled = ringDoc(6, false);
     filled.fills.push_back({{0, 1, 2, 3, 4, 5}, QColor(120, 170, 255)});
     add(docIcon(filled), tr("Ring fill (click inside a ring; again to clear) — colour in Structure menu"), tool(T::Fill));
-    bar->addSeparator();
+    section();
 
-    auto* elements = new QComboBox;
-    for (auto s : {"C", "N", "O", "S", "P", "F", "Cl", "Br", "I", "H", "B", "Si"}) elements->addItem(s);
-    elements->setToolTip(tr("Element for the atom tool (or hover an atom and press C, N, O…)"));
-    auto* atom = add(docIcon(textDoc("N")), tr("Atom"), tool(T::Atom));
-    bar->addWidget(elements);
-    connect(elements, &QComboBox::currentTextChanged, this, [this, atom](const QString& s) {
-        canvas_->setElement(chem::atomicNumber(s.toStdString()));
+    // Element: the button shows the current element and draws it; its arrow
+    // opens the periodic table, and picking one switches to the atom tool.
+    auto element = std::make_shared<QString>("C");
+    auto* atom = new QAction(this);
+    const IconMaker atomIcon = [element] { return docIcon(textDoc(*element))(); };
+    atom->setIcon(atomIcon());
+    icons_.push_back({atom, atomIcon});
+    atom->setToolTip(tr("Atom: click to place or relabel (element from the arrow's periodic table; "
+                        "or point at an atom and type N, O, S…)"));
+    atom->setCheckable(true);
+    group->addAction(atom);
+    connect(atom, &QAction::triggered, this, [this] { canvas_->setTool(T::Atom); });
+    if (slot % 2) ++slot;
+    auto* atomButton = button(atom);
+    grid->addWidget(atomButton, (slot - 1) / 2, 0, 1, 2);  // full width
+    ++slot;
+    atomButton->setPopupMode(QToolButton::MenuButtonPopup);
+    atomButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    auto* menu = new QMenu(atomButton);
+    auto* table = new QWidgetAction(menu);
+    table->setDefaultWidget(periodicTable([=, this](int z) {
+        *element = QString::fromStdString(chem::symbol(z));
+        canvas_->setElement(z);
         canvas_->setTool(T::Atom);
         atom->setChecked(true);
-    });
-    bar->addSeparator();
+        atom->setIcon(atomIcon());
+        menu->close();
+    }));
+    menu->addAction(table);
+    atomButton->setMenu(menu);
+    auto charge = [](bool plus) {
+        return paintedIcon([plus](QPainter& p, QColor ink) {
+            p.setPen(QPen(ink, 1.3));
+            p.drawEllipse(QPointF(12, 12), 7, 7);
+            p.drawLine(QPointF(8.5, 12), QPointF(15.5, 12));
+            if (plus) p.drawLine(QPointF(12, 8.5), QPointF(12, 15.5));
+        });
+    };
+    add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
+    add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
+    section();
     auto arrow = [this](ArrowKind k, bool curved) {
         return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
     };
@@ -297,25 +407,6 @@ void MainWindow::buildTools() {
     connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
         if (auto* a = keys.value(k)) a->trigger();
     });
-    bar->addSeparator();
-    auto charge = [](bool plus) {
-        return paintedIcon([plus](QPainter& p, QColor ink) {
-            p.setPen(QPen(ink, 1.3));
-            p.drawEllipse(QPointF(12, 12), 7, 7);
-            p.drawLine(QPointF(8.5, 12), QPointF(15.5, 12));
-            if (plus) p.drawLine(QPointF(12, 8.5), QPointF(12, 15.5));
-        });
-    };
-    add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
-    add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
-    const IconMaker eraser = paintedIcon([](QPainter& p, QColor ink) {
-        p.translate(12, 12);
-        p.rotate(-40);
-        p.setPen(QPen(ink, 1.3));
-        p.drawRoundedRect(QRectF(-8, -4, 16, 8), 1.5, 1.5);
-        p.drawLine(QPointF(-2, -4), QPointF(-2, 4));
-    });
-    add(eraser, tr("Eraser"), tool(T::Erase));
 }
 
 // "System" follows the OS; the others force light or dark, and Catppuccin

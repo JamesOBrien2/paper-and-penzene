@@ -174,19 +174,23 @@ void MainWindow::buildTools() {
     auto bond = [this](int order) {
         return [this, order] { canvas_->setTool(T::Bond), canvas_->setBondOrder(order); };
     };
-    add("⬚", tr("Select (drag to move, Alt+drag to rotate, double-click for fragment)"), tool(T::Select));
-    add("╱", tr("Single bond / chain start"), bond(1))->setChecked(true);
+    // Keys that pick a tool when no atom or bond is the hotspot (ChemDraw).
+    QHash<QString, QAction*> keys;
+    keys[" "] = add("⬚", tr("Select (drag to move, Alt+drag to rotate, double-click for fragment) — Space"),
+                    tool(T::Select));
+    keys["x"] = add("╱", tr("Single bond / chain start — x"), bond(1));
+    keys["x"]->setChecked(true);
     add("═", tr("Double bond"), bond(2));
     add("≡", tr("Triple bond"), bond(3));
     add("▶", tr("Wedge bond"), tool(T::Wedge));
     add("┇", tr("Hashed bond"), tool(T::Hash));
-    add("⦚", tr("Chain"), tool(T::Chain));
+    keys["X"] = add("⦚", tr("Chain — X"), tool(T::Chain));
     bar->addSeparator();
 
     auto ring = [this](int n, bool arom) {
         return [this, n, arom] { canvas_->setTool(T::Ring), canvas_->setRing(n, arom); };
     };
-    add("⌬", tr("Benzene"), ring(6, true));
+    keys["j"] = add("⌬", tr("Benzene — j"), ring(6, true));
     const char* shapes[] = {"△", "□", "⬠", "⬡", "7", "8"};
     for (int n = 3; n <= 8; ++n) add(shapes[n - 3], tr("%1-membered ring").arg(n), ring(n, false));
     bar->addSeparator();
@@ -206,13 +210,16 @@ void MainWindow::buildTools() {
         return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
     };
     const QString drag = tr(" (drag to draw; click an arrow to restyle it)");
-    add("→", tr("Reaction arrow") + drag, arrow(ArrowKind::Reaction, false));
+    keys["e"] = add("→", tr("Reaction arrow — e") + drag, arrow(ArrowKind::Reaction, false));
     add("⇌", tr("Equilibrium arrow") + drag, arrow(ArrowKind::Equilibrium, false));
     add("↔", tr("Resonance arrow") + drag, arrow(ArrowKind::Resonance, false));
     add("⇒", tr("Retrosynthesis arrow") + drag, arrow(ArrowKind::Retro, false));
     add("↷", tr("Curved arrow, electron pair (click it again to flip the curve)"), arrow(ArrowKind::Reaction, true));
     add("⇀", tr("Fishhook arrow, single electron (click it again to flip)"), arrow(ArrowKind::Fishhook, true));
-    add("T", tr("Text (click to add or edit; H2O is set as H₂O)"), tool(T::Text));
+    keys["t"] = add("T", tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
+    connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
+        if (auto* a = keys.value(k)) a->trigger();
+    });
     bar->addSeparator();
     add("⊕", tr("Positive charge"), tool(T::ChargePlus));
     add("⊖", tr("Negative charge"), tool(T::ChargeMinus));
@@ -315,7 +322,14 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>w</b> / <b>h</b></td><td>wedged / hashed (press again to flip)</td></tr>
 <tr><td><b>a z</b></td><td>fuse benzene / cyclopentadiene</td></tr>
 <tr><td><b>v 4–8</b></td><td>fuse ring of that size (v = 3)</td></tr>
+<tr><td><b>9</b> / <b>0</b></td><td>fuse chair cyclohexane (two orientations)</td></tr>
+<tr><td><b>d b y</b></td><td>dashed, bold, wavy</td></tr>
+<tr><td><b>D</b> / <b>B</b></td><td>dashed double / bold double</td></tr>
+<tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
+<tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>
+<tr><td><b>x X j e t Space</b></td><td>bond, chain, benzene, arrow, text, select tool</td></tr>
 <tr><th colspan="2" align="left">Selection</th></tr>
+<tr><td><b>Ctrl+←↑→↓</b></td><td>duplicate across the next arrow that way (or alongside)</td></tr>
 <tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment, or edit text</td></tr>
 </table>)"));
         box.exec();

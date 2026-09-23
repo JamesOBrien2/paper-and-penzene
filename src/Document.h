@@ -8,7 +8,10 @@
 // Scene units are points; a standard bond is 14.4 pt (ACS 1996).
 constexpr double kBondLength = 14.4;
 
-enum class BondStereo { None, Wedge, Hash };
+// Wedge/Hash/Wavy carry stereo; Bold and Dashed are drawing styles (on a
+// double bond they style one line).
+enum class BondStereo { None, Wedge, Hash, Bold, Dashed, Wavy };
+enum class BondPosition { Auto, Left, Centre, Right };  // double bond's second line, seen from a to b
 
 struct Atom {
     QPointF pos;
@@ -21,6 +24,7 @@ struct Bond {
     int a = 0, b = 0;  // atom indices; stereo points from a to b
     int order = 1;     // 1..3
     BondStereo stereo = BondStereo::None;
+    BondPosition position = BondPosition::Auto;
 };
 
 enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook };
@@ -66,5 +70,6 @@ inline bool operator==(const Atom& x, const Atom& y) {
     return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label;
 }
 inline bool operator==(const Bond& x, const Bond& y) {
-    return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo;
+    return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo &&
+           x.position == y.position;
 }

@@ -46,6 +46,7 @@ public:
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     void rotateSelection(double degrees);
+    void duplicateSelection(QPointF dir);
     void moveHotspot(QPointF dir, bool jump);
     void editLabel(int atom);
     void expandAbbreviations();  // selection, else hotspot atom, else everything
@@ -67,6 +68,7 @@ public:
 signals:
     void documentChanged();
     void selectionChanged();
+    void toolKey(const QString& key);  // x bond, X chain, j benzene, t text, e arrow, space select
 
 protected:
     void drawBackground(QPainter* p, const QRectF& rect) override;

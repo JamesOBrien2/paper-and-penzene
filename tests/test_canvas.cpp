@@ -406,3 +406,52 @@ TEST_CASE("arrows: draw, restyle, select, move, delete; text subscripts") {
     CHECK(left("  A") > left("A") + 2);
     CHECK(bottom("CH2Cl2") > bottom("CHCl") + 1);  // run layout keeps subscripts
 }
+
+TEST_CASE("hotkeys: bond styles, positions, chair; duplicate across an arrow; tool keys") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Chain);
+    f.drag({0, 0}, {40, 0});
+    REQUIRE(f.doc().bonds.size() >= 2);
+    auto hoverBond = [&](int i) {
+        const auto& d = f.doc();
+        f.hover((d.atoms[d.bonds[i].a].pos + d.atoms[d.bonds[i].b].pos) / 2);
+    };
+    hoverBond(0);
+    f.key("y");
+    CHECK(f.doc().bonds[0].stereo == BondStereo::Wavy);
+    f.key("B");
+    CHECK(f.doc().bonds[0].order == 2);
+    CHECK(f.doc().bonds[0].stereo == BondStereo::Bold);
+    f.key("r");
+    CHECK(f.doc().bonds[0].position == BondPosition::Right);
+    auto back = Document::fromJson(f.doc().toJson());
+    REQUIRE(back);
+    CHECK(*back == f.doc());
+
+    const size_t before = f.doc().atoms.size();
+    hoverBond(1);
+    f.key("9");  // chair: four new atoms, bonds all about one bond long
+    CHECK(f.doc().atoms.size() == before + 4);
+    for (const auto& b : f.doc().bonds) {
+        QPointF v = f.doc().atoms[b.a].pos - f.doc().atoms[b.b].pos;
+        CHECK(std::abs(std::hypot(v.x(), v.y()) - kBondLength) < 0.15 * kBondLength);
+    }
+
+    // Duplicate across an arrow on the right.
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    d.bonds = {{0, 1}};
+    d.arrows = {{{40, 0}, {80, 0}}};
+    f.canvas.setDocumentSilently(d);
+    f.canvas.setSelection({0, 1});
+    f.canvas.duplicateSelection({1, 0});
+    REQUIRE(f.doc().atoms.size() == 4);
+    CHECK(f.doc().atoms[2].pos.x() > 80);  // beyond the arrow head
+    CHECK(f.canvas.selection() == QSet<int>{2, 3});
+
+    QString picked;
+    QObject::connect(&f.canvas, &Canvas::toolKey, [&](const QString& k) { picked = k; });
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Escape);
+    f.key("e");
+    CHECK(picked == "e");
+}

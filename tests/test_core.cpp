@@ -78,3 +78,9 @@ TEST_CASE("clean keeps atom order and centroid") {
     for (int i = 0; i < 6; ++i) c0 += d.atoms[i].pos, c1 += c.atoms[i].pos;
     CHECK(std::hypot((c0 - c1).x(), (c0 - c1).y()) < 0.01);
 }
+
+TEST_CASE("element symbols") {
+    CHECK(chem::symbol(17) == "Cl");
+    CHECK(chem::atomicNumber("Br") == 35);
+    CHECK(chem::atomicNumber("Xx") == 0);
+}

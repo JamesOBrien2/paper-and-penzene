@@ -5,7 +5,6 @@
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/MolOps.h>
-#include <GraphMol/PeriodicTable.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 
@@ -175,13 +174,15 @@ std::vector<AtomInfo> atomInfo(const Document& doc) {
     return info;
 }
 
+// Via Atom, not PeriodicTable: its inline methods reference a logger global
+// that the Windows RDKit DLL doesn't export.
 std::string symbol(int z) {
-    return RDKit::PeriodicTable::getTable()->getElementSymbol(z);
+    return RDKit::Atom(z).getSymbol();
 }
 
 int atomicNumber(const std::string& sym) {
     try {
-        return RDKit::PeriodicTable::getTable()->getAtomicNumber(sym);
+        return int(RDKit::Atom(sym).getAtomicNum());
     } catch (...) {
         return 0;
     }

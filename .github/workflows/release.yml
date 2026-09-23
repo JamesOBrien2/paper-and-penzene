@@ -13,6 +13,7 @@ permissions:
 jobs:
   macos:
     runs-on: macos-14   # Apple silicon
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: prefix-dev/setup-pixi@v0.10.0
@@ -33,6 +34,7 @@ jobs:
 
   windows:
     runs-on: windows-2022
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: prefix-dev/setup-pixi@v0.10.0
@@ -44,10 +46,11 @@ jobs:
           New-Item -ItemType Directory dist/penzene | Out-Null
           Copy-Item build/bin/penzene.exe dist/penzene/
           pixi run windeployqt6 --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
-          pixi run cmake -DDEST="$PWD/dist/penzene" -DSEARCH="$PWD/.pixi/envs/default/Library/bin" -P cmake/deploy-deps.cmake
+          pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/.pixi/envs/default/Library/bin"
           Rename-Item .pixi .pixi-hidden
           $env:QT_QPA_PLATFORM = "offscreen"
-          Start-Process dist/penzene/penzene.exe -ArgumentList "--render","c1ccccc1O","smoke.svg" -Wait -NoNewWindow
+          $p = Start-Process dist/penzene/penzene.exe -ArgumentList "--render","c1ccccc1O","smoke.svg" -NoNewWindow -PassThru
+          if (!$p.WaitForExit(120000)) { $p.Kill(); throw "packaged app hung" }
           if (!(Test-Path smoke.svg)) { throw "packaged app failed to render" }
           Rename-Item .pixi-hidden .pixi
           Compress-Archive dist/penzene penzene-windows-x64.zip
@@ -56,6 +59,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-22.04   # older glibc base = runs on more distros
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update && sudo apt-get install -y libfuse2 libxkbcommon-x11-0 libxcb-cursor0 libegl1 libgl1 libfontconfig1 xvfb

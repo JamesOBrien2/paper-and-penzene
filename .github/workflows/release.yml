@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:   # builds + smoke-tests the packages without publishing
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14   # Apple silicon
+    steps:
+      - uses: actions/checkout@v5
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: pixi run build
+      - name: Bundle
+        run: |
+          mkdir dist && cp -R build/bin/penzene.app dist/
+          pixi run macdeployqt6 dist/penzene.app -libpath="$PWD/.pixi/envs/default/lib"
+          codesign --force --deep --sign - dist/penzene.app
+          mv .pixi .pixi-hidden   # prove the bundle doesn't need the build env
+          dist/penzene.app/Contents/MacOS/penzene --version
+          dist/penzene.app/Contents/MacOS/penzene --render 'c1ccccc1O' smoke.svg
+          mv .pixi-hidden .pixi
+          hdiutil create -volname "Paper & Penzene" -srcfolder dist -ov -format UDZO penzene-macos-arm64.dmg
+      - uses: actions/upload-artifact@v4
+        with: {name: macos, path: penzene-macos-arm64.dmg}
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: pixi run build
+      - name: Bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist/penzene | Out-Null
+          Copy-Item build/bin/penzene.exe dist/penzene/
+          pixi run windeployqt6 --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
+          pixi run cmake -DDEST="$PWD/dist/penzene" -DSEARCH="$PWD/.pixi/envs/default/Library/bin" -P cmake/deploy-deps.cmake
+          Rename-Item .pixi .pixi-hidden
+          $env:QT_QPA_PLATFORM = "offscreen"
+          Start-Process dist/penzene/penzene.exe -ArgumentList "--render","c1ccccc1O","smoke.svg" -Wait -NoNewWindow
+          if (!(Test-Path smoke.svg)) { throw "packaged app failed to render" }
+          Rename-Item .pixi-hidden .pixi
+          Compress-Archive dist/penzene penzene-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with: {name: windows, path: penzene-windows-x64.zip}
+
+  linux:
+    runs-on: ubuntu-22.04   # older glibc base = runs on more distros
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y libfuse2 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: pixi run build
+      - name: AppImage
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          cat > penzene.desktop <<'DESK'
+          [Desktop Entry]
+          Type=Application
+          Name=Paper & Penzene
+          Exec=penzene
+          Icon=penzene
+          Categories=Science;Chemistry;Education;
+          DESK
+          QT_QPA_PLATFORM=offscreen build/bin/penzene --render 'c1ccccc1' penzene.svg
+          env="$PWD/.pixi/envs/default"
+          QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$env/lib" EXTRA_PLATFORM_PLUGINS=libqoffscreen.so \
+            ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/bin/penzene \
+            -d penzene.desktop -i penzene.svg --plugin qt --output appimage
+          mv Paper*.AppImage penzene-linux-x86_64.AppImage
+          mv .pixi .pixi-hidden
+          QT_QPA_PLATFORM=offscreen ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
+          test -s smoke.svg
+          mv .pixi-hidden .pixi
+      - uses: actions/upload-artifact@v4
+        with: {name: linux, path: penzene-linux-x86_64.AppImage}
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {merge-multiple: true}
+      - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes *.dmg *.zip *.AppImage
+        env: {GH_TOKEN: '${{ github.token }}'}

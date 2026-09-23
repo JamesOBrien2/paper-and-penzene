@@ -18,5 +18,12 @@ vs2022_win-64 = "*"              # activates MSVC for Ninja
 configure = "cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release"
 build = { cmd = "cmake --build build", depends-on = ["configure"] }
 test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], env = { QT_QPA_PLATFORM = "offscreen" } }
+
+[target.unix.tasks]
 run = { cmd = "build/bin/penzene", depends-on = ["build"] }
-penzene-version = { cmd = "build/bin/penzene --version", depends-on = ["build"] }
+
+[target.osx.tasks]
+run = { cmd = "build/bin/penzene.app/Contents/MacOS/penzene", depends-on = ["build"] }
+
+[target.win.tasks]
+run = { cmd = "build/bin/penzene.exe", depends-on = ["build"] }

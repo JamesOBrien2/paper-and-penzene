@@ -18,12 +18,18 @@ target_link_libraries(penzene_core PUBLIC
     Qt6::Widgets Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol)
 
-add_executable(penzene WIN32 src/main.cpp)
+add_executable(penzene WIN32 MACOSX_BUNDLE src/main.cpp)
 target_link_libraries(penzene PRIVATE penzene_core)
+set_target_properties(penzene PROPERTIES
+    MACOSX_BUNDLE_GUI_IDENTIFIER io.github.jamesobrien2.penzene
+    MACOSX_BUNDLE_BUNDLE_NAME "Paper & Penzene"
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
 find_package(Catch2 3 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Test)
 enable_testing()
 add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
 target_link_libraries(penzene_tests PRIVATE penzene_core Qt6::Test Catch2::Catch2WithMain)
 add_test(NAME core COMMAND penzene_tests)
+add_test(NAME version COMMAND penzene --version)
 target_compile_definitions(penzene_tests PRIVATE PENZENE_TEST_DATA="${CMAKE_SOURCE_DIR}/tests/data")

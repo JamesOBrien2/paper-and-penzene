@@ -65,14 +65,18 @@ jobs:
       - name: Installer
         shell: pwsh
         run: |
-          $version = (dist/penzene/penzene.exe --version).Split(' ')[1]
+          # penzene.exe is a GUI-subsystem app, so pwsh can't capture its --version output.
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(penzene VERSION ([0-9.]+)').Matches[0].Groups[1].Value
           & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /Q "/DVersion=$version" "/DSource=$PWD\dist\penzene" cmake/penzene.iss
           if ($LASTEXITCODE) { throw "iscc failed" }
           Move-Item cmake/penzene-windows-x64-setup.exe .
           # Silent install to a temp dir, then run the installed copy.
           $p = Start-Process ./penzene-windows-x64-setup.exe -ArgumentList "/VERYSILENT","/CURRENTUSER","/DIR=$PWD\installed" -PassThru
           if (!$p.WaitForExit(300000)) { throw "installer hung" }
-          installed/penzene.exe --version
+          if (!(Test-Path installed/penzene.exe)) { throw "installer did not install penzene.exe" }
+          $p = Start-Process installed/penzene.exe -ArgumentList "--render","c1ccccc1O","installed.svg" -NoNewWindow -PassThru
+          if (!$p.WaitForExit(120000)) { $p.Kill(); throw "installed app hung" }
+          if (!(Test-Path installed.svg)) { throw "installed app failed to render" }
       - uses: actions/upload-artifact@v4
         with: {name: windows, path: "penzene-windows-x64*"}
 

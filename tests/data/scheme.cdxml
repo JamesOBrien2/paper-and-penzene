@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE CDXML SYSTEM "http://www.cambridgesoft.com/xml/cdxml.dtd" >
+<CDXML BondLength="14.40">
+<page id="1">
+<fragment id="10">
+<n id="11" p="100 100"/>
+<n id="12" p="112.47 107.20"/>
+<n id="13" p="124.94 100" Element="8" NumHydrogens="1"><t p="121.35 103.58"><s font="3" size="10" face="96">OH</s></t></n>
+<b id="14" B="11" E="12"/>
+<b id="15" B="12" E="13"/>
+</fragment>
+<arrow id="20" ArrowheadHead="Full" ArrowheadType="Solid" Head3D="190 104 0" Tail3D="140 104 0"/>
+<arrow id="21" ArrowheadHead="HalfLeft" ArrowheadTail="HalfLeft" ArrowheadType="Solid" ArrowShaftSpacing="4" Head3D="190 124 0" Tail3D="140 124 0"/>
+<arrow id="22" ArrowheadHead="Full" ArrowheadType="Solid" Head3D="182.68 157.32 0" Tail3D="147.32 157.32 0" AngularSize="90" Center3D="165 175 0" MajorAxisEnd3D="182.68 157.32 0" MinorAxisEnd3D="147.32 157.32 0"/>
+<t p="148 98" BoundingBox="148 90 180 100"><s font="3" size="10" face="96">PCC</s></t>
+</page>
+</CDXML>

@@ -1,6 +1,7 @@
 #include "Chem.h"
 
 #include <GraphMol/Chirality.h>
+#include <GraphMol/chemdraw.h>
 #include <GraphMol/Depictor/RDDepictor.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
 #include <GraphMol/inchi.h>
@@ -10,7 +11,10 @@
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
 
+#include <QFile>
+#include <QFileInfo>
 #include <QHash>
+#include <QXmlStreamReader>
 #include <QStringList>
 #include <cmath>
 #include <memory>
@@ -139,17 +143,19 @@ static void layout(RWMol& mol) {
     RDDepict::compute2DCoords(mol, params);
 }
 
-static Document fromRDKit(RWMol& mol) {
+// scale 0: normalise whatever bond length the source used to ours.
+static Document fromRDKit(RWMol& mol, double scale = 0) {
     try {
         RDKit::MolOps::Kekulize(mol, true);  // draw explicit double bonds
     } catch (...) {
     }
     const auto& conf = mol.getConformer();
-    // Normalise whatever bond length the source used to ours.
-    double sum = 0;
-    for (const auto* b : mol.bonds())
-        sum += (conf.getAtomPos(b->getBeginAtomIdx()) - conf.getAtomPos(b->getEndAtomIdx())).length();
-    double scale = mol.getNumBonds() && sum > 1e-6 ? kBondLength * mol.getNumBonds() / sum : kScale;
+    if (!scale) {
+        double sum = 0;
+        for (const auto* b : mol.bonds())
+            sum += (conf.getAtomPos(b->getBeginAtomIdx()) - conf.getAtomPos(b->getEndAtomIdx())).length();
+        scale = mol.getNumBonds() && sum > 1e-6 ? kBondLength * mol.getNumBonds() / sum : kScale;
+    }
 
     Document doc;
     for (const auto* a : mol.atoms()) {
@@ -195,6 +201,107 @@ std::optional<Document> fromMolBlock(const std::string& block) {
     if (!mol || !mol->getNumAtoms()) return std::nullopt;
     RDKit::Chirality::reapplyMolBlockWedging(*mol);
     return fromRDKit(*mol);
+}
+
+// Arrows and text from the CDXML itself; RDKit only reads the molecules.
+// ponytail: plain lines, brackets, shapes and binary .cdx graphics are skipped.
+static void chemDrawGraphics(const QByteArray& xml, Document& doc) {
+    QXmlStreamReader r(xml);
+    double scale = kBondLength / 30;  // CDXML's default BondLength
+    QStringList stack;
+    auto point = [&](QStringView s) {
+        auto v = s.split(' ');
+        return v.size() >= 2 ? QPointF(v[0].toDouble(), v[1].toDouble()) * scale : QPointF();
+    };
+    Text* text = nullptr;
+    while (!r.atEnd()) {
+        auto tok = r.readNext();
+        if (tok == QXmlStreamReader::EndElement) {
+            if (r.name() == u"t") text = nullptr;
+            stack.removeLast();
+            continue;
+        }
+        if (tok == QXmlStreamReader::Characters && text && stack.last() == "s") {
+            text->text += r.text();
+            continue;
+        }
+        if (tok != QXmlStreamReader::StartElement) continue;
+        stack.append(r.name().toString());
+        const auto at = r.attributes();
+        if (r.name() == u"CDXML" && at.hasAttribute("BondLength")) {
+            scale = kBondLength / std::max(1.0, at.value("BondLength").toDouble());
+        } else if (r.name() == u"t" && !stack.contains("n") && !stack.contains("fragment")) {
+            // p is the first baseline; the bounding box gives the left edge whatever the justification.
+            QPointF p = point(at.value("p"));
+            auto box = at.value("BoundingBox").split(' ');
+            if (box.size() == 4) p.setX(std::min(box[0].toDouble(), box[2].toDouble()) * scale);
+            doc.texts.push_back({p, {}});
+            text = &doc.texts.back();
+        } else if (r.name() == u"arrow") {
+            const auto head = at.value("ArrowheadHead"), tail = at.value("ArrowheadTail");
+            if (head.isEmpty() && tail.isEmpty()) continue;  // a plain line
+            Arrow a{point(at.value("Tail3D")), point(at.value("Head3D"))};
+            if (!head.isEmpty() && !tail.isEmpty())
+                a.kind = at.hasAttribute("ArrowShaftSpacing") ? ArrowKind::Equilibrium : ArrowKind::Resonance;
+            else if (at.value("ArrowheadType") == u"Hollow")
+                a.kind = ArrowKind::Retro;
+            else if (head.startsWith(u"Half") || tail.startsWith(u"Half"))
+                a.kind = ArrowKind::Fishhook;
+            if (head.isEmpty()) std::swap(a.from, a.to);
+            if (double deg = std::abs(at.value("AngularSize").toDouble()); deg > 1 && a.kind != ArrowKind::Equilibrium) {
+                // Circular arc about Center3D: bend is how far its midpoint sits off the chord.
+                QPointF c = point(at.value("Center3D")), mid = (a.from + a.to) / 2, d = a.to - a.from;
+                double radius = std::hypot(point(at.value("MajorAxisEnd3D")).x() - c.x(),
+                                           point(at.value("MajorAxisEnd3D")).y() - c.y());
+                QPointF out = mid - c;
+                double l = std::hypot(out.x(), out.y()), dl = std::hypot(d.x(), d.y());
+                if (l > 1e-6 && dl > 1e-6) {
+                    QPointF arcMid = c + out / l * radius * (deg <= 180 ? 1 : -1);
+                    QPointF n(-d.y() / dl, d.x() / dl);
+                    a.bend = -QPointF::dotProduct(arcMid - mid, n);
+                }
+            }
+            doc.arrows.push_back(a);
+        }
+    }
+    std::erase_if(doc.texts, [](const Text& t) { return t.text.trimmed().isEmpty(); });
+    for (auto& t : doc.texts) t.text = t.text.trimmed().replace('\r', '\n');
+}
+
+std::optional<Document> fromChemDraw(const QByteArray& data) {
+    std::vector<std::unique_ptr<RWMol>> mols;
+    try {
+        mols = RDKit::v2::MolsFromChemDrawBlock(data.toStdString());
+    } catch (...) {
+        return std::nullopt;
+    }
+    Document doc;
+    for (auto& mol : mols) {
+        if (!mol->getNumConformers()) continue;
+        if (!mol->getNumAtoms()) continue;
+        RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
+        doc.append(fromRDKit(*mol, kScale));  // RDKit scales CDXML to 1.5 Å bonds, like MOL
+    }
+    // Nicknames come back expanded plus stray unbonded atoms (a dummy, a lone
+    // carbon). ponytail: this also drops a deliberately drawn methane.
+    std::vector<int> strays;
+    for (int i = 0; i < int(doc.atoms.size()); ++i)
+        if ((doc.atoms[i].z == 0 || (doc.atoms[i].z == 6 && !doc.atoms[i].charge)) && doc.neighbors(i).empty())
+            strays.push_back(i);
+    doc.removeAtoms(strays);
+    if (data.trimmed().startsWith('<')) chemDrawGraphics(data, doc);
+    if (doc.empty()) return std::nullopt;
+    return doc;
+}
+
+std::optional<Document> readFile(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return std::nullopt;
+    const QByteArray data = f.readAll();
+    const QString ext = QFileInfo(path).suffix().toLower();
+    if (ext == "penz") return Document::fromJson(data);
+    if (ext == "cdxml" || ext == "cdx") return fromChemDraw(data);
+    return fromMolBlock(data.toStdString());
 }
 
 std::string toMolBlock(const Document& doc) {

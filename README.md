@@ -16,7 +16,7 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
 - **ChemDraw-style hotkeys**: point at an atom or bond and type. `1111` draws a chain,
   `2` sprouts a carbonyl, `a` a phenyl, `O` an OMe. The arrow keys walk the molecule
   (Help → Keyboard Shortcuts)
-- Open/save `.penz`, MOL and SDF; paste or import SMILES; Clean structure (RDKit)
+- Open/save `.penz`, MOL and SDF; open ChemDraw `.cdxml` (molecules, arrows, text) and `.cdx` (molecules); paste or import SMILES; Clean structure (RDKit)
 - Reaction, equilibrium, resonance, retrosynthesis, curved and fishhook arrows; text with automatic formula subscripts (H2O → H₂O)
 - Live formula, MW and exact mass for the selection; copy as InChI / InChIKey
 - Export SVG, PNG and PDF; copy as image + MOL + SMILES

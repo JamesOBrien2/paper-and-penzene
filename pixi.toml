@@ -11,6 +11,9 @@ catch2 = ">=3.5,<4"
 cmake = ">=3.28"
 ninja = "*"
 
+[target.linux-64.dependencies]
+cxx-compiler = "*"               # conda gcc: conda libs need a newer libstdc++ than older distros ship
+
 [target.win-64.dependencies]
 vs2022_win-64 = "*"              # activates MSVC for Ninja
 

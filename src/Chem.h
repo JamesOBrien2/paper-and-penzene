@@ -15,7 +15,9 @@ std::optional<Document> fromChemDraw(const QByteArray& data);
 std::optional<Document> readFile(const QString& path);
 std::string toMolBlock(const Document& doc);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
-Document clean2D(const Document& doc);      // new layout, same atom order and centroid
+// New layout, same atom order; each molecule keeps its centroid. With `only`,
+// just the molecules containing those atoms are touched.
+Document clean2D(const Document& doc, const std::vector<int>& only = {});
 
 struct Properties {
     std::string formula;  // Hill order, all fragments together

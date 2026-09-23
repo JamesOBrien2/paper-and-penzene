@@ -165,17 +165,8 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
     } else {
         // Offset the second line toward the side where the neighbours are
         // (inside the ring); centre it for terminal bonds like C=O.
-        double side = 0;
-        for (int end : {b.a, b.b})
-            for (int nb : doc.neighbors(end))
-                if (nb != b.a && nb != b.b) side += cross(d, doc.atoms[nb].pos - pa) > 0 ? 1 : -1;
-        // Neighbours on opposite sides (trans chain) tie at 0: still offset, or
-        // both lines would cross into the adjoining single bonds.
-        // Also centred at an sp centre, so cumulated C=C=C lines meet.
-        bool centred = degree[b.a] == 1 || degree[b.b] == 1 || isSp(doc, b.a) || isSp(doc, b.b);
-        if (b.position == BondPosition::Centre) centred = true;
-        else if (b.position != BondPosition::Auto) centred = false, side = b.position == BondPosition::Right ? 1 : -1;
-        if (centred) {
+        const int side = doubleBondSide(doc, b);
+        if (side == 0) {
             QPointF o = n * gap / 2;
             line(a + o, e + o, true);
             line(a - o, e - o, false);

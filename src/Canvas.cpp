@@ -13,6 +13,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPicture>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QUndoStack>
 #include <QtMath>
@@ -36,7 +37,7 @@ static double cross(QPointF a, QPointF b) { return a.x() * b.y() - a.y() * b.x()
 static QPointF dirAt(double deg) { return {std::cos(qDegreesToRadians(deg)), std::sin(qDegreesToRadians(deg))}; }
 
 static bool hasLabel(const Document& doc, int i, const std::vector<int>& degree) {
-    return doc.atoms[i].z != 6 || degree[i] == 0;
+    return doc.atoms[i].z != 6 || degree[i] == 0 || !doc.atoms[i].label.isEmpty();
 }
 
 // sp centre: a triple bond, or two double bonds (allene). Its bonds are collinear.
@@ -65,8 +66,30 @@ static void drawText(QPainter& p, const QString& s, QPointF baselineLeft, const 
     p.fillPath(path, p.pen().color());
 }
 
+// Abbreviation written from the right, bond side last: OMe -> MeO.
+static QString reversedLabel(const QString& s) {
+    static const QHash<QString, QString> r{
+        {"OMe", "MeO"}, {"CO2Me", "MeO2C"}, {"CO2Et", "EtO2C"}, {"CO2H", "HO2C"}, {"NO2", "O2N"},
+        {"CF3", "F3C"}, {"OAc", "AcO"},     {"CHO", "OHC"},     {"SO2Me", "MeO2S"}, {"OTf", "TfO"},
+        {"OTs", "TsO"}, {"OTBS", "TBSO"},   {"CN", "NC"},       {"Bpin", "pinB"},
+    };
+    return r.value(s, s);
+}
+
+// Abbreviation centred on its attaching letter (the first, or the last when written from the right).
+static void drawAbbreviation(QPainter& p, const Atom& a, bool fromRight) {
+    QFontMetricsF fm(labelFont());
+    const QString s = fromRight ? reversedLabel(a.label) : a.label;
+    const double base = a.pos.y() + fm.capHeight() / 2;
+    QPainterPath path = textPath({{0, base}, s});
+    const double x = fromRight ? a.pos.x() + fm.horizontalAdvance(s.back()) / 2 - path.boundingRect().right()
+                               : a.pos.x() - fm.horizontalAdvance(s.front()) / 2;
+    p.fillPath(path.translated(x, 0), p.pen().color());
+}
+
 static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bool hLeft) {
     const auto& a = doc.atoms[i];
+    if (!a.label.isEmpty()) return drawAbbreviation(p, a, hLeft);
     QFont f = labelFont(), sub = f;
     sub.setPixelSize(int(kFontSize * 0.7));
     QFontMetricsF fm(f), sm(sub);
@@ -275,8 +298,10 @@ QRectF documentBounds(const Document& doc) {
         lo = {std::min(lo.x(), r.left()), std::min(lo.y(), r.top())};
         hi = {std::max(hi.x(), r.right()), std::max(hi.y(), r.bottom())};
     };
-    for (const auto& a : doc.atoms)  // room for labels
-        grow(QRectF(a.pos, a.pos).adjusted(-kFontSize * 1.5, -kFontSize, kFontSize * 1.5, kFontSize));
+    for (const auto& a : doc.atoms) {  // room for labels, which can run either way
+        double w = kFontSize * std::max(1.5, 0.7 * a.label.size());
+        grow(QRectF(a.pos, a.pos).adjusted(-w, -kFontSize, w, kFontSize));
+    }
     for (const auto& a : doc.arrows) grow(arrowPath(a).boundingRect().adjusted(-4, -4, 4, 4));
     for (const auto& t : doc.texts) grow(textPath(t).boundingRect().adjusted(-2, -2, 2, 2));
     return QRectF(lo, hi);
@@ -339,8 +364,6 @@ bool exportDocument(const Document& doc, const QString& path) {
 
 namespace {
 
-QPointF awayDirection(const Document& doc, int atom);
-
 // Direction for a new bond from `atom` that avoids existing bonds.
 // `newOrder` is the order of the bond about to be added: it makes the atom sp
 // (straight on) after a triple bond, or when it cumulates two double bonds.
@@ -365,7 +388,7 @@ QPointF freeDirection(const Document& doc, int atom, int newOrder = 1) {
         }
         return best;
     }
-    return awayDirection(doc, atom);
+    return doc.awayDirection(atom);
 }
 
 QPointF snapped(QPointF from, QPointF to) {
@@ -427,23 +450,6 @@ std::vector<QPointF> polygon(QPointF centre, QPointF firstVertex, int n) {
     return out;
 }
 
-// Direction pointing away from all of the atom's bonds: the bisector of the
-// widest gap between them (straight on for a terminal atom).
-QPointF awayDirection(const Document& doc, int atom) {
-    auto nbs = doc.neighbors(atom);
-    if (nbs.empty()) return {0, -1};
-    QPointF p = doc.atoms[atom].pos;
-    std::vector<double> ang;
-    for (int nb : nbs) ang.push_back(std::atan2(doc.atoms[nb].pos.y() - p.y(), doc.atoms[nb].pos.x() - p.x()));
-    std::sort(ang.begin(), ang.end());
-    double bestGap = -1, bestMid = 0;
-    for (size_t i = 0; i < ang.size(); ++i) {
-        double next = i + 1 < ang.size() ? ang[i + 1] : ang[0] + 2 * M_PI;
-        if (next - ang[i] > bestGap + 1e-6) bestGap = next - ang[i], bestMid = (ang[i] + next) / 2;
-    }
-    return {std::cos(bestMid), std::sin(bestMid)};
-}
-
 double circumradius(int n) { return kBondLength / (2 * std::sin(M_PI / n)); }
 
 void ringAt(Document& doc, QPointF centre, int n, bool aromatic) {
@@ -453,7 +459,7 @@ void ringAt(Document& doc, QPointF centre, int n, bool aromatic) {
 // Ring through the atom, pointing away from its bonds so they bisect the ring's outside angle.
 std::vector<int> ringOnAtom(Document& doc, int atom, int n, bool aromatic) {
     QPointF p = doc.atoms[atom].pos;
-    return addRing(doc, polygon(p + awayDirection(doc, atom) * circumradius(n), p, n), aromatic);
+    return addRing(doc, polygon(p + doc.awayDirection(atom) * circumradius(n), p, n), aromatic);
 }
 
 // Ring fused onto the bond, on the side away from the other neighbours.
@@ -931,21 +937,6 @@ void Canvas::mouseDoubleClickEvent(QMouseEvent* e) {
 // ---------------------------------------------------------------- hotkeys
 // Follows ChemDraw 21's atom and bond hotkey tables (User Guide, ch. 5).
 
-// Groups for label hotkeys and the Enter dialog, as SMILES whose first atom
-// replaces the hotspot atom. ponytail: drawn out in full until abbreviations (#29).
-const QHash<QString, QString>& groups() {
-    static const QHash<QString, QString> g{
-        {"Me", "C"},        {"Et", "CC"},          {"iPr", "C(C)C"},   {"tBu", "C(C)(C)C"},
-        {"Ph", "c1ccccc1"}, {"OH", "O"},           {"OMe", "OC"},      {"NH2", "N"},
-        {"NO2", "[N+](=O)[O-]"}, {"SH", "S"},      {"CF3", "C(F)(F)F"}, {"CN", "C#N"},
-        {"CO2Me", "C(=O)OC"}, {"CO2H", "C(=O)O"},  {"CHO", "C=O"},     {"Ac", "C(C)=O"},
-        {"OAc", "OC(C)=O"}, {"N3", "N=[N+]=[N-]"}, {"Boc", "C(=O)OC(C)(C)C"},
-        {"Cbz", "C(=O)OCc1ccccc1"}, {"Fmoc", "C(=O)OCC1c2ccccc2-c2ccccc21"},
-        {"MgBr", "[Mg]Br"}, {"SO2Me", "S(=O)(=O)C"}, {"Ts", "S(=O)(=O)c1ccc(C)cc1"},
-    };
-    return g;
-}
-
 // Atom label hotkeys (the hotspot atom becomes this element or group).
 static QString labelHotkey(const QString& key) {
     static const QHash<QString, QString> k{
@@ -958,40 +949,21 @@ static QString labelHotkey(const QString& key) {
     return k.value(key);
 }
 
-// Replaces atom `at` with the group's first atom and lays the rest out pointing
-// away from the atom's existing bonds. Returns false if `label` is unknown.
+// Element symbol, abbreviation (drawn as its label) or SMILES (drawn out).
 bool Canvas::applyLabel(Document& doc, int at, const QString& label) {
-    if (int z = chem::atomicNumber(label.toStdString()); z > 0) {
-        doc.atoms[at].z = z;
+    Atom& a = doc.atoms[at];
+    // "OH", "NH2": the element; hydrogens are implicit.
+    static const QRegularExpression hydride("^([A-Z][a-z]?)H\\d*$");
+    QString element = hydride.match(label).hasMatch() ? hydride.match(label).captured(1) : label;
+    if (int z = chem::atomicNumber(element.toStdString()); z > 0) {
+        a.z = z, a.label.clear();
         return true;
     }
-    QString smiles = groups().value(label, label);  // anything else: try it as SMILES
-    auto frag = chem::fromSmiles(smiles.toStdString());
-    if (!frag || frag->atoms.empty()) return false;
-    doc.atoms[at].z = frag->atoms[0].z;
-    doc.atoms[at].charge = frag->atoms[0].charge;
-    if (frag->atoms.size() == 1) return true;
-
-    // Rotate so the fragment's bulk points away from `at`'s bonds.
-    QPointF origin = frag->atoms[0].pos, bulk;
-    for (size_t i = 1; i < frag->atoms.size(); ++i) bulk += frag->atoms[i].pos;
-    bulk = bulk / double(frag->atoms.size() - 1) - origin;
-    QPointF want = doc.neighbors(at).empty() ? QPointF(1, 0) : awayDirection(doc, at);
-    double ang = std::atan2(want.y(), want.x()) - std::atan2(bulk.y(), bulk.x());
-    const int base = int(doc.atoms.size()) - 1;  // frag atom i -> base + i
-    for (size_t i = 1; i < frag->atoms.size(); ++i) {
-        QPointF r = frag->atoms[i].pos - origin;
-        Atom a = frag->atoms[i];
-        a.pos = doc.atoms[at].pos + QPointF(r.x() * std::cos(ang) - r.y() * std::sin(ang),
-                                            r.x() * std::sin(ang) + r.y() * std::cos(ang));
-        doc.atoms.push_back(a);
+    if (auto head = chem::abbreviationHead(label)) {
+        a.z = head->z, a.charge = head->charge, a.label = label;
+        return true;
     }
-    for (auto b : frag->bonds) {
-        b.a = b.a == 0 ? at : base + b.a;
-        b.b = b.b == 0 ? at : base + b.b;
-        doc.bonds.push_back(b);
-    }
-    return true;
+    return chem::attach(doc, at, label.toStdString());
 }
 
 namespace {
@@ -1048,7 +1020,7 @@ int sprout(Document& doc, int from, QPointF dir, int order = 1, int z = 6,
 }
 
 // "Adds a C-C bond and then ...": tertiary and aromatic sites grow from a new carbon.
-int linker(Document& doc, int at) { return sprout(doc, at, awayDirection(doc, at)); }
+int linker(Document& doc, int at) { return sprout(doc, at, doc.awayDirection(at)); }
 
 int farthestFrom(const Document& doc, const std::vector<int>& ids, int from) {
     int best = from;
@@ -1068,11 +1040,11 @@ int sproutHotkey(Document& doc, int at, const QString& key) {
     if (key == "1") return sprout(doc, at, freeDirection(doc, at));
     if (key == "0") {
         if (s == Site::Primary) return sprout(doc, at, openDirections(doc, at).second);
-        return sprout(doc, at, awayDirection(doc, at), 1, 6, BondStereo::None, 1.5 * kBondLength);
+        return sprout(doc, at, doc.awayDirection(at), 1, 6, BondStereo::None, 1.5 * kBondLength);
     }
     if (key == "2") {  // carbonyl / acetyl
         if (s == Site::Secondary) {
-            sprout(doc, at, awayDirection(doc, at), 2, 8);
+            sprout(doc, at, doc.awayDirection(at), 2, 8);
             return at;
         }
         int c = needsLinker ? linker(doc, at) : at;
@@ -1087,7 +1059,7 @@ int sproutHotkey(Document& doc, int at, const QString& key) {
     if (key == "4" || key == "5") {  // wedged / hashed methyl
         const BondStereo st = key == "4" ? BondStereo::Wedge : BondStereo::Hash;
         if (s == Site::Secondary || s == Site::Tertiary) {
-            sprout(doc, at, awayDirection(doc, at), 1, 6, st);
+            sprout(doc, at, doc.awayDirection(at), 1, 6, st);
             return at;
         }
         int c = s == Site::Aromatic ? linker(doc, at) : at;
@@ -1102,12 +1074,12 @@ int sproutHotkey(Document& doc, int at, const QString& key) {
     }
     if (key == "8") {  // methylidene
         int c = needsLinker ? linker(doc, at) : at;
-        QPointF dir = site(doc, c) == Site::Primary ? freeDirection(doc, c, 2) : awayDirection(doc, c);
+        QPointF dir = site(doc, c) == Site::Primary ? freeDirection(doc, c, 2) : doc.awayDirection(c);
         return sprout(doc, c, dir, 2);
     }
     if (key == "9") {  // dimethyl / gem-dimethyl / isopropyl
         if (s == Site::Secondary) {
-            QPointF away = awayDirection(doc, at);
+            QPointF away = doc.awayDirection(at);
             sprout(doc, at, rotated(away, 60));
             sprout(doc, at, rotated(away, -60));
             return at;
@@ -1222,10 +1194,22 @@ void Canvas::editLabel(int at) {
     bool ok = false;
     QString label = QInputDialog::getText(this, tr("Atom label"),
                                           tr("Element, group (OMe, CF3, Ph, Boc…) or SMILES:"), QLineEdit::Normal,
-                                          QString::fromStdString(chem::symbol(doc_.atoms[at].z)), &ok)
+                                          doc_.atoms[at].label.isEmpty()
+                                              ? QString::fromStdString(chem::symbol(doc_.atoms[at].z))
+                                              : doc_.atoms[at].label,
+                                          &ok)
                         .trimmed();
     Document next = doc_;
     if (ok && !label.isEmpty() && applyLabel(next, at, label)) commit(next, tr("Edit label"));
+}
+
+void Canvas::expandAbbreviations() {
+    Document next = doc_;
+    for (int i = 0; i < int(doc_.atoms.size()); ++i) {
+        bool wanted = selectedAtoms_.isEmpty() ? (hoverAtom_ < 0 || hoverAtom_ == i) : selectedAtoms_.contains(i);
+        if (wanted && !doc_.atoms[i].label.isEmpty()) chem::attach(next, i, doc_.atoms[i].label.toStdString());
+    }
+    if (!(next == doc_)) commit(next, tr("Expand"));
 }
 
 void Canvas::editText(int i, QPointF pos) {
@@ -1262,7 +1246,7 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
         if (hoverAtom_ >= 0) {
             Atom& a = next.atoms[hoverAtom_];
             // ChemDraw: removes a label first; a plain carbon is deleted.
-            if (a.z != 6 || a.charge) a.z = 6, a.charge = 0;
+            if (a.z != 6 || a.charge || !a.label.isEmpty()) a.z = 6, a.charge = 0, a.label.clear();
             else next.removeAtoms({hoverAtom_}), hoverAtom_ = -1;
         } else if (hoverBond_ >= 0) {
             next.bonds.erase(next.bonds.begin() + hoverBond_);

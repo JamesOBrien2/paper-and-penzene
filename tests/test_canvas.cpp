@@ -455,3 +455,19 @@ TEST_CASE("hotkeys: bond styles, positions, chair; duplicate across an arrow; to
     f.key("e");
     CHECK(picked == "e");
 }
+
+TEST_CASE("drawing style presets: JDP from its ChemDraw stationery") {
+    App app;
+    const auto& jdp = drawingStyle("JDP");
+    CHECK(jdp.name == "JDP");
+    CHECK(std::abs(jdp.lineWidth - 0.879) < 1e-9);
+    CHECK(drawingStyle("").name == "ACS 1996");
+    CHECK(drawingStyle("no such style").name == "ACS 1996");
+
+    // The style is part of the document: it changes the rendering.
+    Document d = *chem::fromSmiles("CC(=O)O");
+    Document j = d;
+    j.style = "JDP";
+    CHECK(renderSvg(d) != renderSvg(j));
+    CHECK(renderSvg(j).contains("0.879"));  // JDP line width in the SVG strokes
+}

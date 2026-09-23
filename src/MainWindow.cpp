@@ -362,6 +362,25 @@ void MainWindow::buildMenus() {
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         canvas_->commit(chem::clean2D(canvas_->document()), tr("Clean"));
     });
+    // Drawing style presets, like ChemDraw's document settings; stored in the .penz.
+    auto* styles = structure->addMenu(tr("Drawing &Style"));
+    auto* styleGroup = new QActionGroup(this);
+    for (const auto& st : drawingStyles()) {
+        auto* act = styles->addAction(st.name);
+        act->setCheckable(true);
+        styleGroup->addAction(act);
+        connect(act, &QAction::triggered, this, [this, name = st.name] {
+            Document next = canvas_->document();
+            next.style = name == drawingStyles()[0].name ? QString() : name;
+            if (!(next == canvas_->document())) canvas_->commit(next, tr("Drawing style"));
+        });
+    }
+    auto syncStyle = [this, styleGroup] {
+        const QString current = drawingStyle(canvas_->document().style).name;
+        for (auto* act : styleGroup->actions()) act->setChecked(act->text() == current);
+    };
+    connect(canvas_, &Canvas::documentChanged, this, syncStyle);
+    syncStyle();
     structure->addAction(tr("&Expand Abbreviations"), QKeySequence(tr("Ctrl+Shift+E")), canvas_,
                          &Canvas::expandAbbreviations);
 

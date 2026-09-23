@@ -1,6 +1,7 @@
 #pragma once
 #include "Document.h"
 
+#include <QFont>
 #include <QGraphicsView>
 #include <QPainterPath>
 #include <QPicture>
@@ -13,10 +14,23 @@ class QUndoStack;
 struct RenderStyle {
     QColor ink = Qt::black;
     QColor error = QColor(220, 40, 40);
-    double lineWidth = 0.6;  // ACS 1996
+    double lineWidth = 0;  // > 0 overrides the drawing style's (toolbar icons)
 };
 
-// Paints a document with ACS 1996 proportions. Shared by the canvas and export.
+// A document style preset, like ChemDraw stationery. Lengths in points.
+struct DrawingStyle {
+    QString name;
+    double lineWidth, boldWidth, wedgeWidth, hashSpacing;
+    double bondSpacing;  // double-bond gap, as a fraction of the bond length
+    double labelRadius;  // bonds stop this short of a label's centre
+    QString font;
+    QFont::Weight weight;
+    double fontSize;
+};
+const std::vector<DrawingStyle>& drawingStyles();  // ACS 1996 first
+const DrawingStyle& drawingStyle(const QString& name);  // unknown or empty: ACS 1996
+
+// Paints a document in its drawing style. Shared by the canvas and export.
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = {});
 QRectF documentBounds(const Document& doc);
 // Writes .svg, .png or .pdf (by extension), cropped to the drawing.
@@ -24,7 +38,7 @@ bool exportDocument(const Document& doc, const QString& path);
 QImage renderImage(const Document& doc, double dpi = 300);
 QByteArray renderSvg(const Document& doc);
 QPainterPath arrowPath(const Arrow& a);
-QPainterPath textPath(const Text& t);
+QPainterPath textPath(const Text& t, const DrawingStyle& s = drawingStyles()[0]);
 
 class Canvas : public QGraphicsView {
     Q_OBJECT

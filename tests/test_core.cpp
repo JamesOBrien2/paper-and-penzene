@@ -27,6 +27,7 @@ TEST_CASE(".penz round-trips") {
     doc->arrows.push_back({{0, 0}, {40, 0}, ArrowKind::Equilibrium});
     doc->arrows.push_back({{0, 10}, {20, 10}, ArrowKind::Fishhook, -6});
     doc->texts.push_back({{5, -8}, "Pd(PPh3)4\n80 °C"});
+    doc->style = "JDP";
     auto back = Document::fromJson(doc->toJson());
     REQUIRE(back);
     CHECK(*back == *doc);

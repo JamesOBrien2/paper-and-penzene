@@ -1,5 +1,5 @@
 #pragma once
-#include "Document.h"
+#include "Render.h"
 
 #include <QFont>
 #include <QGraphicsView>
@@ -10,47 +10,6 @@
 
 class QPainter;
 class QUndoStack;
-
-struct RenderStyle {
-    QColor ink = Qt::black;
-    QColor error = QColor(220, 40, 40);
-    double lineWidth = 0;  // > 0 overrides the drawing style's (toolbar icons)
-};
-
-// Screen colours. Exports and copies always use black ink on a clear
-// background, so a dark theme never leaks into a paper.
-struct Theme {
-    QString name;
-    bool dark = false;
-    QColor paper = Qt::white, ink = Qt::black, error = QColor(220, 40, 40);
-    QColor accent = QColor(40, 120, 255), hotspot = QColor(40, 170, 60);
-    QColor window, surface, text;  // UI palette; invalid = leave Qt's own
-};
-const std::vector<Theme>& themes();  // "System" first; "System" follows the OS light/dark
-const Theme& theme(const QString& name);
-
-// A document style preset, like ChemDraw stationery. Lengths in points.
-struct DrawingStyle {
-    QString name;
-    double lineWidth, boldWidth, wedgeWidth, hashSpacing;
-    double bondSpacing;  // double-bond gap, as a fraction of the bond length
-    double labelRadius;  // bonds stop this short of a label's centre
-    QString font;
-    QFont::Weight weight;
-    double fontSize;
-};
-const std::vector<DrawingStyle>& drawingStyles();  // ACS 1996 first
-const DrawingStyle& drawingStyle(const QString& name);  // unknown or empty: ACS 1996
-
-// Paints a document in its drawing style. Shared by the canvas and export.
-void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = {});
-QRectF documentBounds(const Document& doc);
-// Writes .svg, .png or .pdf (by extension), cropped to the drawing.
-bool exportDocument(const Document& doc, const QString& path);
-QImage renderImage(const Document& doc, double dpi = 300);
-QByteArray renderSvg(const Document& doc);
-QPainterPath arrowPath(const Arrow& a);
-QPainterPath textPath(const Text& t, const DrawingStyle& s = drawingStyles()[0]);
 
 class Canvas : public QGraphicsView {
     Q_OBJECT
@@ -80,8 +39,6 @@ public:
     void editText(int text, QPointF pos = {});  // text < 0: new text at pos
     int hotspotAtom() const { return hoverAtom_; }
     int hotspotBond() const { return hoverBond_; }
-    // Element symbol, group (OMe, CF3, Ph…) or SMILES; first atom replaces `atom`.
-    static bool applyLabel(Document& doc, int atom, const QString& label);
     QPointF viewCenter() const;
     void zoomBy(double factor);
     void fitToDocument();

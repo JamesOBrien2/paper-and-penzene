@@ -14,6 +14,7 @@ struct Atom {
     QPointF pos;
     int z = 6;       // atomic number
     int charge = 0;
+    QString label;  // abbreviation such as "Boc"; z/charge are then its attaching atom's
 };
 
 struct Bond {
@@ -57,11 +58,12 @@ struct Document {
     int addAtom(QPointF pos, int z = 6);
     int bondBetween(int a, int b) const;  // bond index or -1
     std::vector<int> neighbors(int atom) const;
+    QPointF awayDirection(int atom) const;  // bisects the widest gap between its bonds
     void removeAtoms(const std::vector<int>& atoms);  // also drops their bonds
 };
 
 inline bool operator==(const Atom& x, const Atom& y) {
-    return x.pos == y.pos && x.z == y.z && x.charge == y.charge;
+    return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label;
 }
 inline bool operator==(const Bond& x, const Bond& y) {
     return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo;

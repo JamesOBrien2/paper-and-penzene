@@ -18,6 +18,14 @@ struct AtomInfo {
 };
 std::vector<AtomInfo> atomInfo(const Document& doc);
 
+// Abbreviations (Me, OMe, Boc…): drawn as a label, expanded for chemistry.
+std::optional<Atom> abbreviationHead(const QString& label);  // attaching atom; nullopt if unknown
+QStringList abbreviations();
+// Replaces `atom` with the first atom of `smiles` (or an abbreviation) and lays
+// the rest out away from its bonds. New atoms are appended, so indices stay valid.
+bool attach(Document& doc, int atom, const std::string& smilesOrAbbreviation);
+Document expanded(const Document& doc);  // abbreviations drawn out in full
+
 std::string symbol(int z);
 int atomicNumber(const std::string& symbol);  // 0 if unknown
 }  // namespace chem

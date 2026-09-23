@@ -5,6 +5,7 @@
 #include <QJsonObject>
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 static const char* kStereo[] = {"none", "wedge", "hash"};
 static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook"};
@@ -14,6 +15,7 @@ QByteArray Document::toJson() const {
     for (const auto& a : atoms) {
         QJsonObject o{{"x", a.pos.x()}, {"y", a.pos.y()}, {"z", a.z}};
         if (a.charge) o["charge"] = a.charge;
+        if (!a.label.isEmpty()) o["label"] = a.label;
         as.append(o);
     }
     for (const auto& b : bonds) {
@@ -43,7 +45,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),
-                             o["z"].toInt(6), o["charge"].toInt()});
+                             o["z"].toInt(6), o["charge"].toInt(), o["label"].toString()});
     }
     const int n = int(doc.atoms.size());
     for (const auto& v : root["bonds"].toArray()) {
@@ -115,4 +117,21 @@ void Document::removeAtoms(const std::vector<int>& drop) {
     atoms = std::move(kept);
     std::erase_if(bonds, [&](const Bond& b) { return remap[b.a] < 0 || remap[b.b] < 0; });
     for (auto& b : bonds) b.a = remap[b.a], b.b = remap[b.b];
+}
+
+// Direction pointing away from all of the atom's bonds: the bisector of the
+// widest gap between them (straight on for a terminal atom).
+QPointF Document::awayDirection(int atom) const {
+    auto nbs = neighbors(atom);
+    if (nbs.empty()) return {0, -1};
+    QPointF p = atoms[atom].pos;
+    std::vector<double> ang;
+    for (int nb : nbs) ang.push_back(std::atan2(atoms[nb].pos.y() - p.y(), atoms[nb].pos.x() - p.x()));
+    std::sort(ang.begin(), ang.end());
+    double bestGap = -1, bestMid = 0;
+    for (size_t i = 0; i < ang.size(); ++i) {
+        double next = i + 1 < ang.size() ? ang[i + 1] : ang[0] + 2 * std::numbers::pi;
+        if (next - ang[i] > bestGap + 1e-6) bestGap = next - ang[i], bestMid = (ang[i] + next) / 2;
+    }
+    return {std::cos(bestMid), std::sin(bestMid)};
 }

@@ -48,6 +48,7 @@ public:
     void rotateSelection(double degrees);
     void moveHotspot(QPointF dir, bool jump);
     void editLabel(int atom);
+    void expandAbbreviations();  // selection, else hotspot atom, else everything
     void editText(int text, QPointF pos = {});  // text < 0: new text at pos
     int hotspotAtom() const { return hoverAtom_; }
     int hotspotBond() const { return hoverBond_; }

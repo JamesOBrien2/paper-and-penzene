@@ -256,6 +256,8 @@ void MainWindow::buildMenus() {
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         canvas_->commit(chem::clean2D(canvas_->document()), tr("Clean"));
     });
+    structure->addAction(tr("&Expand Abbreviations"), QKeySequence(tr("Ctrl+Shift+E")), canvas_,
+                         &Canvas::expandAbbreviations);
 
     auto* view = menuBar()->addMenu(tr("&View"));
     view->addAction(tr("Zoom &In"), QKeySequence::ZoomIn, this, [this] { canvas_->zoomBy(1.25); });
@@ -288,7 +290,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>O N F E Z</b></td><td>OMe, NO<sub>2</sub>, CF<sub>3</sub>, CO<sub>2</sub>Me, N<sub>3</sub></td></tr>
 <tr><td><b>Y H Q M</b></td><td>Boc, Cbz, Fmoc, MgBr</td></tr>
 <tr><td><b>+ −</b></td><td>charge</td></tr>
-<tr><td><b>Enter</b> or <b>=</b></td><td>type a label: element, group or SMILES</td></tr>
+<tr><td><b>Enter</b> or <b>=</b></td><td>type a label: element, abbreviation (OMe, Boc, TBS…) or SMILES</td></tr>
 <tr><td><b>Delete</b></td><td>remove label (C stays), or delete a carbon</td></tr>
 <tr><th colspan="2" align="left">Bond</th></tr>
 <tr><td><b>1 2 3</b></td><td>single, double, triple</td></tr>

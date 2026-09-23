@@ -13,6 +13,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPicture>
+#include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QUndoStack>
@@ -232,22 +233,36 @@ static bool subscripted(const QString& s, int i, bool prevSub) {
     return prevSub || c.isLetter() || c == ')' || c == ']';
 }
 
-// Text as outlines, formula-style subscripts, one line per '\n'.
+// Tab stops every kTabSpaces spaces, on the canvas and in the text dialog alike.
+constexpr int kTabSpaces = 8;
+
+// Text as outlines, formula-style subscripts, one line per '\n'. Laid out in
+// runs (not per letter) so kerning and spaces match ordinary text.
 QPainterPath textPath(const Text& t) {
     QFont f = labelFont(), sub = f;
     sub.setPixelSize(int(kFontSize * 0.7));
     QFontMetricsF fm(f), sm(sub);
+    const double tab = kTabSpaces * fm.horizontalAdvance(' ');
     QPainterPath path;
     const auto lines = t.text.split('\n');
     for (int li = 0; li < lines.size(); ++li) {
         const QString& s = lines[li];
-        double x = t.pos.x(), y = t.pos.y() + li * fm.lineSpacing();
+        double x = 0, y = t.pos.y() + li * fm.lineSpacing();
         bool sub_ = false;
-        for (int i = 0; i < s.size(); ++i) {
-            sub_ = subscripted(s, i, sub_);
-            const QFont& g = sub_ ? sub : f;
-            path.addText(x, sub_ ? y + fm.capHeight() * 0.35 : y, g, s.mid(i, 1));
-            x += (sub_ ? sm : fm).horizontalAdvance(s[i]);
+        for (int i = 0; i < s.size();) {
+            if (s[i] == '\t') {
+                x = (std::floor(x / tab + 1e-6) + 1) * tab;
+                ++i, sub_ = false;
+                continue;
+            }
+            const bool runSub = subscripted(s, i, sub_);
+            int j = i + 1;
+            while (j < s.size() && s[j] != '\t' && subscripted(s, j, runSub) == runSub) ++j;
+            sub_ = runSub;
+            const QString run = s.mid(i, j - i);
+            path.addText(t.pos.x() + x, runSub ? y + fm.capHeight() * 0.35 : y, runSub ? sub : f, run);
+            x += (runSub ? sm : fm).horizontalAdvance(run);
+            i = j;
         }
     }
     return path;
@@ -1216,12 +1231,22 @@ void Canvas::expandAbbreviations() {
 }
 
 void Canvas::editText(int i, QPointF pos) {
-    bool ok = false;
-    QString s = QInputDialog::getMultiLineText(this, tr("Text"),
-                                               tr("Text (digits after letters become subscripts):"),
-                                               i >= 0 ? doc_.texts[i].text : QString(), &ok)
-                    .trimmed();
-    if (!ok) return;
+    // The editor uses the canvas font and tab stops, so spacing looks the same on both.
+    QInputDialog dialog(this);
+    dialog.setWindowTitle(tr("Text"));
+    dialog.setLabelText(tr("Text (digits after letters become subscripts):"));
+    dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
+    dialog.setTextValue(i >= 0 ? doc_.texts[i].text : QString());
+    if (auto* edit = dialog.findChild<QPlainTextEdit*>()) {
+        QFont f = labelFont();
+        f.setPixelSize(16);
+        edit->setFont(f);
+        edit->setTabStopDistance(kTabSpaces * QFontMetricsF(f).horizontalAdvance(' '));
+    }
+    if (dialog.exec() != QDialog::Accepted) return;
+    // Keep leading spaces and tabs; they are deliberate indentation.
+    QString s = dialog.textValue();
+    s.remove(QRegularExpression("\\s+$"));
     Document next = doc_;
     if (i < 0 && !s.isEmpty()) next.texts.push_back({pos, s});
     else if (i >= 0 && s.isEmpty()) next.texts.erase(next.texts.begin() + i);

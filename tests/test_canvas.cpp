@@ -397,4 +397,12 @@ TEST_CASE("arrows: draw, restyle, select, move, delete; text subscripts") {
     CHECK(bottom("H2") > bottom("H") + 1);
     CHECK(bottom("80 C") <= bottom("H") + 0.5);
     CHECK(bottom("(2 equiv)") <= bottom("(") + 0.5);
+
+    // Tabs jump to stops, so columns line up; leading spaces indent.
+    auto left = [](const QString& s) { return textPath({{0, 0}, s}).boundingRect().left(); };
+    auto right = [](const QString& s) { return textPath({{0, 0}, s}).boundingRect().right(); };
+    CHECK(std::abs(right("\tA") - right("ab\tA")) < 0.01);
+    CHECK(left("\tA") > left("A") + 5);
+    CHECK(left("  A") > left("A") + 2);
+    CHECK(bottom("CH2Cl2") > bottom("CHCl") + 1);  // run layout keeps subscripts
 }

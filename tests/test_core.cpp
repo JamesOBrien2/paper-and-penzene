@@ -24,6 +24,9 @@ TEST_CASE(".penz round-trips") {
     auto doc = chem::fromSmiles("C[C@H](N)C(=O)[O-]");
     REQUIRE(doc);
     doc->bonds[0].stereo = BondStereo::Wedge;
+    doc->arrows.push_back({{0, 0}, {40, 0}, ArrowKind::Equilibrium});
+    doc->arrows.push_back({{0, 10}, {20, 10}, ArrowKind::Fishhook, -6});
+    doc->texts.push_back({{5, -8}, "Pd(PPh3)4\n80 °C"});
     auto back = Document::fromJson(doc->toJson());
     REQUIRE(back);
     CHECK(*back == *doc);
@@ -83,4 +86,29 @@ TEST_CASE("element symbols") {
     CHECK(chem::symbol(17) == "Cl");
     CHECK(chem::atomicNumber("Br") == 35);
     CHECK(chem::atomicNumber("Xx") == 0);
+}
+
+TEST_CASE(".penz rejects bad arrows; v0.1 files still load") {
+    CHECK_FALSE(Document::fromJson(R"({"format":"penzene","version":1,"arrows":[{"kind":"wiggly"}]})"));
+    auto old = Document::fromJson(R"({"format":"penzene","version":1,"atoms":[{"x":0,"y":0,"z":6}],"bonds":[]})");
+    REQUIRE(old);
+    CHECK(old->arrows.empty());
+}
+
+TEST_CASE("clean lays out each fragment in place and keeps arrows and text") {
+    auto left = chem::fromSmiles("CCO"), right = chem::fromSmiles("CC=O");
+    REQUIRE(left);
+    REQUIRE(right);
+    Document scheme;
+    scheme.append(*left, {-100, 0});
+    scheme.append(*right, {100, 0});
+    scheme.arrows.push_back({{-30, 0}, {30, 0}});
+    scheme.texts.push_back({{-20, -5}, "PCC"});
+    for (auto& a : scheme.atoms) a.pos += QPointF(0, a.pos.x() * 0.1);  // skew it
+    Document clean = chem::clean2D(scheme);
+    CHECK(clean.arrows == scheme.arrows);
+    CHECK(clean.texts == scheme.texts);
+    CHECK(clean.bonds.size() == scheme.bonds.size());
+    for (int i : {0, 1, 2}) CHECK(clean.atoms[i].pos.x() < -50);  // reactant stays left
+    for (int i : {3, 4, 5}) CHECK(clean.atoms[i].pos.x() > 50);
 }

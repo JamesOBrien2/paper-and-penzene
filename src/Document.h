@@ -1,6 +1,7 @@
 #pragma once
 #include <QByteArray>
 #include <QPointF>
+#include <QString>
 #include <optional>
 #include <vector>
 
@@ -21,12 +22,35 @@ struct Bond {
     BondStereo stereo = BondStereo::None;
 };
 
+enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook };
+
+// Straight when bend == 0; otherwise a curve whose midpoint sits `bend` points
+// to the left of from->to as seen on screen (electron pushing).
+struct Arrow {
+    QPointF from, to;
+    ArrowKind kind = ArrowKind::Reaction;
+    double bend = 0;
+    bool operator==(const Arrow&) const = default;
+};
+
+// Free text; `pos` is the left end of the first baseline. Digits after a
+// letter or bracket render as subscripts (formula style).
+struct Text {
+    QPointF pos;
+    QString text;
+    bool operator==(const Text&) const = default;
+};
+
 struct Document {
     std::vector<Atom> atoms;
     std::vector<Bond> bonds;
+    std::vector<Arrow> arrows;
+    std::vector<Text> texts;
     bool operator==(const Document&) const = default;
+    bool empty() const { return atoms.empty() && arrows.empty() && texts.empty(); }
+    void append(const Document& other, QPointF shift = {});  // atom indices renumbered
 
-    // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...]}
+    // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...],"arrows":[...],"texts":[...]}
     QByteArray toJson() const;
     static std::optional<Document> fromJson(const QByteArray& data);
 

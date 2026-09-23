@@ -140,8 +140,8 @@ std::string toSmiles(const Document& doc) {
     return RDKit::MolToSmiles(*mol);
 }
 
-Document clean2D(const Document& doc) {
-    if (doc.atoms.empty()) return doc;
+// One connected fragment, laid out around its old centroid.
+static Document cleanFragment(const Document& doc) {
     auto mol = toRDKit(doc);
     perceive(*mol);
     layout(*mol);
@@ -155,6 +155,39 @@ Document clean2D(const Document& doc) {
     };
     QPointF shift = centroid(doc) - centroid(out);
     for (auto& a : out.atoms) a.pos += shift;
+    return out;
+}
+
+// Each fragment is cleaned in place, so a reaction scheme keeps its layout;
+// arrows and text pass through untouched.
+Document clean2D(const Document& doc) {
+    const int n = int(doc.atoms.size());
+    std::vector<int> comp(n, -1);
+    int count = 0;
+    for (int s = 0; s < n; ++s) {
+        if (comp[s] >= 0) continue;
+        std::vector<int> stack{s};
+        comp[s] = count;
+        while (!stack.empty()) {
+            int i = stack.back();
+            stack.pop_back();
+            for (int nb : doc.neighbors(i))
+                if (comp[nb] < 0) comp[nb] = count, stack.push_back(nb);
+        }
+        ++count;
+    }
+    Document out = doc;
+    out.bonds.clear();
+    for (int c = 0; c < count; ++c) {
+        std::vector<int> ids, drop;
+        for (int i = 0; i < n; ++i) (comp[i] == c ? ids : drop).push_back(i);
+        Document frag = doc;
+        frag.arrows.clear(), frag.texts.clear();
+        frag.removeAtoms(drop);  // keeps order: frag atom k is doc atom ids[k]
+        Document clean = cleanFragment(frag);
+        for (size_t k = 0; k < ids.size(); ++k) out.atoms[ids[k]].pos = clean.atoms[k].pos;
+        for (auto b : clean.bonds) b.a = ids[b.a], b.b = ids[b.b], out.bonds.push_back(b);
+    }
     return out;
 }
 

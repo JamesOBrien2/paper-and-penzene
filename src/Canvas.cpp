@@ -22,13 +22,25 @@
 #include <functional>
 #include <limits>
 
-// ACS 1996 document settings, in points.
-constexpr double kBondSpacing = 0.18 * kBondLength;  // double-bond gap
-constexpr double kWedgeWidth = 4.5;
-constexpr double kHashSpacing = 2.2;
-constexpr double kBoldWidth = 2.0;
-constexpr double kFontSize = 10;
-constexpr double kLabelRadius = 5.5;  // bonds stop short of labels
+// Presets. Values come from the ChemDraw stationery (.cds) of the same name;
+// wedge width, hash spacing and label gap keep ACS's proportions to ours.
+// ponytail: bond length stays 14.4 pt for every preset (JDP's is 14.17, 1.6% off);
+// a per-style bond length needs the drawing tools to read it too.
+const std::vector<DrawingStyle>& drawingStyles() {
+    static const std::vector<DrawingStyle> styles{
+        {"ACS 1996", 0.6, 2.0, 4.5, 2.2, 0.18, 5.5, "Arial", QFont::Normal, 10},
+        // JDPReport.cds: line 0.879, bold 1.814, hash 1.814, margin 1.162, IBM Plex Sans Light 10 pt.
+        {"JDP", 0.879, 1.814, 4.5 * 1.814 / 2.0, 2.2 * 1.814 / 2.5, 0.18, 5.5 - 1.6 + 1.162, "IBM Plex Sans",
+         QFont::Light, 10},
+    };
+    return styles;
+}
+
+const DrawingStyle& drawingStyle(const QString& name) {
+    for (const auto& s : drawingStyles())
+        if (s.name == name) return s;
+    return drawingStyles()[0];
+}
 constexpr double kMergeRadius = 0.3 * kBondLength;
 
 static double len(QPointF v) { return std::hypot(v.x(), v.y()); }
@@ -54,9 +66,10 @@ static bool isSp(const Document& doc, int atom) {
 
 // ---------------------------------------------------------------- rendering
 
-static QFont labelFont() {
-    QFont f("Arial");
-    f.setPixelSize(int(kFontSize));  // 1 px == 1 pt in our scene units
+static QFont labelFont(const DrawingStyle& s, double scale = 1) {
+    QFont f(s.font);
+    f.setWeight(s.weight);
+    f.setPixelSize(int(s.fontSize * scale));  // 1 px == 1 pt in our scene units
     return f;
 }
 
@@ -78,21 +91,20 @@ static QString reversedLabel(const QString& s) {
 }
 
 // Abbreviation centred on its attaching letter (the first, or the last when written from the right).
-static void drawAbbreviation(QPainter& p, const Atom& a, bool fromRight) {
-    QFontMetricsF fm(labelFont());
+static void drawAbbreviation(QPainter& p, const Atom& a, bool fromRight, const DrawingStyle& st) {
+    QFontMetricsF fm(labelFont(st));
     const QString s = fromRight ? reversedLabel(a.label) : a.label;
     const double base = a.pos.y() + fm.capHeight() / 2;
-    QPainterPath path = textPath({{0, base}, s});
+    QPainterPath path = textPath({{0, base}, s}, st);
     const double x = fromRight ? a.pos.x() + fm.horizontalAdvance(s.back()) / 2 - path.boundingRect().right()
                                : a.pos.x() - fm.horizontalAdvance(s.front()) / 2;
     p.fillPath(path.translated(x, 0), p.pen().color());
 }
 
-static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bool hLeft) {
+static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bool hLeft, const DrawingStyle& st) {
     const auto& a = doc.atoms[i];
-    if (!a.label.isEmpty()) return drawAbbreviation(p, a, hLeft);
-    QFont f = labelFont(), sub = f;
-    sub.setPixelSize(int(kFontSize * 0.7));
+    if (!a.label.isEmpty()) return drawAbbreviation(p, a, hLeft, st);
+    QFont f = labelFont(st), sub = labelFont(st, 0.7);
     QFontMetricsF fm(f), sm(sub);
     QString sym = QString::fromStdString(chem::symbol(a.z));
     double w = fm.horizontalAdvance(sym);
@@ -116,16 +128,17 @@ static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bo
     }
 }
 
-static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std::vector<int>& degree,
+static void drawBond(QPainter& p, const Document& doc, const Bond& b, const DrawingStyle& st, const std::vector<int>& degree,
                      const std::vector<bool>& labeled) {
     QPointF pa = doc.atoms[b.a].pos, pb = doc.atoms[b.b].pos;
     QPointF d = unit(pb - pa), n = perp(d);
+    const double gap = st.bondSpacing * kBondLength;  // double-bond spacing
     // Trim at labels.
-    QPointF a = labeled[b.a] ? pa + d * kLabelRadius : pa;
-    QPointF e = labeled[b.b] ? pb - d * kLabelRadius : pb;
+    QPointF a = labeled[b.a] ? pa + d * st.labelRadius : pa;
+    QPointF e = labeled[b.b] ? pb - d * st.labelRadius : pb;
 
     if (b.stereo == BondStereo::Wedge) {
-        QPolygonF tri{a, e + n * kWedgeWidth / 2, e - n * kWedgeWidth / 2};
+        QPolygonF tri{a, e + n * st.wedgeWidth / 2, e - n * st.wedgeWidth / 2};
         p.setBrush(p.pen().color());
         p.drawPolygon(tri);
         p.setBrush(Qt::NoBrush);
@@ -133,11 +146,11 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
     }
     if (b.stereo == BondStereo::Hash) {
         double L = len(e - a);
-        int count = std::max(3, int(L / kHashSpacing));
+        int count = std::max(3, int(L / st.hashSpacing));
         for (int k = 0; k <= count; ++k) {
             double t = double(k) / count;
             QPointF c = a + (e - a) * t;
-            double w = kWedgeWidth / 2 * t;
+            double w = st.wedgeWidth / 2 * t;
             p.drawLine(c + n * w, c - n * w);
         }
         return;
@@ -158,7 +171,7 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
     const QPen pen = p.pen();
     auto line = [&](QPointF x, QPointF y, bool main) {
         QPen q = pen;
-        if (b.stereo == BondStereo::Bold && main) q.setWidthF(kBoldWidth), q.setCapStyle(Qt::FlatCap);
+        if (b.stereo == BondStereo::Bold && main) q.setWidthF(st.boldWidth), q.setCapStyle(Qt::FlatCap);
         if (b.stereo == BondStereo::Dashed && (!main || b.order == 1)) q.setDashPattern({2.5, 2.5});
         p.setPen(q);
         p.drawLine(x, y);
@@ -169,8 +182,8 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
         line(a, e, true);
     } else if (b.order == 3) {
         p.drawLine(a, e);
-        p.drawLine(a + n * kBondSpacing, e + n * kBondSpacing);
-        p.drawLine(a - n * kBondSpacing, e - n * kBondSpacing);
+        p.drawLine(a + n * gap, e + n * gap);
+        p.drawLine(a - n * gap, e - n * gap);
     } else {
         // Offset the second line toward the side where the neighbours are
         // (inside the ring); centre it for terminal bonds like C=O.
@@ -185,11 +198,11 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
         if (b.position == BondPosition::Centre) centred = true;
         else if (b.position != BondPosition::Auto) centred = false, side = b.position == BondPosition::Right ? 1 : -1;
         if (centred) {
-            QPointF o = n * kBondSpacing / 2;
+            QPointF o = n * gap / 2;
             line(a + o, e + o, true);
             line(a - o, e - o, false);
         } else {
-            QPointF o = n * (side >= 0 ? kBondSpacing : -kBondSpacing);
+            QPointF o = n * (side >= 0 ? gap : -gap);
             QPointF shrink = d * (0.15 * kBondLength);
             QPointF ia = labeled[b.a] ? a : a + shrink, ie = labeled[b.b] ? e : e - shrink;
             line(a, e, true);
@@ -262,9 +275,8 @@ constexpr int kTabSpaces = 8;
 
 // Text as outlines, formula-style subscripts, one line per '\n'. Laid out in
 // runs (not per letter) so kerning and spaces match ordinary text.
-QPainterPath textPath(const Text& t) {
-    QFont f = labelFont(), sub = f;
-    sub.setPixelSize(int(kFontSize * 0.7));
+QPainterPath textPath(const Text& t, const DrawingStyle& st) {
+    QFont f = labelFont(st), sub = labelFont(st, 0.7);
     QFontMetricsF fm(f), sm(sub);
     const double tab = kTabSpaces * fm.horizontalAdvance(' ');
     QPainterPath path;
@@ -298,6 +310,8 @@ QPainterPath textPath(const Text& t) {
 }
 
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
+    const DrawingStyle& st = drawingStyle(doc.style);
+    const double lineWidth = style.lineWidth > 0 ? style.lineWidth : st.lineWidth;
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
     std::vector<int> degree(doc.atoms.size(), 0);
@@ -306,34 +320,35 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     for (size_t i = 0; i < doc.atoms.size(); ++i) labeled[i] = hasLabel(doc, int(i), degree);
     auto info = chem::atomInfo(doc);
 
-    QPen pen(style.ink, style.lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(style.ink, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
-    for (const auto& b : doc.bonds) drawBond(p, doc, b, degree, labeled);
+    for (const auto& b : doc.bonds) drawBond(p, doc, b, st, degree, labeled);
 
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
         const auto& a = doc.atoms[i];
-        p.setPen(QPen(info[i].valenceError ? style.error : style.ink, style.lineWidth));
+        p.setPen(QPen(info[i].valenceError ? style.error : style.ink, lineWidth));
         if (labeled[i]) {
             // H goes on the side away from the bonds.
             double dx = 0;
             for (int nb : doc.neighbors(int(i))) dx += doc.atoms[nb].pos.x() - a.pos.x();
-            drawLabel(p, doc, int(i), info[i].hydrogens, dx > 0.1);
+            drawLabel(p, doc, int(i), info[i].hydrogens, dx > 0.1, st);
         } else if (a.charge) {
-            QFont sub = labelFont();
-            sub.setPixelSize(int(kFontSize * 0.7));
+            QFont sub = labelFont(st, 0.7);
             QString c = QString(a.charge > 0 ? "+" : "−");
             if (std::abs(a.charge) > 1) c.prepend(QString::number(std::abs(a.charge)));
             drawText(p, c, a.pos + QPointF(2, -3), sub);
         }
         if (info[i].valenceError && !labeled[i]) p.drawEllipse(a.pos, 3, 3);
     }
-    p.setPen(QPen(style.ink, style.lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
+    p.setPen(QPen(style.ink, lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
     for (const auto& a : doc.arrows) drawArrow(p, a);
-    for (const auto& t : doc.texts) p.fillPath(textPath(t), style.ink);
+    for (const auto& t : doc.texts) p.fillPath(textPath(t, st), style.ink);
     p.restore();
 }
 
 QRectF documentBounds(const Document& doc) {
+    const DrawingStyle& st = drawingStyle(doc.style);
+    const double fs = st.fontSize;
     if (doc.empty()) return {};
     // Not QRectF::united: it ignores zero-size rects.
     double inf = std::numeric_limits<double>::infinity();
@@ -343,11 +358,11 @@ QRectF documentBounds(const Document& doc) {
         hi = {std::max(hi.x(), r.right()), std::max(hi.y(), r.bottom())};
     };
     for (const auto& a : doc.atoms) {  // room for labels, which can run either way
-        double w = kFontSize * std::max(1.5, 0.7 * a.label.size());
-        grow(QRectF(a.pos, a.pos).adjusted(-w, -kFontSize, w, kFontSize));
+        double w = fs * std::max(1.5, 0.7 * a.label.size());
+        grow(QRectF(a.pos, a.pos).adjusted(-w, -fs, w, fs));
     }
     for (const auto& a : doc.arrows) grow(arrowPath(a).boundingRect().adjusted(-4, -4, 4, 4));
-    for (const auto& t : doc.texts) grow(textPath(t).boundingRect().adjusted(-2, -2, 2, 2));
+    for (const auto& t : doc.texts) grow(textPath(t, st).boundingRect().adjusted(-2, -2, 2, 2));
     return QRectF(lo, hi);
 }
 
@@ -706,7 +721,7 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
     for (int i : selectedAtoms_) p->drawEllipse(doc_.atoms[i].pos, 4, 4);
 
     for (int i : selectedArrows_) p->strokePath(arrowPath(doc_.arrows[i]), QPen(sel, 4, Qt::SolidLine, Qt::RoundCap));
-    for (int i : selectedTexts_) p->drawRect(textPath(doc_.texts[i]).boundingRect().adjusted(-1.5, -1.5, 1.5, 1.5));
+    for (int i : selectedTexts_) p->drawRect(textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect().adjusted(-1.5, -1.5, 1.5, 1.5));
 
     p->setBrush(hover);
     if (hoverAtom_ >= 0) {
@@ -744,7 +759,7 @@ int Canvas::arrowAt(QPointF p) const {
 
 int Canvas::textAt(QPointF p) const {
     for (int i = int(doc_.texts.size()) - 1; i >= 0; --i)
-        if (textPath(doc_.texts[i]).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
+        if (textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
     return -1;
 }
 
@@ -920,7 +935,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         for (int i = 0; i < int(doc_.arrows.size()); ++i)
             if (r.contains(doc_.arrows[i].from) && r.contains(doc_.arrows[i].to)) selectedArrows_.insert(i);
         for (int i = 0; i < int(doc_.texts.size()); ++i)
-            if (r.intersects(textPath(doc_.texts[i]).boundingRect())) selectedTexts_.insert(i);
+            if (r.intersects(textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect())) selectedTexts_.insert(i);
     } else if (drag == Drag::Arrow) {
         if (int hit = arrowAt(pressPos_); click && hit >= 0) {  // click an arrow: restyle, or flip a curve
             Arrow& a = next.arrows[hit];
@@ -1321,7 +1336,7 @@ void Canvas::editText(int i, QPointF pos) {
     dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
     dialog.setTextValue(i >= 0 ? doc_.texts[i].text : QString());
     if (auto* edit = dialog.findChild<QPlainTextEdit*>()) {
-        QFont f = labelFont();
+        QFont f = labelFont(drawingStyle(doc_.style));
         f.setPixelSize(16);
         edit->setFont(f);
         edit->setTabStopDistance(kTabSpaces * QFontMetricsF(f).horizontalAdvance(' '));

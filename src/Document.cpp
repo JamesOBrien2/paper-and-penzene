@@ -36,6 +36,7 @@ QByteArray Document::toJson() const {
     for (const auto& t : texts) ts.append(QJsonObject{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}});
     if (!ar.isEmpty()) root["arrows"] = ar;
     if (!ts.isEmpty()) root["texts"] = ts;
+    if (!style.isEmpty()) root["style"] = style;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -44,6 +45,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     if (root["format"].toString() != "penzene" || root["version"].toInt() != 1)
         return std::nullopt;
     Document doc;
+    doc.style = root["style"].toString();
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),

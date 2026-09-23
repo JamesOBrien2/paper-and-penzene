@@ -51,6 +51,7 @@ struct Document {
     std::vector<Bond> bonds;
     std::vector<Arrow> arrows;
     std::vector<Text> texts;
+    QString style;  // drawing style preset name; empty means ACS 1996
     bool operator==(const Document&) const = default;
     bool empty() const { return atoms.empty() && arrows.empty() && texts.empty(); }
     void append(const Document& other, QPointF shift = {});  // atom indices renumbered

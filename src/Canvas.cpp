@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QInputDialog>
 #include <QKeyEvent>
 #include <QPdfWriter>
 #include <QSvgGenerator>
@@ -119,13 +120,15 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
         for (int end : {b.a, b.b})
             for (int nb : doc.neighbors(end))
                 if (nb != b.a && nb != b.b) side += cross(d, doc.atoms[nb].pos - pa) > 0 ? 1 : -1;
-        bool centred = degree[b.a] == 1 || degree[b.b] == 1 || side == 0;
+        // Neighbours on opposite sides (trans chain) tie at 0: still offset, or
+        // both lines would cross into the adjoining single bonds.
+        bool centred = degree[b.a] == 1 || degree[b.b] == 1;
         if (centred) {
             QPointF o = n * kBondSpacing / 2;
             p.drawLine(a + o, e + o);
             p.drawLine(a - o, e - o);
         } else {
-            QPointF o = n * (side > 0 ? kBondSpacing : -kBondSpacing);
+            QPointF o = n * (side >= 0 ? kBondSpacing : -kBondSpacing);
             QPointF shrink = d * (0.15 * kBondLength);
             QPointF ia = labeled[b.a] ? a : a + shrink, ie = labeled[b.b] ? e : e - shrink;
             p.drawLine(a, e);
@@ -235,6 +238,8 @@ bool exportDocument(const Document& doc, const QString& path) {
 
 namespace {
 
+QPointF awayDirection(const Document& doc, int atom);
+
 // Direction for a new bond from `atom` that avoids existing bonds.
 QPointF freeDirection(const Document& doc, int atom) {
     auto nbs = doc.neighbors(atom);
@@ -255,9 +260,7 @@ QPointF freeDirection(const Document& doc, int atom) {
         }
         return best;
     }
-    QPointF sum;
-    for (int nb : nbs) sum += unit(doc.atoms[nb].pos - p);
-    return len(sum) < 1e-3 ? perp(unit(doc.atoms[nbs[0]].pos - p)) : -unit(sum);
+    return awayDirection(doc, atom);
 }
 
 QPointF snapped(QPointF from, QPointF to) {
@@ -316,6 +319,42 @@ std::vector<QPointF> polygon(QPointF centre, QPointF firstVertex, int n) {
                                        r.x() * std::sin(t) + r.y() * std::cos(t)));
     }
     return out;
+}
+
+// Direction pointing away from all of the atom's bonds (straight on for a terminal atom).
+QPointF awayDirection(const Document& doc, int atom) {
+    auto nbs = doc.neighbors(atom);
+    if (nbs.empty()) return {0, -1};
+    QPointF p = doc.atoms[atom].pos, sum;
+    for (int nb : nbs) sum += unit(doc.atoms[nb].pos - p);
+    return len(sum) < 1e-3 ? perp(unit(doc.atoms[nbs[0]].pos - p)) : -unit(sum);
+}
+
+double circumradius(int n) { return kBondLength / (2 * std::sin(M_PI / n)); }
+
+void ringAt(Document& doc, QPointF centre, int n, bool aromatic) {
+    addRing(doc, polygon(centre, centre + QPointF(0, -circumradius(n)), n), aromatic);
+}
+
+// Ring through the atom, pointing away from its bonds so they bisect the ring's outside angle.
+void ringOnAtom(Document& doc, int atom, int n, bool aromatic) {
+    QPointF p = doc.atoms[atom].pos;
+    addRing(doc, polygon(p + awayDirection(doc, atom) * circumradius(n), p, n), aromatic);
+}
+
+// Ring fused onto the bond, on the side away from the other neighbours.
+void ringOnBond(Document& doc, int bond, int n, bool aromatic) {
+    const Bond& b = doc.bonds[bond];
+    QPointF pa = doc.atoms[b.a].pos, pb = doc.atoms[b.b].pos, d = unit(pb - pa);
+    double side = 0;
+    for (int end : {b.a, b.b})
+        for (int nb : doc.neighbors(end))
+            if (nb != b.a && nb != b.b) side += cross(d, doc.atoms[nb].pos - pa);
+    double apothem = kBondLength / (2 * std::tan(M_PI / n));
+    QPointF centre = (pa + pb) / 2 + perp(d) * (side > 0 ? -apothem : apothem);
+    auto verts = polygon(centre, pa, n);
+    if (len(verts[1] - pb) > 1) verts = polygon(centre, pb, n);  // wind the right way
+    addRing(doc, verts, aromatic);
 }
 
 class Snapshot : public QUndoCommand {
@@ -650,30 +689,12 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             else if (bond >= 0) next.bonds.erase(next.bonds.begin() + bond);
             what = tr("Erase");
             break;
-        case Tool::Ring: {
-            const int n = ringSize_;
-            const double apothem = kBondLength / (2 * std::tan(M_PI / n));
-            const double radius = kBondLength / (2 * std::sin(M_PI / n));
-            if (bond >= 0) {  // fuse onto the bond, on the side away from neighbours
-                const Bond& b = next.bonds[bond];
-                QPointF pa = next.atoms[b.a].pos, pb = next.atoms[b.b].pos, d = unit(pb - pa);
-                double side = 0;
-                for (int end : {b.a, b.b})
-                    for (int nb : next.neighbors(end))
-                        if (nb != b.a && nb != b.b) side += cross(d, next.atoms[nb].pos - pa);
-                QPointF centre = (pa + pb) / 2 + perp(d) * (side > 0 ? -apothem : apothem);
-                auto verts = polygon(centre, pa, n);
-                if (len(verts[1] - pb) > 1) verts = polygon(centre, pb, n);  // wind the right way
-                addRing(next, verts, ringAromatic_);
-            } else if (pressAtom_ >= 0) {  // spiro / substituent ring through the atom
-                QPointF p = next.atoms[pressAtom_].pos;
-                addRing(next, polygon(p + freeDirection(next, pressAtom_) * radius, p, n), ringAromatic_);
-            } else {
-                addRing(next, polygon(pressPos_, pressPos_ + QPointF(0, -radius), n), ringAromatic_);
-            }
+        case Tool::Ring:
+            if (bond >= 0) ringOnBond(next, bond, ringSize_, ringAromatic_);
+            else if (pressAtom_ >= 0) ringOnAtom(next, pressAtom_, ringSize_, ringAromatic_);
+            else ringAt(next, pressPos_, ringSize_, ringAromatic_);
             what = tr("Add ring");
             break;
-        }
         default:
             break;
         }
@@ -698,8 +719,102 @@ void Canvas::mouseDoubleClickEvent(QMouseEvent* e) {
     setSelection(seen);
 }
 
+// Groups for label hotkeys and the Enter dialog, as SMILES whose first atom
+// replaces the hovered atom. ponytail: drawn out in full until abbreviations (#29).
+const QHash<QString, QString>& groups() {
+    static const QHash<QString, QString> g{
+        {"Me", "C"},        {"Et", "CC"},          {"iPr", "C(C)C"},   {"tBu", "C(C)(C)C"},
+        {"Ph", "c1ccccc1"}, {"OH", "O"},           {"OMe", "OC"},      {"NH2", "N"},
+        {"NO2", "[N+](=O)[O-]"}, {"SH", "S"},      {"CF3", "C(F)(F)F"}, {"CN", "C#N"},
+        {"CO2Me", "C(=O)OC"}, {"CO2H", "C(=O)O"},  {"CHO", "C=O"},     {"Ac", "C(C)=O"},
+        {"OAc", "OC(C)=O"}, {"N3", "N=[N+]=[N-]"}, {"Boc", "C(=O)OC(C)(C)C"},
+        {"cPr", "C1CC1"},   {"cBu", "C1CCC1"},     {"SiH3", "[SiH3]"},  {"SO2Me", "S(=O)(=O)C"},
+    };
+    return g;
+}
+
+// Atom hotkeys (ChemDraw-style). Lowercase = element, uppercase = group.
+static QString atomHotkey(const QString& key) {
+    static const QHash<QString, QString> k{
+        {"c", "C"},  {"n", "N"},   {"w", "N"},  {"o", "O"},   {"q", "O"},   {"s", "S"},   {"P", "P"},
+        {"f", "F"},  {"l", "Cl"},  {"b", "Br"}, {"i", "I"},   {"h", "H"},   {"B", "B"},   {"S", "SiH3"},
+        {"O", "OMe"}, {"N", "NO2"}, {"F", "CF3"}, {"m", "Me"}, {"e", "Et"},  {"E", "CO2Me"},
+        {"p", "Ph"}, {"a", "Ph"},  {"K", "tBu"}, {"v", "cPr"}, {"u", "cBu"}, {"Z", "N3"},  {"t", "Boc"},
+        {"x", "Ac"}, {"y", "CN"},
+    };
+    return k.value(key);
+}
+
+// Replaces atom `at` with the group's first atom and lays the rest out pointing
+// away from the atom's existing bonds. Returns false if `label` is unknown.
+bool Canvas::applyLabel(Document& doc, int at, const QString& label) {
+    if (int z = chem::atomicNumber(label.toStdString()); z > 0) {
+        doc.atoms[at].z = z;
+        return true;
+    }
+    QString smiles = groups().value(label, label);  // anything else: try it as SMILES
+    auto frag = chem::fromSmiles(smiles.toStdString());
+    if (!frag || frag->atoms.empty()) return false;
+    doc.atoms[at].z = frag->atoms[0].z;
+    doc.atoms[at].charge = frag->atoms[0].charge;
+    if (frag->atoms.size() == 1) return true;
+
+    // Rotate so the fragment's bulk points away from `at`'s bonds.
+    QPointF origin = frag->atoms[0].pos, bulk;
+    for (size_t i = 1; i < frag->atoms.size(); ++i) bulk += frag->atoms[i].pos;
+    bulk = bulk / double(frag->atoms.size() - 1) - origin;
+    QPointF want = doc.neighbors(at).empty() ? QPointF(1, 0) : awayDirection(doc, at);
+    double ang = std::atan2(want.y(), want.x()) - std::atan2(bulk.y(), bulk.x());
+    const int base = int(doc.atoms.size()) - 1;  // frag atom i -> base + i
+    for (size_t i = 1; i < frag->atoms.size(); ++i) {
+        QPointF r = frag->atoms[i].pos - origin;
+        Atom a = frag->atoms[i];
+        a.pos = doc.atoms[at].pos + QPointF(r.x() * std::cos(ang) - r.y() * std::sin(ang),
+                                            r.x() * std::sin(ang) + r.y() * std::cos(ang));
+        doc.atoms.push_back(a);
+    }
+    for (auto b : frag->bonds) {
+        b.a = b.a == 0 ? at : base + b.a;
+        b.b = b.b == 0 ? at : base + b.b;
+        doc.bonds.push_back(b);
+    }
+    return true;
+}
+
+// Arrow keys walk the hotspot to the neighbour that best matches the direction.
+static int neighbourToward(const Document& doc, int atom, QPointF dir) {
+    int best = -1;
+    double bestDot = 0.5;
+    for (int nb : doc.neighbors(atom)) {
+        double d = QPointF::dotProduct(unit(doc.atoms[nb].pos - doc.atoms[atom].pos), dir);
+        if (d > bestDot) bestDot = d, best = nb;
+    }
+    return best;
+}
+
+void Canvas::rotateSelection(double degrees) {
+    if (selectedAtoms_.isEmpty()) return;
+    Document next = doc_;
+    QPointF c;
+    for (int i : selectedAtoms_) c += doc_.atoms[i].pos;
+    c /= double(selectedAtoms_.size());
+    double a = qDegreesToRadians(degrees);
+    for (int i : selectedAtoms_) {
+        QPointF r = doc_.atoms[i].pos - c;
+        next.atoms[i].pos = c + QPointF(r.x() * std::cos(a) - r.y() * std::sin(a),
+                                        r.x() * std::sin(a) + r.y() * std::cos(a));
+    }
+    commit(next, tr("Rotate"));
+}
+
 void Canvas::keyPressEvent(QKeyEvent* e) {
-    if (e->key() == Qt::Key_Delete || e->key() == Qt::Key_Backspace) {
+    const int key = e->key();
+    const bool arrow = key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down;
+    if (arrow && (e->modifiers() & Qt::AltModifier)) {
+        if (key == Qt::Key_Left || key == Qt::Key_Right) rotateSelection(key == Qt::Key_Left ? -15 : 15);
+        return;
+    }
+    if (key == Qt::Key_Delete || key == Qt::Key_Backspace) {
         if (!selectedAtoms_.isEmpty()) return deleteSelection();
         Document next = doc_;
         if (hoverAtom_ >= 0) next.removeAtoms({hoverAtom_});
@@ -709,23 +824,78 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
     }
     if (e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) return QGraphicsView::keyPressEvent(e);
 
-    // ChemDraw-style hotkeys over the hovered atom or bond.
     const QString t = e->text();
     Document next = doc_;
+
     if (hoverAtom_ >= 0) {
-        static const QHash<QString, int> keys{{"c", 6}, {"n", 7}, {"o", 8}, {"s", 16}, {"p", 15}, {"f", 9},
-                                              {"h", 1}, {"i", 53}, {"l", 17}, {"b", 35}};
-        auto& a = next.atoms[hoverAtom_];
-        if (keys.contains(t.toLower())) a.z = keys[t.toLower()];
-        else if (t == "+" || t == "=") a.charge += 1;
-        else if (t == "-") a.charge -= 1;
-        else return QGraphicsView::keyPressEvent(e);
-        return commit(next, tr("Edit atom"));
-    }
-    if (hoverBond_ >= 0 && (t == "1" || t == "2" || t == "3")) {
-        next.bonds[hoverBond_].order = t.toInt();
-        next.bonds[hoverBond_].stereo = BondStereo::None;
-        return commit(next, tr("Change bond"));
+        const int at = hoverAtom_;
+        if (arrow) {
+            QPointF dir = key == Qt::Key_Left ? QPointF(-1, 0) : key == Qt::Key_Right ? QPointF(1, 0)
+                        : key == Qt::Key_Up   ? QPointF(0, -1) : QPointF(0, 1);
+            if (int nb = neighbourToward(doc_, at, dir); nb >= 0) {
+                hoverAtom_ = nb;
+                viewport()->update();
+            }
+            return;
+        }
+        if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+            bool ok = false;
+            QString label = QInputDialog::getText(this, tr("Atom label"),
+                                                  tr("Element, group (OMe, CF3, Ph, Boc…) or SMILES:"),
+                                                  QLineEdit::Normal, QString::fromStdString(chem::symbol(doc_.atoms[at].z)), &ok)
+                                .trimmed();
+            if (ok && !label.isEmpty() && applyLabel(next, at, label)) commit(next, tr("Edit label"));
+            return;
+        }
+        if (t == "1" || t == "2" || t == "3") {  // grow a bond; the hotspot follows it
+            QPointF to = next.atoms[at].pos + freeDirection(next, at) * kBondLength;
+            int nb = atomAtOrNew(next, to);
+            link(next, at, nb, t.toInt());
+            commit(next, tr("Add bond"));
+            hoverAtom_ = nb;
+            viewport()->update();
+            return;
+        }
+        if (t.size() == 1 && t[0] >= '4' && t[0] <= '8') {
+            ringOnAtom(next, at, t.toInt(), false);
+            return commit(next, tr("Add ring"));
+        }
+        if (t == "+" || t == "=") {
+            next.atoms[at].charge += 1;
+            return commit(next, tr("Charge"));
+        }
+        if (t == "-") {
+            next.atoms[at].charge -= 1;
+            return commit(next, tr("Charge"));
+        }
+        if (QString label = atomHotkey(t); !label.isEmpty() && applyLabel(next, at, label)) {
+            commit(next, tr("Edit atom"));
+            hoverAtom_ = at;
+            viewport()->update();
+            return;
+        }
+    } else if (hoverBond_ >= 0) {
+        Bond& b = next.bonds[hoverBond_];
+        if (t == "1" || t == "2" || t == "3") {
+            b.order = t.toInt(), b.stereo = BondStereo::None;
+        } else if (t == "w" || t == "h") {
+            BondStereo s = t == "w" ? BondStereo::Wedge : BondStereo::Hash;
+            if (b.stereo == s) std::swap(b.a, b.b);  // again: flip which end is narrow
+            b.stereo = s, b.order = 1;
+        } else if (t == "a") {
+            ringOnBond(next, hoverBond_, 6, true);
+        } else if (t == "v") {
+            ringOnBond(next, hoverBond_, 3, false);
+        } else if (t.size() == 1 && t[0] >= '4' && t[0] <= '8') {
+            ringOnBond(next, hoverBond_, t.toInt(), false);
+        } else {
+            return QGraphicsView::keyPressEvent(e);
+        }
+        const int keep = hoverBond_;
+        commit(next, tr("Edit bond"));
+        hoverBond_ = keep;
+        viewport()->update();
+        return;
     }
     QGraphicsView::keyPressEvent(e);
 }

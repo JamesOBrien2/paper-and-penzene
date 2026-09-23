@@ -40,6 +40,9 @@ public:
     void deleteSelection();
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
+    void rotateSelection(double degrees);
+    // Element symbol, group (OMe, CF3, Ph…) or SMILES; first atom replaces `atom`.
+    static bool applyLabel(Document& doc, int atom, const QString& label);
     QPointF viewCenter() const;
     void zoomBy(double factor);
     void fitToDocument();

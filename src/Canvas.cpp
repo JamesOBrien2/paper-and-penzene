@@ -38,6 +38,17 @@ static bool hasLabel(const Document& doc, int i, const std::vector<int>& degree)
     return doc.atoms[i].z != 6 || degree[i] == 0;
 }
 
+// sp centre: a triple bond, or two double bonds (allene). Its bonds are collinear.
+static bool isSp(const Document& doc, int atom) {
+    int doubles = 0;
+    for (const auto& b : doc.bonds)
+        if (b.a == atom || b.b == atom) {
+            if (b.order == 3) return true;
+            doubles += b.order == 2;
+        }
+    return doubles >= 2;
+}
+
 // ---------------------------------------------------------------- rendering
 
 static QFont labelFont() {
@@ -122,7 +133,8 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const std:
                 if (nb != b.a && nb != b.b) side += cross(d, doc.atoms[nb].pos - pa) > 0 ? 1 : -1;
         // Neighbours on opposite sides (trans chain) tie at 0: still offset, or
         // both lines would cross into the adjoining single bonds.
-        bool centred = degree[b.a] == 1 || degree[b.b] == 1;
+        // Also centred at an sp centre, so cumulated C=C=C lines meet.
+        bool centred = degree[b.a] == 1 || degree[b.b] == 1 || isSp(doc, b.a) || isSp(doc, b.b);
         if (centred) {
             QPointF o = n * kBondSpacing / 2;
             p.drawLine(a + o, e + o);
@@ -241,12 +253,16 @@ namespace {
 QPointF awayDirection(const Document& doc, int atom);
 
 // Direction for a new bond from `atom` that avoids existing bonds.
-QPointF freeDirection(const Document& doc, int atom) {
+// `newOrder` is the order of the bond about to be added: it makes the atom sp
+// (straight on) after a triple bond, or when it cumulates two double bonds.
+QPointF freeDirection(const Document& doc, int atom, int newOrder = 1) {
     auto nbs = doc.neighbors(atom);
     QPointF p = doc.atoms[atom].pos;
     if (nbs.empty()) return dirAt(-30);
     if (nbs.size() == 1) {
         QPointF back = unit(doc.atoms[nbs[0]].pos - p);
+        int have = doc.bonds[doc.bondBetween(atom, nbs[0])].order;
+        if (have == 3 || newOrder == 3 || (have == 2 && newOrder == 2)) return -back;
         double base = qRadiansToDegrees(std::atan2(back.y(), back.x()));
         // Zig-zag: of the two 120° options, take the one farther from everything else.
         QPointF best;
@@ -364,6 +380,22 @@ void ringOnBond(Document& doc, int bond, int n, bool aromatic) {
     auto verts = polygon(centre, pa, n);
     if (len(verts[1] - pb) > 1) verts = polygon(centre, pb, n);  // wind the right way
     addRing(doc, verts, aromatic);
+}
+
+// After a bond order change: if an end became an sp centre with two neighbours,
+// swing a terminal neighbour into line (Clean handles the general case).
+void straightenSp(Document& doc, int bond) {
+    for (int e : {doc.bonds[bond].a, doc.bonds[bond].b}) {
+        auto nbs = doc.neighbors(e);
+        if (nbs.size() != 2 || !isSp(doc, e)) continue;
+        for (int k : {0, 1}) {
+            int mover = nbs[k], anchor = nbs[1 - k];
+            if (doc.neighbors(mover).size() != 1) continue;
+            QPointF c = doc.atoms[e].pos;
+            doc.atoms[mover].pos = c + unit(c - doc.atoms[anchor].pos) * len(doc.atoms[mover].pos - c);
+            break;
+        }
+    }
 }
 
 class Snapshot : public QUndoCommand {
@@ -668,11 +700,12 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             } else {
                 b.stereo = BondStereo::None;
                 b.order = (b.order != order && order > 1) ? order : b.order % 3 + 1;
+                straightenSp(next, bond);
             }
             what = tr("Change bond");
         } else {
             int from = pressAtom_ >= 0 ? pressAtom_ : next.addAtom(pressPos_);
-            QPointF to = next.atoms[from].pos + freeDirection(next, from) * kBondLength;
+            QPointF to = next.atoms[from].pos + freeDirection(next, from, order) * kBondLength;
             link(next, from, atomAtOrNew(next, to), order, stereo);
             what = tr("Add bond");
         }
@@ -907,7 +940,7 @@ int sproutHotkey(Document& doc, int at, const QString& key) {
     }
     if (key == "8") {  // methylidene
         int c = needsLinker ? linker(doc, at) : at;
-        QPointF dir = site(doc, c) == Site::Primary ? freeDirection(doc, c) : awayDirection(doc, c);
+        QPointF dir = site(doc, c) == Site::Primary ? freeDirection(doc, c, 2) : awayDirection(doc, c);
         return sprout(doc, c, dir, 2);
     }
     if (key == "9") {  // dimethyl / gem-dimethyl / isopropyl
@@ -1088,6 +1121,7 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
             {"5", {5, false}}, {"6", {6, false}}, {"7", {7, false}}, {"8", {8, false}}};
         if (t == "1" || t == "2" || t == "3") {
             b.order = t.toInt(), b.stereo = BondStereo::None;
+            straightenSp(next, hoverBond_);
         } else if (t == "w" || t == "h" || t == "H") {
             BondStereo s = t == "w" ? BondStereo::Wedge : BondStereo::Hash;
             if (b.stereo == s) std::swap(b.a, b.b);  // again: flip which end is narrow

@@ -24,6 +24,7 @@ int main(int argc, char** argv) {
     }
     QApplication::setApplicationName("Paper & Penzene");
     MainWindow w;
+    if (argc == 2) w.openFile(QString::fromLocal8Bit(argv[1]));
     w.show();
     return app.exec();
 }

@@ -1,4 +1,6 @@
 #include "Canvas.h"
+#include "Chem.h"
+#include "MainWindow.h"
 
 #include <QApplication>
 #include <QTest>
@@ -94,4 +96,24 @@ TEST_CASE("select and delete, charges") {
     CHECK(f.canvas.document().atoms.empty());
     f.undo.undo();
     CHECK(f.canvas.document().atoms.size() == 2);
+}
+
+TEST_CASE("insert centres the fragment and selects it") {
+    Fixture f;
+    auto frag = chem::fromSmiles("CCO");
+    REQUIRE(frag);
+    f.canvas.insert(*frag, "Paste");
+    f.canvas.insert(*frag, "Paste");
+    CHECK(f.canvas.document().atoms.size() == 6);
+    CHECK(f.canvas.document().bonds[2].a == 3);
+    CHECK(f.canvas.selection() == QSet<int>{3, 4, 5});
+}
+
+TEST_CASE("main window screenshot") {
+    App app;
+    MainWindow w;
+    w.resize(1000, 650);
+    w.show();
+    REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
+    if (auto out = qgetenv("PENZENE_SCREENSHOT"); !out.isEmpty()) w.grab().save(out);
 }

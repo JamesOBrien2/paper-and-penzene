@@ -3,10 +3,22 @@
 #include "Chem.h"
 
 #include <QActionGroup>
+#include <QApplication>
+#include <QClipboard>
+#include <QCloseEvent>
 #include <QComboBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QInputDialog>
 #include <QMenuBar>
+#include <QMessageBox>
+#include <QMimeData>
+#include <QStatusBar>
 #include <QToolBar>
 #include <QUndoStack>
+
+static const char* kMolMime = "chemical/x-mdl-molfile";
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
     setCentralWidget(canvas_);
@@ -14,6 +26,114 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     resize(1100, 750);
     buildTools();
     buildMenus();
+    connect(undo_, &QUndoStack::cleanChanged, this, &MainWindow::updateTitle);
+    updateTitle();
+}
+
+void MainWindow::updateTitle() {
+    QString name = path_.isEmpty() ? tr("Untitled") : QFileInfo(path_).fileName();
+    setWindowTitle(name + "[*] — Paper & Penzene");
+    setWindowModified(!undo_->isClean());
+}
+
+bool MainWindow::openFile(const QString& path) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Open"), tr("Cannot read %1").arg(path));
+        return false;
+    }
+    QByteArray data = f.readAll();
+    std::optional<Document> doc = path.endsWith(".penz", Qt::CaseInsensitive)
+                                      ? Document::fromJson(data)
+                                      : chem::fromMolBlock(data.toStdString());
+    if (!doc) {
+        QMessageBox::warning(this, tr("Open"), tr("%1 is not a structure file I can read.").arg(path));
+        return false;
+    }
+    undo_->clear();
+    canvas_->setDocumentSilently(*doc);
+    canvas_->fitToDocument();
+    path_ = path;
+    updateTitle();
+    return true;
+}
+
+bool MainWindow::saveTo(const QString& path) {
+    const auto& doc = canvas_->document();
+    QByteArray data = path.endsWith(".penz", Qt::CaseInsensitive)
+                          ? doc.toJson()
+                          : QByteArray::fromStdString(chem::toMolBlock(doc));
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
+        QMessageBox::warning(this, tr("Save"), tr("Cannot write %1").arg(path));
+        return false;
+    }
+    path_ = path;
+    undo_->setClean();
+    updateTitle();
+    return true;
+}
+
+bool MainWindow::save() {
+    // MOL can't hold everything .penz will (text, arrows), so only .penz saves silently.
+    return path_.endsWith(".penz", Qt::CaseInsensitive) ? saveTo(path_) : saveAs();
+}
+
+bool MainWindow::saveAs() {
+    QString path = QFileDialog::getSaveFileName(this, tr("Save As"), path_,
+                                                tr("Penzene document (*.penz);;MDL Molfile (*.mol)"));
+    return !path.isEmpty() && saveTo(path);
+}
+
+bool MainWindow::maybeSave() {
+    if (undo_->isClean()) return true;
+    auto r = QMessageBox::question(this, tr("Unsaved changes"), tr("Save changes to this document?"),
+                                   QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    return r == QMessageBox::Discard || (r == QMessageBox::Save && save());
+}
+
+void MainWindow::closeEvent(QCloseEvent* e) {
+    if (maybeSave()) e->accept();
+    else e->ignore();
+}
+
+void MainWindow::exportImage() {
+    QString base = path_.isEmpty() ? QString("structure") : QFileInfo(path_).completeBaseName();
+    QString path = QFileDialog::getSaveFileName(this, tr("Export"), base + ".svg",
+                                                tr("SVG (*.svg);;PNG image (*.png);;PDF (*.pdf)"));
+    if (path.isEmpty()) return;
+    if (!exportDocument(canvas_->selectedSubset(), path))
+        QMessageBox::warning(this, tr("Export"), tr("Nothing to export, or cannot write %1").arg(path));
+}
+
+void MainWindow::importSmiles() {
+    bool ok = false;
+    QString s = QInputDialog::getText(this, tr("Import SMILES"), tr("SMILES:"), QLineEdit::Normal, {}, &ok);
+    if (!ok || s.trimmed().isEmpty()) return;
+    if (auto doc = chem::fromSmiles(s.trimmed().toStdString())) canvas_->insert(*doc, tr("Import SMILES"));
+    else QMessageBox::warning(this, tr("Import SMILES"), tr("Not a valid SMILES string."));
+}
+
+void MainWindow::copy() {
+    Document doc = canvas_->selectedSubset();
+    if (doc.atoms.empty()) return;
+    auto* mime = new QMimeData;
+    mime->setImageData(renderImage(doc));
+    mime->setData("image/svg+xml", renderSvg(doc));
+    std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);
+    mime->setData(kMolMime, QByteArray::fromStdString(mol));
+    mime->setText(QString::fromStdString(smi.empty() ? mol : smi));
+    QApplication::clipboard()->setMimeData(mime);
+}
+
+void MainWindow::paste() {
+    const QMimeData* mime = QApplication::clipboard()->mimeData();
+    std::string text = mime->hasFormat(kMolMime) ? mime->data(kMolMime).toStdString()
+                                                 : mime->text().trimmed().toStdString();
+    if (text.empty()) return;
+    auto doc = text.find("M  END") != std::string::npos ? chem::fromMolBlock(text) : chem::fromSmiles(text);
+    if (doc) canvas_->insert(*doc, tr("Paste"));
+    else statusBar()->showMessage(tr("Clipboard has no structure or SMILES"), 4000);
 }
 
 void MainWindow::buildTools() {
@@ -69,6 +189,28 @@ void MainWindow::buildTools() {
 }
 
 void MainWindow::buildMenus() {
+    auto* file = menuBar()->addMenu(tr("&File"));
+    file->addAction(tr("&New"), QKeySequence::New, this, [this] {
+        if (!maybeSave()) return;
+        undo_->clear();
+        canvas_->setDocumentSilently({});
+        path_.clear();
+        updateTitle();
+    });
+    file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
+        if (!maybeSave()) return;
+        QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
+                                                 tr("Structures (*.penz *.mol *.sdf);;All files (*)"));
+        if (!p.isEmpty()) openFile(p);
+    });
+    file->addAction(tr("&Save"), QKeySequence::Save, this, &MainWindow::save);
+    file->addAction(tr("Save &As…"), QKeySequence::SaveAs, this, &MainWindow::saveAs);
+    file->addSeparator();
+    file->addAction(tr("Import &SMILES…"), QKeySequence(tr("Ctrl+Shift+I")), this, &MainWindow::importSmiles);
+    file->addAction(tr("&Export…"), QKeySequence(tr("Ctrl+E")), this, &MainWindow::exportImage);
+    file->addSeparator();
+    file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
+
     auto* edit = menuBar()->addMenu(tr("&Edit"));
     auto* u = undo_->createUndoAction(this);
     u->setShortcut(QKeySequence::Undo);
@@ -77,7 +219,24 @@ void MainWindow::buildMenus() {
     edit->addAction(u);
     edit->addAction(r);
     edit->addSeparator();
+    edit->addAction(tr("Cu&t"), QKeySequence::Cut, this, [this] {
+        copy();
+        canvas_->deleteSelection();
+    });
+    edit->addAction(tr("&Copy"), QKeySequence::Copy, this, &MainWindow::copy);
+    edit->addAction(tr("Copy as S&MILES"), QKeySequence(tr("Ctrl+Alt+C")), this, [this] {
+        QApplication::clipboard()->setText(QString::fromStdString(chem::toSmiles(canvas_->selectedSubset())));
+    });
+    edit->addAction(tr("&Paste"), QKeySequence::Paste, this, &MainWindow::paste);
+    edit->addAction(tr("&Delete"), canvas_, &Canvas::deleteSelection);
+    edit->addSeparator();
     edit->addAction(tr("Select &All"), QKeySequence::SelectAll, canvas_, &Canvas::selectAll);
+
+    auto* structure = menuBar()->addMenu(tr("&Structure"));
+    // ponytail: cleans the whole document; clean just the selection when someone asks.
+    structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
+        canvas_->commit(chem::clean2D(canvas_->document()), tr("Clean"));
+    });
 
     auto* view = menuBar()->addMenu(tr("&View"));
     view->addAction(tr("Zoom &In"), QKeySequence::ZoomIn, this, [this] { canvas_->zoomBy(1.25); });

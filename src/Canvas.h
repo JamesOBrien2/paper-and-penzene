@@ -41,6 +41,10 @@ public:
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     void rotateSelection(double degrees);
+    void moveHotspot(QPointF dir, bool jump);
+    void editLabel(int atom);
+    int hotspotAtom() const { return hoverAtom_; }
+    int hotspotBond() const { return hoverBond_; }
     // Element symbol, group (OMe, CF3, Ph…) or SMILES; first atom replaces `atom`.
     static bool applyLabel(Document& doc, int atom, const QString& label);
     QPointF viewCenter() const;

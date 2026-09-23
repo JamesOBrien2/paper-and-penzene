@@ -6,6 +6,8 @@
 #include <QApplication>
 #include <QSettings>
 #include <QTest>
+#include <QToolButton>
+#include <QWidgetAction>
 #include <QUndoStack>
 #include <catch2/catch_test_macros.hpp>
 
@@ -123,7 +125,7 @@ TEST_CASE("main window screenshot") {
     App app;
     QSettings().setValue("theme", qEnvironmentVariable("PENZENE_THEME", "Light"));
     MainWindow w;
-    w.resize(1000, 650);
+    w.resize(1000, 800);
     w.show();
     REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
     QApplication::processEvents();
@@ -537,4 +539,22 @@ TEST_CASE("2 on a double bond swaps the side of its second line") {
     f.key("2");
     CHECK(f.doc().bonds[db].position != first);  // and back again
     CHECK(f.doc().bonds[db].position != BondPosition::Auto);
+}
+
+TEST_CASE("picking from the periodic table switches to the atom tool") {
+    App app;
+    MainWindow w;
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    REQUIRE(canvas);
+    QToolButton* nitrogen = nullptr;  // in the periodic table popup
+    for (auto* wa : w.findChildren<QWidgetAction*>())
+        if (wa->defaultWidget())
+            for (auto* b : wa->defaultWidget()->findChildren<QToolButton*>())
+                if (b->text() == "N") nitrogen = b;
+    REQUIRE(nitrogen);
+    nitrogen->click();  // no need to pick the atom tool first
+    QTest::mouseClick(canvas->viewport(), Qt::LeftButton, {}, canvas->viewport()->rect().center());
+    REQUIRE(canvas->document().atoms.size() == 1);
+    CHECK(canvas->document().atoms[0].z == 7);
 }

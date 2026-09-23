@@ -25,6 +25,18 @@ Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www
 - Themes: follow the OS, Light, Dark, or Catppuccin Latte / Frappé / Macchiato / Mocha (View → Theme); exports always stay black on clear
 - ACS 1996 drawing style, implicit hydrogens and valence warnings
 
+## Command line
+
+Render without opening a window, for scripts, notebooks and batch figures:
+
+```sh
+penzene --render aspirin.mol aspirin.svg                    # one file
+penzene --render "CC(=O)Oc1ccccc1C(=O)O" aspirin.pdf        # a SMILES string
+penzene --render library.sdf hits.smi --out figs --format png --drawing-style RSC --clean
+```
+
+Inputs can be SMILES strings or `.smi`, `.sdf`, `.mol`, `.penz` and `.cdxml` files. In a `.smi` or `.sdf`, every record becomes its own file, named after the record's name. The paths written are printed one per line. On macOS the binary is `Penzene.app/Contents/MacOS/penzene`.
+
 ## Build
 
 Requires [pixi](https://pixi.sh). It fetches Qt, RDKit and the toolchain from conda-forge.

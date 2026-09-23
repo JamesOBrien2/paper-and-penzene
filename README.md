@@ -1,14 +1,14 @@
-<p align="center"><img src="resources/logo.svg" width="160" alt="Paper & Penzene logo: a sheet of paper with a hand-drawn benzene ring and a pencil"></p>
+<p align="center"><img src="resources/logo.svg" width="160" alt="Penzene logo: a benzene ring drawn in blue ink"></p>
 
-<h1 align="center">Paper &amp; Penzene</h1>
+<h1 align="center">Penzene</h1>
 
 An open-source, native desktop chemical structure editor — a free alternative to ChemDraw.
 Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www.rdkit.org).
 
 > Status: early development. See the [roadmap](https://github.com/users/JamesOBrien2/projects) and
-> [issues](https://github.com/JamesOBrien2/paper-and-penzene/issues).
+> [issues](https://github.com/JamesOBrien2/penzene/issues).
 
-<p align="center"><img src="docs/screenshot.png" width="720" alt="Paper & Penzene main window showing aspirin"></p>
+<p align="center"><img src="docs/screenshot.png" width="720" alt="Penzene main window showing aspirin"></p>
 
 ## Features (v0.1)
 

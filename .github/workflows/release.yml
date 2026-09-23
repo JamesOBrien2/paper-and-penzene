@@ -28,7 +28,7 @@ jobs:
           dist/penzene.app/Contents/MacOS/penzene --version
           dist/penzene.app/Contents/MacOS/penzene --render 'c1ccccc1O' smoke.svg
           mv .pixi-hidden .pixi
-          hdiutil create -volname "Paper & Penzene" -srcfolder dist -ov -format UDZO penzene-macos-arm64.dmg
+          hdiutil create -volname "Penzene" -srcfolder dist -ov -format UDZO penzene-macos-arm64.dmg
       - uses: actions/upload-artifact@v4
         with: {name: macos, path: penzene-macos-arm64.dmg}
 
@@ -77,7 +77,7 @@ jobs:
           cat > penzene.desktop <<'DESK'
           [Desktop Entry]
           Type=Application
-          Name=Paper & Penzene
+          Name=Penzene
           Exec=penzene
           Icon=penzene
           Categories=Science;Chemistry;Education;
@@ -88,7 +88,7 @@ jobs:
             ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/bin/penzene \
             -d penzene.desktop -i penzene.svg --plugin qt --output appimage \
             -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
-          mv Paper*.AppImage penzene-linux-x86_64.AppImage
+          mv Penzene*.AppImage penzene-linux-x86_64.AppImage
           mv .pixi .pixi-hidden
           xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
           test -s smoke.svg

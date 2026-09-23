@@ -25,7 +25,7 @@ qt_add_resources(penzene "icons" PREFIX "/" BASE resources FILES resources/logo.
 target_link_libraries(penzene PRIVATE penzene_core)
 set_target_properties(penzene PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER io.github.jamesobrien2.penzene
-    MACOSX_BUNDLE_BUNDLE_NAME "Paper &amp; Penzene"
+    MACOSX_BUNDLE_BUNDLE_NAME "Penzene"
     MACOSX_BUNDLE_ICON_FILE penzene.icns
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})

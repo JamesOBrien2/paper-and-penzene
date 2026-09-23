@@ -1,5 +1,5 @@
 [workspace]
-name = "paper-and-penzene"
+name = "penzene"
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
@@ -32,8 +32,8 @@ install-app = { cmd = """
 rm -rf build/deploy && mkdir -p build/deploy && cp -R build/bin/penzene.app build/deploy/ &&
 macdeployqt6 build/deploy/penzene.app -libpath="$CONDA_PREFIX/lib" 2>/dev/null ;
 codesign --force --deep --sign - build/deploy/penzene.app &&
-mkdir -p ~/Applications && rm -rf ~/Applications/"Paper & Penzene.app" &&
-cp -R build/deploy/penzene.app ~/Applications/"Paper & Penzene.app" && echo "Installed ~/Applications/Paper & Penzene.app"
+mkdir -p ~/Applications && rm -rf ~/Applications/"Penzene.app" &&
+cp -R build/deploy/penzene.app ~/Applications/"Penzene.app" && echo "Installed ~/Applications/Penzene.app"
 """, depends-on = ["build"] }
 
 [target.win.tasks]

@@ -27,6 +27,14 @@ run = { cmd = "build/bin/penzene", depends-on = ["build"] }
 
 [target.osx.tasks]
 run = { cmd = "build/bin/penzene.app/Contents/MacOS/penzene", depends-on = ["build"] }
+# Self-contained app in ~/Applications, for trying it out locally.
+install-app = { cmd = """
+rm -rf build/deploy && mkdir -p build/deploy && cp -R build/bin/penzene.app build/deploy/ &&
+macdeployqt6 build/deploy/penzene.app -libpath="$CONDA_PREFIX/lib" 2>/dev/null ;
+codesign --force --deep --sign - build/deploy/penzene.app &&
+mkdir -p ~/Applications && rm -rf ~/Applications/"Paper & Penzene.app" &&
+cp -R build/deploy/penzene.app ~/Applications/"Paper & Penzene.app" && echo "Installed ~/Applications/Paper & Penzene.app"
+""", depends-on = ["build"] }
 
 [target.win.tasks]
 run = { cmd = "build/bin/penzene.exe", depends-on = ["build"] }

@@ -1,4 +1,6 @@
-# Paper & Penzene
+<p align="center"><img src="resources/logo.svg" width="160" alt="Paper & Penzene logo: a sheet of paper with a hand-drawn benzene ring and a pencil"></p>
+
+<h1 align="center">Paper &amp; Penzene</h1>
 
 An open-source, native desktop chemical structure editor — a free alternative to ChemDraw.
 Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www.rdkit.org).
@@ -14,6 +16,7 @@ Requires [pixi](https://pixi.sh). It fetches Qt, RDKit and the toolchain from co
 pixi run build   # build/bin/penzene
 pixi run test
 pixi run run     # launch the app
+pixi run install-app   # macOS: self-contained app in ~/Applications
 ```
 
 ## Roadmap

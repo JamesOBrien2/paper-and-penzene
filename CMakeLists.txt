@@ -18,11 +18,15 @@ target_link_libraries(penzene_core PUBLIC
     Qt6::Widgets Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol)
 
-add_executable(penzene WIN32 MACOSX_BUNDLE src/main.cpp)
+set(PENZENE_ICNS resources/penzene.icns)
+set_source_files_properties(${PENZENE_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+add_executable(penzene WIN32 MACOSX_BUNDLE src/main.cpp ${PENZENE_ICNS} resources/penzene.rc)
+qt_add_resources(penzene "icons" PREFIX "/" BASE resources FILES resources/logo.svg)
 target_link_libraries(penzene PRIVATE penzene_core)
 set_target_properties(penzene PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER io.github.jamesobrien2.penzene
     MACOSX_BUNDLE_BUNDLE_NAME "Paper &amp; Penzene"
+    MACOSX_BUNDLE_ICON_FILE penzene.icns
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
 find_package(Catch2 3 REQUIRED)

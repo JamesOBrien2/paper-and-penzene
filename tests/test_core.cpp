@@ -125,3 +125,20 @@ TEST_CASE("formula, weights and InChI") {
     CHECK(chem::toInchi(*aspirin).rfind("InChI=1S/C9H8O4/", 0) == 0);
     CHECK_FALSE(chem::properties(Document{}));
 }
+
+TEST_CASE("CDXML import: molecules, arrows and text in place") {
+    auto doc = chem::readFile(QString(PENZENE_TEST_DATA) + "/scheme.cdxml");
+    REQUIRE(doc);
+    CHECK(chem::toSmiles(*doc) == "CCO");
+    REQUIRE(doc->atoms.size() == 3);
+    CHECK(std::abs(doc->atoms[0].pos.x() - 100) < 0.5);  // 14.4 pt bonds: points map 1:1
+    CHECK(std::abs(doc->atoms[0].pos.y() - 100) < 0.5);
+    REQUIRE(doc->arrows.size() == 3);
+    CHECK(doc->arrows[0].kind == ArrowKind::Reaction);
+    CHECK(doc->arrows[0].to == QPointF(190, 104));
+    CHECK(doc->arrows[1].kind == ArrowKind::Equilibrium);
+    // Quarter circle of radius 25 about (165,175): its top is 7.3 pt above the chord.
+    CHECK(std::abs(doc->arrows[2].bend - 7.32) < 0.1);
+    REQUIRE(doc->texts.size() == 1);
+    CHECK(doc->texts[0].text == "PCC");
+}

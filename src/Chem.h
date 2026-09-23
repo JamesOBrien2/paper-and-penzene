@@ -8,6 +8,10 @@
 namespace chem {
 std::optional<Document> fromSmiles(const std::string& smiles);
 std::optional<Document> fromMolBlock(const std::string& block);
+// ChemDraw .cdxml (molecules, arrows, text) or binary .cdx (molecules only).
+std::optional<Document> fromChemDraw(const QByteArray& data);
+// .penz, .cdxml/.cdx, or MOL/SDF, by extension.
+std::optional<Document> readFile(const QString& path);
 std::string toMolBlock(const Document& doc);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
 Document clean2D(const Document& doc);      // new layout, same atom order and centroid

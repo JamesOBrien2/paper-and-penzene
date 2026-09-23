@@ -57,15 +57,8 @@ void MainWindow::updateTitle() {
 }
 
 bool MainWindow::openFile(const QString& path) {
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(this, tr("Open"), tr("Cannot read %1").arg(path));
-        return false;
-    }
-    QByteArray data = f.readAll();
-    std::optional<Document> doc = path.endsWith(".penz", Qt::CaseInsensitive)
-                                      ? Document::fromJson(data)
-                                      : chem::fromMolBlock(data.toStdString());
+    const QString ext = QFileInfo(path).suffix().toLower();
+    std::optional<Document> doc = chem::readFile(path);
     if (!doc) {
         QMessageBox::warning(this, tr("Open"), tr("%1 is not a structure file I can read.").arg(path));
         return false;
@@ -73,7 +66,7 @@ bool MainWindow::openFile(const QString& path) {
     undo_->clear();
     canvas_->setDocumentSilently(*doc);
     canvas_->fitToDocument();
-    path_ = path;
+    path_ = ext == "cdxml" || ext == "cdx" ? QString() : path;  // never save over a ChemDraw file
     updateTitle();
     return true;
 }
@@ -238,7 +231,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
-                                                 tr("Structures (*.penz *.mol *.sdf);;All files (*)"));
+                                                 tr("Structures (*.penz *.mol *.sdf *.cdxml *.cdx);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
     });
     file->addAction(tr("&Save"), QKeySequence::Save, this, &MainWindow::save);

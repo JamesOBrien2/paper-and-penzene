@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-22.04   # older glibc base = runs on more distros
     steps:
       - uses: actions/checkout@v5
-      - run: sudo apt-get update && sudo apt-get install -y libfuse2 libxkbcommon-x11-0 libxcb-cursor0 libegl1 libgl1 libfontconfig1
+      - run: sudo apt-get update && sudo apt-get install -y libfuse2 libxkbcommon-x11-0 libxcb-cursor0 libegl1 libgl1 libfontconfig1 xvfb
       - uses: prefix-dev/setup-pixi@v0.10.0
         with: {cache: true}
       - run: pixi run build
@@ -77,13 +77,13 @@ jobs:
           DESK
           QT_QPA_PLATFORM=offscreen build/bin/penzene --render 'c1ccccc1' penzene.svg
           env="$PWD/.pixi/envs/default"
-          QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$env/lib" EXTRA_PLATFORM_PLUGINS=libqoffscreen.so \
+          QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$env/lib" \
             ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/bin/penzene \
             -d penzene.desktop -i penzene.svg --plugin qt --output appimage \
             -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
           mv Paper*.AppImage penzene-linux-x86_64.AppImage
           mv .pixi .pixi-hidden
-          QT_QPA_PLATFORM=offscreen ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
+          xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
           test -s smoke.svg
           mv .pixi-hidden .pixi
       - uses: actions/upload-artifact@v4

@@ -4,6 +4,8 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:   # builds + smoke-tests the packages without publishing
+  pull_request:        # ...and whenever packaging itself changes
+    paths: ['.github/workflows/release.yml', 'cmake/**']
 
 permissions:
   contents: write

@@ -22,7 +22,7 @@ add_executable(penzene WIN32 MACOSX_BUNDLE src/main.cpp)
 target_link_libraries(penzene PRIVATE penzene_core)
 set_target_properties(penzene PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER io.github.jamesobrien2.penzene
-    MACOSX_BUNDLE_BUNDLE_NAME "Paper & Penzene"
+    MACOSX_BUNDLE_BUNDLE_NAME "Paper &amp; Penzene"
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
 find_package(Catch2 3 REQUIRED)

@@ -20,6 +20,7 @@ QRectF documentBounds(const Document& doc);
 // Writes .svg, .png or .pdf (by extension), cropped to the drawing.
 bool exportDocument(const Document& doc, const QString& path);
 QImage renderImage(const Document& doc, double dpi = 300);
+QByteArray renderSvg(const Document& doc);
 
 class Canvas : public QGraphicsView {
     Q_OBJECT
@@ -37,6 +38,7 @@ public:
     void setSelection(QSet<int> atoms);
     Document selectedSubset() const;  // selection (or everything) as a standalone doc
     void deleteSelection();
+    void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     QPointF viewCenter() const;
     void zoomBy(double factor);

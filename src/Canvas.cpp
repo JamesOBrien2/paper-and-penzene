@@ -1,6 +1,8 @@
 #include "Canvas.h"
 #include "Chem.h"
 
+#include <QBuffer>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QKeyEvent>
@@ -190,22 +192,30 @@ QImage renderImage(const Document& doc, double dpi) {
     return img;
 }
 
+QByteArray renderSvg(const Document& doc) {
+    QRectF r = documentBounds(doc);
+    QBuffer buf;
+    QSvgGenerator gen;
+    gen.setOutputDevice(&buf);
+    gen.setSize(r.size().toSize());
+    gen.setViewBox(QRectF(QPointF(), r.size()));
+    gen.setResolution(72);  // 1 unit == 1 pt
+    gen.setTitle("Paper & Penzene");
+    QPainter p(&gen);
+    p.translate(-r.topLeft());
+    paintDocument(p, doc);
+    p.end();
+    return buf.data();
+}
+
 bool exportDocument(const Document& doc, const QString& path) {
     QRectF r = documentBounds(doc);
     if (r.isEmpty()) return false;
     const QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "png") return renderImage(doc).save(path);
     if (ext == "svg") {
-        QSvgGenerator gen;
-        gen.setFileName(path);
-        gen.setSize(r.size().toSize());
-        gen.setViewBox(QRectF(QPointF(), r.size()));
-        gen.setResolution(72);  // 1 unit == 1 pt
-        gen.setTitle("Paper & Penzene");
-        QPainter p(&gen);
-        p.translate(-r.topLeft());
-        paintDocument(p, doc);
-        return true;
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc)) > 0;
     }
     if (ext == "pdf") {
         QPdfWriter pdf(path);
@@ -376,6 +386,27 @@ void Canvas::deleteSelection() {
     next.removeAtoms({selectedAtoms_.begin(), selectedAtoms_.end()});
     selectedAtoms_.clear();
     commit(next, tr("Delete"));
+}
+
+void Canvas::insert(Document frag, const QString& text) {
+    if (frag.atoms.empty()) return;
+    QPointF c;
+    for (const auto& a : frag.atoms) c += a.pos;
+    QPointF shift = viewCenter() - c / double(frag.atoms.size());
+    Document next = doc_;
+    const int base = int(next.atoms.size());
+    QSet<int> added;
+    for (auto a : frag.atoms) {
+        a.pos += shift;
+        added.insert(int(next.atoms.size()));
+        next.atoms.push_back(a);
+    }
+    for (auto b : frag.bonds) {
+        b.a += base, b.b += base;
+        next.bonds.push_back(b);
+    }
+    commit(next, text);
+    setSelection(added);
 }
 
 QPointF Canvas::viewCenter() const { return mapToScene(viewport()->rect().center()); }

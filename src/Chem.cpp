@@ -362,7 +362,7 @@ static Document cleanFragment(const Document& doc) {
 
 // Each fragment is cleaned in place, so a reaction scheme keeps its layout;
 // arrows and text pass through untouched.
-Document clean2D(const Document& doc) {
+Document clean2D(const Document& doc, const std::vector<int>& only) {
     const int n = int(doc.atoms.size());
     std::vector<int> comp(n, -1);
     int count = 0;
@@ -378,9 +378,15 @@ Document clean2D(const Document& doc) {
         }
         ++count;
     }
+    std::vector<bool> wanted(count, only.empty());
+    for (int i : only)
+        if (i >= 0 && i < n) wanted[comp[i]] = true;
     Document out = doc;
     out.bonds.clear();
+    for (const auto& b : doc.bonds)  // molecules left alone keep their bonds as drawn
+        if (!wanted[comp[b.a]]) out.bonds.push_back(b);
     for (int c = 0; c < count; ++c) {
+        if (!wanted[c]) continue;
         std::vector<int> ids, drop;
         for (int i = 0; i < n; ++i) (comp[i] == c ? ids : drop).push_back(i);
         Document frag = doc;

@@ -363,8 +363,11 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
     static const QHash<QString, std::pair<int, bool>> fuse{
         {"a", {6, true}}, {"z", {5, true}}, {"v", {3, false}}, {"4", {4, false}},
         {"5", {5, false}}, {"6", {6, false}}, {"7", {7, false}}, {"8", {8, false}}};
-    if (t == "1" || t == "2" || t == "3") {
-        b.order = t.toInt(), b.stereo = BondStereo::None;
+    if (t == "2" && b.order == 2 && b.stereo == BondStereo::None) {
+        // Already double: move the second line to the other side (centred goes to one side).
+        b.position = doubleBondSide(doc, b) > 0 ? BondPosition::Left : BondPosition::Right;
+    } else if (t == "1" || t == "2" || t == "3") {
+        b.order = t.toInt(), b.stereo = BondStereo::None, b.position = BondPosition::Auto;
         straightenSp(doc, h.bond);
     } else if (t == "w" || t == "h" || t == "H") {
         BondStereo s = t == "w" ? BondStereo::Wedge : BondStereo::Hash;

@@ -400,7 +400,8 @@ void MainWindow::buildMenus() {
     auto* structure = menuBar()->addMenu(tr("&Structure"));
     // ponytail: cleans the whole document; clean just the selection when someone asks.
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
-        canvas_->commit(chem::clean2D(canvas_->document()), tr("Clean"));
+        const auto& sel = canvas_->selection();  // selected molecules only, else everything
+        canvas_->commit(chem::clean2D(canvas_->document(), {sel.begin(), sel.end()}), tr("Clean"));
     });
     // Drawing style presets, like ChemDraw's document settings; stored in the .penz.
     auto* styles = structure->addMenu(tr("Drawing &Style"));
@@ -477,7 +478,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>Enter</b> or <b>=</b></td><td>type a label: element, abbreviation (OMe, Boc, TBS…) or SMILES</td></tr>
 <tr><td><b>Delete</b></td><td>remove label (C stays), or delete a carbon</td></tr>
 <tr><th colspan="2" align="left">Bond</th></tr>
-<tr><td><b>1 2 3</b></td><td>single, double, triple</td></tr>
+<tr><td><b>1 2 3</b></td><td>single, double, triple; <b>2</b> on a double bond swaps the side of its second line</td></tr>
 <tr><td><b>w</b> / <b>h</b></td><td>wedged / hashed (press again to flip)</td></tr>
 <tr><td><b>a z</b></td><td>fuse benzene / cyclopentadiene</td></tr>
 <tr><td><b>v 4–8</b></td><td>fuse ring of that size (v = 3)</td></tr>

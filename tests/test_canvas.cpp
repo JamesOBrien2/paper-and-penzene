@@ -518,3 +518,23 @@ TEST_CASE("ring fill: click inside toggles; survives delete, copy and save") {
     d.removeAtoms({d.fills[0].atoms[0]});
     CHECK(d.fills.empty());  // a ring missing an atom loses its fill
 }
+
+TEST_CASE("2 on a double bond swaps the side of its second line") {
+    Fixture f;
+    auto d = chem::fromSmiles("CC=CC");  // trans-2-butene: an offset (not centred) double bond
+    REQUIRE(d);
+    f.canvas.setDocumentSilently(*d);
+    int db = -1;
+    for (int i = 0; i < int(f.doc().bonds.size()); ++i)
+        if (f.doc().bonds[i].order == 2) db = i;
+    REQUIRE(db >= 0);
+    const auto& doc = f.doc();
+    f.hover((doc.atoms[doc.bonds[db].a].pos + doc.atoms[doc.bonds[db].b].pos) / 2);
+    f.key("2");
+    CHECK(f.doc().bonds[db].order == 2);
+    const BondPosition first = f.doc().bonds[db].position;
+    CHECK(first != BondPosition::Auto);
+    f.key("2");
+    CHECK(f.doc().bonds[db].position != first);  // and back again
+    CHECK(f.doc().bonds[db].position != BondPosition::Auto);
+}

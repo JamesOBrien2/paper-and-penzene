@@ -113,6 +113,13 @@ TEST_CASE("clean lays out each fragment in place and keeps arrows and text") {
     CHECK(clean.bonds.size() == scheme.bonds.size());
     for (int i : {0, 1, 2}) CHECK(clean.atoms[i].pos.x() < -50);  // reactant stays left
     for (int i : {3, 4, 5}) CHECK(clean.atoms[i].pos.x() > 50);
+
+    // Only the molecule with a selected atom moves; the other is untouched.
+    Document partial = chem::clean2D(scheme, {4});
+    for (int i : {0, 1, 2}) CHECK(partial.atoms[i] == scheme.atoms[i]);
+    CHECK(partial.atoms[3] == clean.atoms[3]);  // the product is laid out as in a full clean
+    CHECK(partial.atoms[5] == clean.atoms[5]);
+    CHECK(partial.bonds.size() == scheme.bonds.size());
 }
 
 TEST_CASE("formula, weights and InChI") {

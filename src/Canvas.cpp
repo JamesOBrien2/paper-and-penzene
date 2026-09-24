@@ -305,7 +305,14 @@ void Canvas::addDraggedRing(Document& doc) const {
 // The arrow being dragged out: straight ones snap to 15°, curved ones bow left.
 Arrow Canvas::draggedArrow() const {
     Arrow a{pressPos_, curPos_, arrowKind_};
-    if (arrowCurved_) {
+    a.dashed = arrowDashed_;
+    if (isShape(arrowKind_) && arrowKind_ != ArrowKind::Line) {  // boxes and ellipses: any corner, no snapping
+        if (shift_) {  // Shift: a square or circle
+            const QPointF v = curPos_ - pressPos_;
+            const double side = std::max(std::abs(v.x()), std::abs(v.y()));
+            a.to = pressPos_ + QPointF(v.x() < 0 ? -side : side, v.y() < 0 ? -side : side);
+        }
+    } else if (arrowCurved_) {
         a.bend = 0.3 * len(curPos_ - pressPos_);
     } else {
         QPointF v = curPos_ - pressPos_;
@@ -529,9 +536,10 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         if (int hit = arrowAt(pressPos_); click && hit >= 0) {  // click an arrow: restyle, or flip a curve
             Arrow& a = next.arrows[hit];
             if (arrowCurved_ && a.bend && a.kind == arrowKind_) a.bend = -a.bend;
-            else a.kind = arrowKind_, a.bend = arrowCurved_ ? 0.3 * len(a.to - a.from) : 0;
+            else a.kind = arrowKind_, a.bend = arrowCurved_ ? 0.3 * len(a.to - a.from) : 0, a.dashed = arrowDashed_;
         } else {
-            if (click) curPos_ = pressPos_ + QPointF(3 * kBondLength, 0);  // default length
+            if (click)  // default size: an arrow's length, or a box 3 × 2 bonds
+                curPos_ = pressPos_ + QPointF(3 * kBondLength, isShape(arrowKind_) && arrowKind_ != ArrowKind::Line ? 2 * kBondLength : 0);
             next.arrows.push_back(draggedArrow());
         }
         what = tr("Arrow");

@@ -341,10 +341,37 @@ static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& 
             if (box.size() == 4) p.setX(std::min(box[0].toDouble(), box[2].toDouble()) * scale);
             doc.texts.push_back({p, {}});
             text = &doc.texts.back();
+        } else if (tag == "graphic") {
+            // Plain lines, boxes and ellipses (not filled ones, orbitals, symbols or old-style arrows).
+            const auto type = at.value("GraphicType");
+            if (!at.value("ArrowType").isEmpty() || at.value("OvalType").contains(u"Filled")) continue;
+            auto box = at.value("BoundingBox").split(' ');
+            if (box.size() != 4) continue;
+            Arrow a{QPointF(box[0].toDouble(), box[1].toDouble()) * scale, QPointF(box[2].toDouble(), box[3].toDouble()) * scale};
+            a.dashed = at.value("LineType").contains(u"Dash");
+            if (type == u"Line") {
+                a.kind = ArrowKind::Line;
+            } else if (type == u"Rectangle") {
+                a.kind = at.value("RectangleType").contains(u"RoundEdge") ? ArrowKind::RoundedBox : ArrowKind::Box;
+            } else if (type == u"Oval") {  // centre and two axis ends; the bounding box can be just a radius
+                const QPointF c = point(at.value("Center3D")), major = point(at.value("MajorAxisEnd3D")),
+                              minor = point(at.value("MinorAxisEnd3D"));
+                const QPointF half(std::max(std::abs(major.x() - c.x()), std::abs(minor.x() - c.x())),
+                                   std::max(std::abs(major.y() - c.y()), std::abs(minor.y() - c.y())));
+                a = {c - half, c + half, ArrowKind::Ellipse, 0, {}, a.dashed};
+            } else {
+                continue;
+            }
+            doc.arrows.push_back(a);
         } else if (tag == "arrow") {
             const auto head = at.value("ArrowheadHead"), tail = at.value("ArrowheadTail");
-            if (head.isEmpty() && tail.isEmpty()) continue;  // a plain line
             Arrow a{point(at.value("Tail3D")), point(at.value("Head3D"))};
+            if (head.isEmpty() && tail.isEmpty()) {  // a plain line
+                a.kind = ArrowKind::Line;
+                a.dashed = at.value("LineType").contains(u"Dash");
+                doc.arrows.push_back(a);
+                continue;
+            }
             if (!head.isEmpty() && !tail.isEmpty())
                 a.kind = at.hasAttribute("ArrowShaftSpacing") ? ArrowKind::Equilibrium : ArrowKind::Resonance;
             else if (at.value("ArrowheadType") == u"Hollow")
@@ -724,6 +751,26 @@ QByteArray toCdxml(const Document& in) {
         w.writeEndElement();
     }
     for (const Arrow& a : doc.arrows) {
+        if (isShape(a.kind)) {  // ChemDraw graphics: Line, Rectangle, Oval
+            w.writeStartElement("graphic");
+            w.writeAttribute("id", QString::number(id++));
+            w.writeAttribute("BoundingBox", pt(a.from) + " " + pt(a.to));
+            if (a.kind == ArrowKind::Line) {
+                w.writeAttribute("GraphicType", "Line");
+            } else if (a.kind == ArrowKind::Ellipse) {
+                const QRectF r = QRectF(a.from, a.to).normalized();
+                w.writeAttribute("GraphicType", "Oval");
+                w.writeAttribute("Center3D", pt3(r.center()));
+                w.writeAttribute("MajorAxisEnd3D", pt3({r.right(), r.center().y()}));
+                w.writeAttribute("MinorAxisEnd3D", pt3({r.center().x(), r.bottom()}));
+            } else {
+                w.writeAttribute("GraphicType", "Rectangle");
+                if (a.kind == ArrowKind::RoundedBox) w.writeAttribute("RectangleType", "RoundEdge");
+            }
+            if (a.dashed) w.writeAttribute("LineType", "Dashed");
+            w.writeEndElement();
+            continue;
+        }
         w.writeStartElement("arrow");
         w.writeAttribute("id", QString::number(id++));
         w.writeAttribute("Head3D", pt3(a.to));

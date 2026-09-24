@@ -60,7 +60,9 @@ public:
     // The Bond tool's order and style (None, Interaction or Partial).
     void setBondOrder(int order, BondStereo style = BondStereo::None) { bondOrder_ = order, bondStyle_ = style; }
     void setRing(int size, bool aromatic) { ringSize_ = size, ringAromatic_ = aromatic; }
-    void setArrow(ArrowKind kind, bool curved) { arrowKind_ = kind, arrowCurved_ = curved; }
+    void setArrow(ArrowKind kind, bool curved, bool dashed = false) {
+        arrowKind_ = kind, arrowCurved_ = curved, arrowDashed_ = dashed;
+    }
     void setTheme(const Theme& t) { theme_ = t, refresh(); }
     void setFillColor(QColor c) { fillColor_ = c; }
     QColor fillColor() const { return fillColor_; }
@@ -105,7 +107,7 @@ private:
     BondStereo bondStyle_ = BondStereo::None;
     bool ringAromatic_ = true;
     ArrowKind arrowKind_ = ArrowKind::Reaction;
-    bool arrowCurved_ = false;
+    bool arrowCurved_ = false, arrowDashed_ = false;
     QColor fillColor_ = QColor(207, 227, 255);
     QColor colour_ = QColor(214, 39, 40);
 

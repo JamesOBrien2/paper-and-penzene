@@ -114,3 +114,28 @@ jobs:
             gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber wheelhouse/*.whl
         env: {GH_TOKEN: '${{ github.token }}'}
+
+  # Trusted publishing (no tokens): TestPyPI from a manual run, PyPI from a tag.
+  # Both publishers are registered for workflow wheels.yml, environment "pypi".
+  testpypi:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [wheel, linux-compat]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions: {id-token: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'wheel-*', merge-multiple: true, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with: {repository-url: 'https://test.pypi.org/legacy/', skip-existing: true}
+
+  pypi:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [wheel, linux-compat]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions: {id-token: write}
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'wheel-*', merge-multiple: true, path: dist}
+      - uses: pypa/gh-action-pypi-publish@release/v1

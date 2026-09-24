@@ -124,6 +124,7 @@ TEST_CASE("insert centres the fragment and selects it") {
 TEST_CASE("main window screenshot") {
     App app;
     QSettings().setValue("theme", qEnvironmentVariable("PENZENE_THEME", "Light"));
+    QSettings().remove("element");  // the periodic-table icon, as on first run
     MainWindow w;
     w.resize(1000, 800);
     w.show();
@@ -543,6 +544,7 @@ TEST_CASE("2 on a double bond swaps the side of its second line") {
 
 TEST_CASE("picking from the periodic table switches to the atom tool") {
     App app;
+    QSettings().remove("element");  // first run: nothing picked yet
     MainWindow w;
     w.show();
     auto* canvas = w.findChild<Canvas*>();
@@ -557,6 +559,14 @@ TEST_CASE("picking from the periodic table switches to the atom tool") {
     QTest::mouseClick(canvas->viewport(), Qt::LeftButton, {}, canvas->viewport()->rect().center());
     REQUIRE(canvas->document().atoms.size() == 1);
     CHECK(canvas->document().atoms[0].z == 7);
+    CHECK(QSettings().value("element").toString() == "N");  // remembered for next time (#128)
+    MainWindow again;  // a new window starts with the picked element
+    auto* c2 = again.findChild<Canvas*>();
+    c2->setTool(Canvas::Tool::Atom);
+    again.show();
+    QTest::mouseClick(c2->viewport(), Qt::LeftButton, {}, c2->viewport()->rect().center());
+    REQUIRE(c2->document().atoms.size() == 1);
+    CHECK(c2->document().atoms[0].z == 7);
 }
 
 TEST_CASE("Ac, Pr and Ts are groups, not actinium, praseodymium and tennessine (#125)") {

@@ -351,9 +351,23 @@ void MainWindow::buildTools() {
 
     // Element: the button shows the current element and draws it; its arrow
     // opens the periodic table, and picking one switches to the atom tool.
-    auto element = std::make_shared<QString>("C");
+    // Until an element has been picked (ever: it's remembered), the button looks
+    // like a small periodic table, so what it opens is obvious.
+    auto element = std::make_shared<QString>(QSettings().value("element").toString());
     auto* atom = new QAction(this);
-    const IconMaker atomIcon = [element] { return docIcon(textDoc(*element))(); };
+    const IconMaker tableIcon = paintedIcon([](QPainter& p, QColor ink) {
+        p.setPen(Qt::NoPen);
+        p.setBrush(ink);
+        auto cell = [&](int col, int row) { p.drawRect(QRectF(3 + col * 2.6, 6 + row * 2.6, 2, 2)); };
+        for (int row = 0; row < 4; ++row) cell(0, row), cell(6, row);  // groups 1 and 18
+        for (int row = 1; row < 4; ++row) cell(1, row), cell(4, row), cell(5, row);
+        for (int row = 2; row < 4; ++row) cell(2, row), cell(3, row);  // the d block
+        for (int col = 1; col < 6; ++col) cell(col, 5);                 // f block underneath
+    });
+    const IconMaker atomIcon = [element, tableIcon] {
+        return element->isEmpty() ? tableIcon() : docIcon(textDoc(*element))();
+    };
+    if (!element->isEmpty()) canvas_->setElement(chem::atomicNumber(element->toStdString()));
     atom->setIcon(atomIcon());
     icons_.push_back({atom, atomIcon});
     atom->setToolTip(tr("Atom: click to place or relabel (element from the arrow's periodic table; "
@@ -371,6 +385,7 @@ void MainWindow::buildTools() {
     auto* table = new QWidgetAction(menu);
     table->setDefaultWidget(periodicTable([=, this](int z) {
         *element = QString::fromStdString(chem::symbol(z));
+        QSettings().setValue("element", *element);
         canvas_->setElement(z);
         canvas_->setTool(T::Atom);
         atom->setChecked(true);

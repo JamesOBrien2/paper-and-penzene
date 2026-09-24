@@ -34,6 +34,7 @@ private:
     bool maybeSave();
     void exportImage();
     void importSmiles();
+    void importName();
     void copy();
     void paste();
     void updateTitle();

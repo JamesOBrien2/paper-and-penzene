@@ -2,6 +2,7 @@
 #include "Chem.h"
 #include "Edit.h"
 #include "MainWindow.h"
+#include "PubChem.h"
 
 #include <QApplication>
 #include <QSettings>
@@ -1004,4 +1005,14 @@ TEST_CASE("properties panel shows descriptors for the selection (#96)") {
     CHECK(panel->text().contains("C<sub>9</sub>H<sub>8</sub>O<sub>4</sub>"));
     CHECK(panel->text().contains("63.6"));
     if (auto out = qgetenv("PENZENE_PANEL_SHOT"); !out.isEmpty()) w.grab().save(out);
+}
+
+TEST_CASE("PubChem name lookup: URL and response parsing (#28)") {
+    CHECK(pubchem::nameToSmilesUrl(" acetylsalicylic acid ").toString(QUrl::FullyEncoded) ==
+          "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/acetylsalicylic%20acid/property/SMILES/JSON");
+    const QByteArray found = R"({"PropertyTable": {"Properties": [{"CID": 2244, "SMILES": "CC(=O)OC1=CC=CC=C1C(=O)O"}]}})";
+    CHECK(pubchem::property(found, "SMILES") == "CC(=O)OC1=CC=CC=C1C(=O)O");
+    CHECK(pubchem::property(found, "IUPACName").isEmpty());
+    CHECK(pubchem::property(R"({"Fault": {"Code": "PUGREST.NotFound"}})", "SMILES").isEmpty());
+    CHECK(pubchem::property("not json", "SMILES").isEmpty());
 }

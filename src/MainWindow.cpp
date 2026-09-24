@@ -685,6 +685,16 @@ void MainWindow::buildTools() {
     add(bondIcon(3), tr("Triple bond: click an atom to add one, or a bond to make it triple"), bond(3));
     add(bondIcon(1, BondStereo::Wedge), tr("Wedge bond: points from the atom you start at; click a wedge again to flip it"), tool(T::Wedge));
     add(bondIcon(1, BondStereo::Hash), tr("Hashed bond: points from the atom you start at; click a hash again to flip it"), tool(T::Hash));
+    auto styled = [this](int order, BondStereo style) {
+        return [this, order, style] { canvas_->setTool(T::Bond), canvas_->setBondOrder(order, style); };
+    };
+    add(bondIcon(1, BondStereo::Interaction),
+        tr("Interaction bond (H-bond, contact, coordination): dotted, not a covalent bond — i on a bond. "
+           "Drag between atoms, also of different molecules"),
+        styled(1, BondStereo::Interaction));
+    add(bondIcon(1, BondStereo::Partial),
+        tr("Partial bond, forming or breaking (transition states): dashed, not counted — p on a bond; P for a partial double"),
+        styled(1, BondStereo::Partial));
     keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X: drag to draw a zig-zag chain; it grows with the drag"), tool(T::Chain));
     section();
 
@@ -1165,6 +1175,8 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>9</b> / <b>0</b></td><td>fuse chair cyclohexane (two orientations)</td></tr>
 <tr><td><b>d b y</b></td><td>dashed, bold, wavy</td></tr>
 <tr><td><b>D</b> / <b>B</b></td><td>dashed double / bold double</td></tr>
+<tr><td><b>i</b></td><td>interaction: H-bond or contact, dotted, not a bond</td></tr>
+<tr><td><b>p</b> / <b>P</b></td><td>partial bond forming or breaking / partial double (transition states)</td></tr>
 <tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>
 <tr><td><b>x X j e t Space</b></td><td>bond, chain, benzene, arrow, text, select tool</td></tr>

@@ -9,7 +9,7 @@
 #include <cmath>
 #include <numbers>
 
-static const char* kStereo[] = {"none", "wedge", "hash", "bold", "dashed", "wavy"};
+static const char* kStereo[] = {"none", "wedge", "hash", "bold", "dashed", "wavy", "interaction", "partial"};
 static const char* kPosition[] = {"auto", "left", "centre", "right"};
 static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook"};
 

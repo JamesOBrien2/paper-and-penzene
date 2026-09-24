@@ -52,7 +52,8 @@ public:
 
     void setTool(Tool t) { tool_ = t; }
     void setElement(int z) { element_ = z; }
-    void setBondOrder(int order) { bondOrder_ = order; }
+    // The Bond tool's order and style (None, Interaction or Partial).
+    void setBondOrder(int order, BondStereo style = BondStereo::None) { bondOrder_ = order, bondStyle_ = style; }
     void setRing(int size, bool aromatic) { ringSize_ = size, ringAromatic_ = aromatic; }
     void setArrow(ArrowKind kind, bool curved) { arrowKind_ = kind, arrowCurved_ = curved; }
     void setTheme(const Theme& t) { theme_ = t, refresh(); }
@@ -96,6 +97,7 @@ private:
     QUndoStack* undo_;
     Tool tool_ = Tool::Bond;
     int element_ = 6, bondOrder_ = 1, ringSize_ = 6;
+    BondStereo bondStyle_ = BondStereo::None;
     bool ringAromatic_ = true;
     ArrowKind arrowKind_ = ArrowKind::Reaction;
     bool arrowCurved_ = false;

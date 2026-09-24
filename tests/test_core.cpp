@@ -510,3 +510,51 @@ TEST_CASE("SMILES of a ring with a charged boron or phosphorus reads back (fuzz)
             if (!smiles.empty()) CHECK(chem::fromSmiles(smiles));
         }
 }
+
+TEST_CASE("interaction and partial bonds are drawn, not chemistry (#169)") {
+    // Water dimer: an H-bond from one water's H to the other's O.
+    Document dimer = chem::addHydrogens(*chem::fromSmiles("O.O"));
+    int h = -1, o2 = -1;  // an H on one water, and the other water's O
+    for (int i = 0; i < int(dimer.atoms.size()); ++i)
+        if (dimer.atoms[i].z == 1 && h < 0) h = i;
+    REQUIRE(h >= 0);
+    for (int i = 0; i < int(dimer.atoms.size()); ++i)
+        if (dimer.atoms[i].z == 8 && dimer.bondBetween(i, h) < 0) o2 = i;
+    INFO(chem::toSmiles(dimer));
+    REQUIRE(h >= 0);
+    REQUIRE(o2 >= 0);
+    const std::string water = chem::toSmiles(dimer);
+    dimer.bonds.push_back({h, o2});
+    CHECK(chem::toSmiles(dimer) != water);  // as a covalent bond: not water any more
+    REQUIRE(edit::hotkey(dimer, {-1, int(dimer.bonds.size()) - 1}, "i").valid());
+    CHECK(dimer.bonds.back().stereo == BondStereo::Interaction);
+    CHECK(chem::toSmiles(dimer) == water);
+    CHECK(chem::properties(dimer)->formula == "H4O2");
+    auto cleaned = chem::clean2D(dimer);
+    CHECK(cleaned.bondBetween(h, o2) >= 0);  // Clean keeps the interaction
+    auto back = Document::fromJson(dimer.toJson());
+    REQUIRE(back);
+    CHECK(*back == dimer);
+
+    // Diels–Alder transition state: butadiene + ethylene, two forming bonds (partial singles),
+    // the diene's and dienophile's π bonds partial doubles.
+    Document ts = *chem::fromSmiles("C=CC=C.C=C");
+    const int c1 = 0, c4 = 3, c5 = 4, c6 = 5;
+    for (int bi = 0; bi < int(ts.bonds.size()); ++bi)
+        if (ts.bonds[bi].order == 2) REQUIRE(edit::hotkey(ts, {-1, bi}, "P").valid());
+    ts.bonds.push_back({c1, c6});
+    ts.bonds.push_back({c4, c5});
+    for (int bi : {int(ts.bonds.size()) - 2, int(ts.bonds.size()) - 1}) REQUIRE(edit::hotkey(ts, {-1, bi}, "p").valid());
+    CHECK(chem::properties(ts)->formula == "C6H10");  // the reactants' atoms, nothing invented
+    CHECK(chem::toSmiles(ts) == chem::toSmiles(*chem::fromSmiles("C=CC=C.C=C")));  // the forming bonds don't count
+    CHECK(chem::toCdxml(ts).contains("Order=\"0.5\""));
+    CHECK(chem::toCdxml(dimer).contains("Order=\"hydrogen\""));
+}
+TEST_CASE("Clean keeps partial doubles partial (#169)") {
+    Document ts = *chem::fromSmiles("C=CC=C");
+    for (int bi = 0; bi < int(ts.bonds.size()); ++bi)
+        if (ts.bonds[bi].order == 2) edit::hotkey(ts, {-1, bi}, "P");
+    int partial = 0;
+    for (const auto& b : chem::clean2D(ts).bonds) partial += b.stereo == BondStereo::Partial && b.order == 2;
+    CHECK(partial == 2);
+}

@@ -434,8 +434,9 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
 
     const BondStereo stereo = tool_ == Tool::Wedge ? BondStereo::Wedge
                               : tool_ == Tool::Hash ? BondStereo::Hash
-                                                    : BondStereo::None;
-    const int order = stereo == BondStereo::None ? bondOrder_ : 1;
+                                                    : bondStyle_;
+    const bool wedge = stereo == BondStereo::Wedge || stereo == BondStereo::Hash;
+    const int order = wedge ? 1 : bondOrder_;
 
     if (drag == Drag::Move || drag == Drag::Rotate) {
         if (!click) {
@@ -472,9 +473,11 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
     } else if ((drag == Drag::Bond || drag == Drag::Chain) && click) {
         if (bond >= 0) {  // click on a bond: change it in place
             Bond& b = next.bonds[bond];
-            if (stereo != BondStereo::None) {
+            if (wedge) {
                 if (b.stereo == stereo) std::swap(b.a, b.b);  // flip direction
                 b.stereo = stereo, b.order = 1;
+            } else if (stereo != BondStereo::None) {  // interaction / partial: restyle
+                b.stereo = stereo, b.order = order, b.position = BondPosition::Auto;
             } else {
                 b.stereo = BondStereo::None;
                 b.order = (b.order != order && order > 1) ? order : b.order % 3 + 1;

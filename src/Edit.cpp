@@ -419,6 +419,10 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
                                                        {"B", BondStereo::Bold}};
         b.stereo = styles[t];
         b.order = t == "D" || t == "B" ? 2 : 1;
+    } else if (t == "i" || t == "p" || t == "P") {  // interaction; partial (forming/breaking) single or double
+        b.stereo = t == "i" ? BondStereo::Interaction : BondStereo::Partial;
+        b.order = t == "P" ? 2 : 1;
+        b.position = BondPosition::Auto;
     } else if (t == "l" || t == "c" || t == "r") {
         if (b.order != 2) b.order = 2, b.stereo = BondStereo::None;
         b.position = t == "l" ? BondPosition::Left : t == "c" ? BondPosition::Centre : BondPosition::Right;

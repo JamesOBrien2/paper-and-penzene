@@ -121,9 +121,11 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
         conf->setAtomPos(i, {a.pos.x() / kScale, -a.pos.y() / kScale, 0});
     }
     for (const auto& b : doc.bonds) {
-        auto type = b.order == 2 ? RDKit::Bond::DOUBLE
-                    : b.order == 3 ? RDKit::Bond::TRIPLE
-                                   : RDKit::Bond::SINGLE;
+        const int order = chemicalOrder(b);
+        if (order < 1) continue;  // drawn only
+        auto type = order == 2 ? RDKit::Bond::DOUBLE
+                    : order == 3 ? RDKit::Bond::TRIPLE
+                                 : RDKit::Bond::SINGLE;
         mol->addBond(b.a, b.b, type);
         if (b.stereo == BondStereo::Wedge || b.stereo == BondStereo::Hash || b.stereo == BondStereo::Wavy) {
             auto* bond = mol->getBondBetweenAtoms(b.a, b.b);
@@ -671,14 +673,17 @@ QByteArray toCdxml(const Document& in) {
             if (a.charge) w.writeAttribute("Charge", QString::number(a.charge));
             w.writeEndElement();
         }
-        static const char* display[] = {nullptr, "WedgeBegin", "WedgedHashBegin", "Bold", "Dash", "Wavy"};
+        static const char* display[] = {nullptr, "WedgeBegin", "WedgedHashBegin", "Bold", "Dash", "Wavy", nullptr, "Dash"};
         static const char* side[] = {nullptr, "Left", "Center", "Right"};
         for (const Bond& b : doc.bonds) {
             w.writeStartElement("b");
             w.writeAttribute("id", QString::number(id++));
             w.writeAttribute("B", QString::number(base + b.a));
             w.writeAttribute("E", QString::number(base + b.b));
-            if (b.order > 1) w.writeAttribute("Order", QString::number(b.order));
+            // ChemDraw's own hydrogen-bond order, and half orders for partial bonds.
+            if (b.stereo == BondStereo::Interaction) w.writeAttribute("Order", "hydrogen");
+            else if (b.stereo == BondStereo::Partial) w.writeAttribute("Order", b.order == 2 ? "1.5" : "0.5");
+            else if (b.order > 1) w.writeAttribute("Order", QString::number(b.order));
             if (display[int(b.stereo)]) w.writeAttribute("Display", display[int(b.stereo)]);
             if (side[int(b.position)]) w.writeAttribute("DoublePosition", side[int(b.position)]);
             w.writeEndElement();
@@ -892,15 +897,21 @@ Document clean2D(const Document& doc, const std::vector<int>& only) {
         for (auto b : clean.bonds) {
             if (b.a >= m || b.b >= m) continue;
             b.a = ids[b.a], b.b = ids[b.b];
+            if (int o = doc.bondBetween(b.a, b.b); o >= 0 && chemicalOrder(doc.bonds[o]) != doc.bonds[o].order)
+                continue;  // RDKit's view of a partial bond; the drawn one goes back below
             // RDKit only knows order and wedges: keep what the user chose for display.
             if (int o = doc.bondBetween(b.a, b.b); o >= 0) {
                 const Bond& was = doc.bonds[o];
-                const bool styled = was.stereo == BondStereo::Bold || was.stereo == BondStereo::Dashed;
+                const bool styled = was.stereo == BondStereo::Bold || was.stereo == BondStereo::Dashed ||
+                                    was.stereo == BondStereo::Partial;
                 if (styled && b.stereo == BondStereo::None) b.stereo = was.stereo;
                 if (b.order == 2 && was.order == 2) b.position = was.position;
             }
             out.bonds.push_back(b);
         }
+        // Interactions and partial bonds, which RDKit never saw, as drawn.
+        for (const auto& b : doc.bonds)
+            if (comp[b.a] == c && chemicalOrder(b) != b.order) out.bonds.push_back(b);
     }
     return out;
 }

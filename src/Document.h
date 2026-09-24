@@ -11,7 +11,11 @@ constexpr double kBondLength = 14.4;
 
 // Wedge/Hash/Wavy carry stereo; Bold and Dashed are drawing styles (on a
 // double bond they style one line).
-enum class BondStereo { None, Wedge, Hash, Bold, Dashed, Wavy };
+// Interaction (dotted: H-bond, contact, coordination) and Partial (dashed: bonds
+// forming or breaking in a transition state) are drawn, not chemistry: neither
+// an interaction nor a partial single counts, and a partial double counts as the
+// double it was, so hydrogens (and the formula) stay those of the reactants.
+enum class BondStereo { None, Wedge, Hash, Bold, Dashed, Wavy, Interaction, Partial };
 enum class BondPosition { Auto, Left, Centre, Right };  // double bond's second line, seen from a to b
 
 struct Atom {
@@ -25,11 +29,17 @@ struct Atom {
 
 struct Bond {
     int a = 0, b = 0;  // atom indices; stereo points from a to b
-    int order = 1;     // 1..3
+    int order = 1;     // 1..3 as drawn; see chemicalOrder()
     BondStereo stereo = BondStereo::None;
     BondPosition position = BondPosition::Auto;
     QColor color;
 };
+
+// The order chemistry sees: 0 for an interaction or a partial single bond.
+inline int chemicalOrder(const Bond& b) {
+    const bool drawnOnly = b.stereo == BondStereo::Interaction || (b.stereo == BondStereo::Partial && b.order == 1);
+    return drawnOnly ? 0 : b.order;
+}
 
 enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook };
 

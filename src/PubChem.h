@@ -10,9 +10,12 @@
 namespace pubchem {
 
 QUrl nameToSmilesUrl(const QString& name);
+// POSTed with smilesToNameForm: SMILES can hold '/' and '#', which a URL path can't.
+QUrl smilesToNameUrl();
+QByteArray smilesToNameForm(const QString& smiles);
 // The first record's `key` from a PUG REST property table; empty when absent.
 QString property(const QByteArray& json, const QString& key);
-// Blocking GET (with a timeout) of `url`'s `key`; empty with `error` set on failure.
-QString fetch(const QUrl& url, const QString& key, QString* error);
+// Blocking GET, or POST of `form` (with a timeout), of `url`'s `key`; empty with `error` set on failure.
+QString fetch(const QUrl& url, const QString& key, QString* error, const QByteArray& form = {});
 
 }  // namespace pubchem

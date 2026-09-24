@@ -17,8 +17,12 @@ struct ChemDrawPasteboard : QUtiMimeConverter {
 
 class Canvas;
 class QLabel;
+class QPrinter;
 class QUndoStack;
 struct Document;
+
+// The drawing at its export size, centred on the page; shrunk to fit if it's bigger.
+bool printDocument(QPrinter& printer, const Document& doc);
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -47,6 +51,7 @@ private:
     void exportImage();
     void importSmiles();
     void importName();
+    void print();
     void copy();
     void paste();
     void updateTitle();

@@ -25,6 +25,8 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QFileInfo>
+#include <QPrinter>
 #include <QClipboard>
 #include <QMimeData>
 #include <qpa/qwindowsysteminterface.h>
@@ -1155,4 +1157,16 @@ TEST_CASE("export scale and margin (#103)") {
     const QByteArray svg = renderSvg(doc, {300, Qt::transparent, 0.85});
     CHECK(svg.contains("<svg"));
     CHECK(svg.size() > 100);
+}
+
+TEST_CASE("printing: to PDF, at export size, centred (#33)") {
+    App app;
+    QTemporaryDir dir;
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(dir.filePath("aspirin.pdf"));
+    CHECK(printDocument(printer, *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O")));
+    CHECK(QFileInfo(dir.filePath("aspirin.pdf")).size() > 1000);
+    if (auto out = qgetenv("PENZENE_PRINT_SHOT"); !out.isEmpty()) QFile::copy(dir.filePath("aspirin.pdf"), out);
+    CHECK_FALSE(printDocument(printer, Document{}));
 }

@@ -4,6 +4,9 @@
 #include "PubChem.h"
 
 #include <QActionGroup>
+#include <QPainter>
+#include <QPrintDialog>
+#include <QPrinter>
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -37,7 +40,6 @@
 #include <QTimer>
 #include <QStyle>
 #include <QStyleHints>
-#include <QPainter>
 #include <QtMath>
 #include <functional>
 #include <QLabel>
@@ -348,6 +350,28 @@ QWidget* MainWindow::checkStructure() {
     dialog->resize(460, 260);
     dialog->show();
     return dialog;
+}
+
+bool printDocument(QPrinter& printer, const Document& doc) {
+    if (doc.empty()) return false;
+    const QRectF r = documentBounds(doc);
+    QPainter p;
+    if (!p.begin(&printer)) return false;
+    const QRectF page = printer.pageRect(QPrinter::DevicePixel);
+    const double perPoint = printer.resolution() / 72.0;
+    const double s = std::min({exportScale(doc) * perPoint, page.width() / r.width(), page.height() / r.height()});
+    p.translate(page.width() / 2, page.height() / 2);  // the painter's origin is the printable area's corner
+    p.scale(s, s);
+    p.translate(-r.center());
+    paintDocument(p, doc);
+    return p.end();
+}
+
+void MainWindow::print() {
+    QPrinter printer(QPrinter::HighResolution);
+    QPrintDialog dialog(&printer, this);
+    if (dialog.exec() == QDialog::Accepted && !printDocument(printer, canvas_->selectedSubset()))
+        QMessageBox::warning(this, tr("Print"), tr("Nothing to print."));
 }
 
 void MainWindow::exportImage() {
@@ -850,6 +874,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("Import &SMILES…"), QKeySequence(tr("Ctrl+Shift+I")), this, &MainWindow::importSmiles);
     file->addAction(tr("Import &Name from PubChem…"), this, &MainWindow::importName);
     file->addAction(tr("&Export…"), QKeySequence(tr("Ctrl+E")), this, &MainWindow::exportImage);
+    file->addAction(tr("&Print…"), QKeySequence::Print, this, &MainWindow::print);
     file->addSeparator();
     file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
 

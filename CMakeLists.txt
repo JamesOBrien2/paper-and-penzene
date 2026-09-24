@@ -53,6 +53,10 @@ add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
 target_link_libraries(penzene_tests PRIVATE penzene_ui Qt6::Test Catch2::Catch2WithMain)
 add_test(NAME core COMMAND penzene_tests)
 add_test(NAME version COMMAND penzene --version)
+# --help prints usage; it must not open a window that tries to read "--help" as a file.
+add_test(NAME help COMMAND penzene --help)
+set_tests_properties(help PROPERTIES TIMEOUT 20 ENVIRONMENT QT_QPA_PLATFORM=offscreen
+                     PASS_REGULAR_EXPRESSION "usage: penzene")
 # Batch CLI: a MOL file and a SMILES into a directory, RSC style, freshly laid out.
 add_test(NAME render COMMAND penzene --render ${CMAKE_SOURCE_DIR}/tests/data/aspirin.mol CCO
          --out ${CMAKE_BINARY_DIR}/render-test --format png --drawing-style RSC --clean)

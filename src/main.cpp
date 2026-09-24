@@ -104,6 +104,12 @@ int main(int argc, char** argv) {
         if (!std::strcmp(argv[i], "--version")) {
             std::printf("penzene %s\n", PENZENE_VERSION);
             return 0;
+        } else if (!std::strcmp(argv[i], "--help") || !std::strcmp(argv[i], "-h")) {
+            std::printf("usage: penzene [FILE]\n"
+                        "       penzene --render IN... (OUT.svg|png|pdf | --out DIR) "
+                        "[--format svg|png|pdf] [--drawing-style NAME] [--clean]\n"
+                        "       penzene --version\n");
+            return 0;
         }
     // In an AppImage, conda's Qt doesn't find the bundled plugins on its own.
     if (const char* appdir = std::getenv("APPDIR"); appdir && !std::getenv("QT_PLUGIN_PATH"))

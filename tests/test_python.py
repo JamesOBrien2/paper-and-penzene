@@ -4,24 +4,24 @@ import tempfile
 
 import penzene as pz
 
-CAFFEINE = "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"
+ASPIRIN = "CC(=O)Oc1ccccc1C(=O)O"
 out = tempfile.mkdtemp()
 
-doc = pz.from_smiles(CAFFEINE)
+doc = pz.from_smiles(ASPIRIN)
 doc.clean()
-doc.save(os.path.join(out, "caffeine.penz"))
-doc.export(os.path.join(out, "caffeine.svg"))
+doc.save(os.path.join(out, "aspirin.penz"))
+doc.export(os.path.join(out, "aspirin.svg"))
 assert "<svg" in doc._repr_svg_()
 assert "<path" in doc.to_svg(), "labels must render as glyph outlines"
 assert doc.to_png(dpi=72)[:8] == b"\x89PNG\r\n\x1a\n"
-assert doc.formula == "C8H10N4O2" and abs(doc.mw - 194.19) < 0.01
-assert doc.to_inchikey() == "RYYVLZVUVIJVGH-UHFFFAOYSA-N"
-assert len(doc.atoms) == 14 and doc.atoms[0].symbol == "C"
+assert doc.formula == "C9H8O4" and abs(doc.mw - 180.16) < 0.01
+assert doc.to_inchikey() == "BSYNRYMUTXBXSQ-UHFFFAOYSA-N"
+assert len(doc.atoms) == 13 and doc.atoms[0].symbol == "C"
 
-again = pz.read(os.path.join(out, "caffeine.penz"))
+again = pz.read(os.path.join(out, "aspirin.penz"))
 assert again.to_smiles() == doc.to_smiles()
 assert pz.from_json(doc.to_json()).to_smiles() == doc.to_smiles()
-assert pz.read(os.path.join(os.environ["PENZENE_TEST_DATA"], "caffeine.mol")).formula == "C8H10N4O2"
+assert pz.read(os.path.join(os.environ["PENZENE_TEST_DATA"], "aspirin.mol")).formula == "C9H8O4"
 
 # The hotkey builder: ChemDraw's cheat-sheet dipeptide, 42n152o from H2N-CH3.
 m = pz.Document()

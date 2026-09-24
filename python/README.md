@@ -5,11 +5,11 @@ ChemDraw-style 2D chemical structures from Python, drawn by the same engine as t
 ```python
 import penzene as pz
 
-doc = pz.from_smiles("CN1C=NC2=C1C(=O)N(C(=O)N2C)C")  # caffeine
+doc = pz.from_smiles("CC(=O)Oc1ccccc1C(=O)O")  # aspirin
 doc.clean()
-doc.export("caffeine.svg")        # identical to the app's export (also .png, .pdf)
-doc.save("caffeine.penz")         # open and keep editing in the app
-doc.formula, doc.mw               # ('C8H10N4O2', 194.19…)
+doc.export("aspirin.svg")        # identical to the app's export (also .png, .pdf)
+doc.save("aspirin.penz")         # open and keep editing in the app
+doc.formula, doc.mw               # ('C9H8O4', 180.16…)
 doc                               # renders inline in Jupyter
 
 # Build with ChemDraw's hotkeys: from H2N-CH3, "42n152o" makes Ala-Ala

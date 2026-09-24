@@ -88,10 +88,13 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with: {name: wheel-linux-x86_64, path: wheelhouse}
+      - uses: actions/setup-python@v5  # Ubuntu 22.04's own python3 is 3.10; the wheel needs 3.12+
+        if: matrix.container == ''
+        with: {python-version: '3.12'}
       - name: Install and test
         shell: bash
         run: |
-          PY=$(command -v /opt/python/cp312-cp312/bin/python || command -v python3)
+          PY=$(command -v /opt/python/cp312-cp312/bin/python || command -v python)
           $PY -m venv venv && . venv/bin/activate
           python -m pip install -q wheelhouse/*.whl
           cd /tmp

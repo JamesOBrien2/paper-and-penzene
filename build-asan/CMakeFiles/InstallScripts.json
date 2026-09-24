@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/Users/user/PhD/Github/penzene-work/build-asan/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

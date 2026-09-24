@@ -1,6 +1,0 @@
-<RCC>
-  <qresource prefix="/">
-    <file alias="logo.svg">/Users/user/PhD/Github/penzene-work/resources/logo.svg</file>
-  </qresource>
-</RCC>
-

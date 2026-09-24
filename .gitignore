@@ -1,4 +1,4 @@
 .pixi/
-build/
+build*/
 .DS_Store
 dist/

@@ -8,7 +8,12 @@
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QFile>
+#include <QComboBox>
 #include <QFileDialog>
+#include <QSpinBox>
+#include <QFormLayout>
+#include <QDialogButtonBox>
+#include <QDialog>
 #include <QFileInfo>
 #include <QInputDialog>
 #include <memory>
@@ -169,12 +174,53 @@ void MainWindow::closeEvent(QCloseEvent* e) {
     e->accept();
 }
 
+// Export preferences (Edit > Preferences), used by Export and Copy.
+static double exportDpi() { return QSettings().value("exportDpi", 300).toDouble(); }
+static QColor exportBackground() {
+    return QSettings().value("exportBackground").toString() == "white" ? QColor(Qt::white) : QColor(Qt::transparent);
+}
+
+void MainWindow::showPreferences() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Preferences"));
+    auto* form = new QFormLayout(&dialog);
+    auto* themeBox = new QComboBox;
+    for (const auto& t : themes()) themeBox->addItem(t.name);
+    themeBox->setCurrentText(theme(QSettings().value("theme", "System").toString()).name);
+    auto* styleBox = new QComboBox;
+    for (const auto& s : drawingStyles()) styleBox->addItem(s.name);
+    styleBox->setCurrentText(drawingStyle(QSettings().value("defaultStyle").toString()).name);
+    auto* dpiBox = new QSpinBox;
+    dpiBox->setRange(72, 1200);
+    dpiBox->setSingleStep(50);
+    dpiBox->setSuffix(tr(" dpi"));
+    dpiBox->setValue(int(exportDpi()));
+    auto* backgroundBox = new QComboBox;
+    backgroundBox->addItems({tr("Clear"), tr("White")});
+    backgroundBox->setCurrentIndex(exportBackground().alpha() ? 1 : 0);
+    form->addRow(tr("Theme:"), themeBox);
+    form->addRow(tr("Drawing style for new documents:"), styleBox);
+    form->addRow(tr("PNG resolution:"), dpiBox);
+    form->addRow(tr("Export and copy background:"), backgroundBox);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    form->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+    QSettings settings;
+    settings.setValue("defaultStyle", styleBox->currentIndex() ? styleBox->currentText() : QString());
+    settings.setValue("exportDpi", dpiBox->value());
+    settings.setValue("exportBackground", backgroundBox->currentIndex() ? "white" : "clear");
+    applyTheme(themeBox->currentText());
+    for (auto* a : themeGroup_->actions()) a->setChecked(a->text() == themeBox->currentText());
+}
+
 void MainWindow::exportImage() {
     QString base = path_.isEmpty() ? QString("structure") : QFileInfo(path_).completeBaseName();
     QString path = QFileDialog::getSaveFileName(this, tr("Export"), base + ".svg",
                                                 tr("SVG (*.svg);;PNG image (*.png);;PDF (*.pdf)"));
     if (path.isEmpty()) return;
-    if (!exportDocument(canvas_->selectedSubset(), path))
+    if (!exportDocument(canvas_->selectedSubset(), path, exportDpi(), exportBackground()))
         QMessageBox::warning(this, tr("Export"), tr("Nothing to export, or cannot write %1").arg(path));
 }
 
@@ -190,8 +236,8 @@ void MainWindow::copy() {
     Document doc = canvas_->selectedSubset();
     if (doc.empty()) return;
     auto* mime = new QMimeData;
-    mime->setImageData(renderImage(doc));
-    mime->setData("image/svg+xml", renderSvg(doc));
+    mime->setImageData(renderImage(doc, exportDpi(), exportBackground()));
+    mime->setData("image/svg+xml", renderSvg(doc, exportBackground()));
     mime->setData(kPenzMime, doc.toJson());
     if (!doc.atoms.empty()) {
         std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);
@@ -590,7 +636,9 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&New"), QKeySequence::New, this, [this] {
         if (!maybeSave()) return;
         undo_->clear();
-        canvas_->setDocumentSilently({});
+        Document blank;
+        blank.style = QSettings().value("defaultStyle").toString();  // Edit > Preferences
+        canvas_->setDocumentSilently(blank);
         path_.clear();
         updateTitle();
     });
@@ -645,6 +693,9 @@ void MainWindow::buildMenus() {
     edit->addAction(tr("&Delete"), canvas_, &Canvas::deleteSelection);
     edit->addSeparator();
     edit->addAction(tr("Select &All"), QKeySequence::SelectAll, canvas_, &Canvas::selectAll);
+    edit->addSeparator();
+    auto* prefs = edit->addAction(tr("&Preferences…"), QKeySequence::Preferences, this, &MainWindow::showPreferences);
+    prefs->setMenuRole(QAction::PreferencesRole);  // the app menu on macOS
 
     auto* structure = menuBar()->addMenu(tr("&Structure"));
     structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
@@ -697,7 +748,7 @@ void MainWindow::buildMenus() {
     view->addAction(tr("Zoom &Out"), QKeySequence::ZoomOut, this, [this] { canvas_->zoomBy(0.8); });
     view->addAction(tr("&Fit to Window"), QKeySequence(tr("Ctrl+0")), canvas_, &Canvas::fitToDocument);
     auto* themeMenu = view->addMenu(tr("&Theme"));
-    auto* themeGroup = new QActionGroup(this);
+    auto* themeGroup = themeGroup_ = new QActionGroup(this);
     const QString current = QSettings().value("theme", "System").toString();
     for (const auto& t : themes()) {
         auto* a = themeMenu->addAction(t.name, this, [this, n = t.name] { applyTheme(n); });

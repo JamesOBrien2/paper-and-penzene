@@ -10,6 +10,12 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <QComboBox>
+#include <QDialog>
+#include <QSpinBox>
+#include <QTest>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QMenu>
 #include <QToolButton>
@@ -853,4 +859,42 @@ TEST_CASE("recent files, autosave and crash recovery (#91)") {
     after.findChild<QUndoStack*>()->setClean();
     after.autosave();
     CHECK_FALSE(QFile::exists(MainWindow::autosavePath()));
+}
+
+TEST_CASE("preferences: default style for new documents, export resolution and background (#90)") {
+    App app;
+    QSettings().remove("defaultStyle");
+    QSettings().remove("exportBackground");
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    QTimer::singleShot(0, [] {
+        auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+        REQUIRE(dialog);
+        auto boxes = dialog->findChildren<QComboBox*>();  // theme, style, background
+        REQUIRE(boxes.size() == 3);
+        boxes[1]->setCurrentText("RSC");
+        boxes[2]->setCurrentIndex(1);  // white
+        dialog->findChild<QSpinBox*>()->setValue(150);
+        dialog->accept();
+    });
+    w.showPreferences();
+    CHECK(QSettings().value("defaultStyle").toString() == "RSC");
+    CHECK(QSettings().value("exportDpi").toInt() == 150);
+    CHECK(QSettings().value("exportBackground").toString() == "white");
+
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->text() == "&New") a->trigger();
+    CHECK(canvas->document().style == "RSC");
+
+    // White background: the corner pixel of an export is opaque white, not clear.
+    QTemporaryDir dir;
+    auto doc = chem::fromSmiles("CCO");
+    REQUIRE(exportDocument(*doc, dir.filePath("x.png"), 150, Qt::white));
+    QImage img(dir.filePath("x.png"));
+    CHECK(img.pixelColor(0, 0) == QColor(Qt::white));
+    REQUIRE(exportDocument(*doc, dir.filePath("y.png")));
+    CHECK(QImage(dir.filePath("y.png")).pixelColor(0, 0).alpha() == 0);
+    QSettings().remove("defaultStyle");
+    QSettings().remove("exportBackground");
+    QSettings().remove("exportDpi");
 }

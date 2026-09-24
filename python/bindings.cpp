@@ -138,7 +138,7 @@ NB_MODULE(_penzene, m) {
                 QByteArray png;
                 QBuffer buf(&png);
                 buf.open(QIODevice::WriteOnly);
-                renderImage(d, dpi).save(&buf, "PNG");
+                renderImage(d, {dpi}).save(&buf, "PNG");
                 return nb::bytes(png.constData(), png.size());
             },
             "dpi"_a = 300)

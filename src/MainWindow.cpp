@@ -253,6 +253,11 @@ static double exportDpi() { return QSettings().value("exportDpi", 300).toDouble(
 static QColor exportBackground() {
     return QSettings().value("exportBackground").toString() == "white" ? QColor(Qt::white) : QColor(Qt::transparent);
 }
+static ExportOptions exportOptions() {
+    QSettings s;
+    return {exportDpi(), exportBackground(), s.value("exportScale", 100).toDouble() / 100,
+            s.value("exportMargin", 0).toDouble()};
+}
 
 void MainWindow::showPreferences() {
     QDialog dialog(this);
@@ -276,6 +281,20 @@ void MainWindow::showPreferences() {
     form->addRow(tr("Drawing style for new documents:"), styleBox);
     form->addRow(tr("PNG resolution:"), dpiBox);
     form->addRow(tr("Export and copy background:"), backgroundBox);
+    auto* scaleBox = new QSpinBox;
+    scaleBox->setObjectName("exportScale");
+    scaleBox->setRange(10, 400);
+    scaleBox->setSingleStep(5);
+    scaleBox->setSuffix("%");
+    scaleBox->setValue(int(exportOptions().scale * 100 + 0.5));
+    scaleBox->setToolTip(tr("e.g. 85% for a journal's column width"));
+    auto* marginBox = new QSpinBox;
+    marginBox->setObjectName("exportMargin");
+    marginBox->setRange(0, 72);
+    marginBox->setSuffix(tr(" pt"));
+    marginBox->setValue(int(exportOptions().margin));
+    form->addRow(tr("Export and copy scale:"), scaleBox);
+    form->addRow(tr("Margin around exports:"), marginBox);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     form->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -285,6 +304,8 @@ void MainWindow::showPreferences() {
     settings.setValue("defaultStyle", styleBox->currentIndex() ? styleBox->currentText() : QString());
     settings.setValue("exportDpi", dpiBox->value());
     settings.setValue("exportBackground", backgroundBox->currentIndex() ? "white" : "clear");
+    settings.setValue("exportScale", scaleBox->value());
+    settings.setValue("exportMargin", marginBox->value());
     applyTheme(themeBox->currentText());
     for (auto* a : themeGroup_->actions()) a->setChecked(a->text() == themeBox->currentText());
 }
@@ -323,7 +344,7 @@ void MainWindow::exportImage() {
     QString path = QFileDialog::getSaveFileName(this, tr("Export"), base + ".svg",
                                                 tr("SVG (*.svg);;PNG image (*.png);;PDF (*.pdf)"));
     if (path.isEmpty()) return;
-    if (!exportDocument(canvas_->selectedSubset(), path, exportDpi(), exportBackground()))
+    if (!exportDocument(canvas_->selectedSubset(), path, exportOptions()))
         QMessageBox::warning(this, tr("Export"), tr("Nothing to export, or cannot write %1").arg(path));
 }
 
@@ -355,8 +376,8 @@ void MainWindow::copy() {
     Document doc = canvas_->selectedSubset();
     if (doc.empty()) return;
     auto* mime = new QMimeData;
-    mime->setImageData(renderImage(doc, exportDpi(), exportBackground()));
-    mime->setData("image/svg+xml", renderSvg(doc, exportBackground()));
+    mime->setImageData(renderImage(doc, exportOptions()));
+    mime->setData("image/svg+xml", renderSvg(doc, exportOptions()));
     mime->setData(kPenzMime, doc.toJson());
     if (!doc.atoms.empty()) {
         std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);

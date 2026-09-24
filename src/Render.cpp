@@ -379,6 +379,25 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         drawArrow(p, a);
     }
     for (const auto& t : doc.texts) p.fillPath(textPath(t, st), ink(t.color));
+    if (doc.showStereo) {  // small italic (R)/(E), clear of the atom's bonds or the double bond's second line
+        QFont f = labelFont(st, 0.7);
+        f.setItalic(true);
+        const double off = 0.55 * kBondLength;
+        for (const auto& l : chem::stereoLabels(doc)) {
+            QPointF at;
+            if (l.atom >= 0) {
+                at = doc.atoms[l.atom].pos + doc.awayDirection(l.atom) * off;
+            } else {
+                const Bond& b = doc.bonds[l.bond];
+                const QPointF a = doc.atoms[b.a].pos, e = doc.atoms[b.b].pos, n = perp(unit(e - a));
+                at = (a + e) / 2 - n * (doubleBondSide(doc, b) > 0 ? 1 : -1) * (0.45 * kBondLength);
+            }
+            const QString s = "(" + l.text + ")";
+            QFontMetricsF fm(f);
+            p.setPen(QPen(style.ink, lineWidth));
+            drawText(p, s, at - QPointF(fm.horizontalAdvance(s) / 2, -fm.capHeight() / 2), f);
+        }
+    }
     p.restore();
 }
 

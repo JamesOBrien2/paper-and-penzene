@@ -28,7 +28,7 @@ target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSIO
 target_link_libraries(penzene_core PUBLIC
     Qt6::Gui Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol
-    RDKit::Descriptors RDKit::RDInchiLib)
+    RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler)
 
 if(PENZENE_APP)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Test)

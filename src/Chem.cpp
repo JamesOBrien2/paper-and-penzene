@@ -1,5 +1,6 @@
 #include "Chem.h"
 
+#include <GraphMol/CIPLabeler/CIPLabeler.h>
 #include <GraphMol/Chirality.h>
 #include <GraphMol/FileParsers/CDXMLParser.h>
 #include <GraphMol/Depictor/RDDepictor.h>
@@ -132,7 +133,8 @@ static bool perceive(RWMol& mol) {
         RDKit::MolOps::fastFindRings(mol);
         return false;
     }
-    RDKit::MolOps::assignChiralTypesFromBondDirs(mol);
+    RDKit::MolOps::assignChiralTypesFromBondDirs(mol);  // stereocentres from wedges
+    if (mol.getNumConformers()) RDKit::MolOps::detectBondStereochemistry(mol);  // E/Z from the drawing
     RDKit::MolOps::assignStereochemistry(mol, true, true);
     return true;
 }
@@ -554,6 +556,29 @@ Document removeHydrogens(const Document& doc) {
         drop.push_back(i);
     }
     out.removeAtoms(drop);
+    return out;
+}
+
+std::vector<StereoLabel> stereoLabels(const Document& doc) {
+    std::vector<StereoLabel> out;
+    if (doc.atoms.empty()) return out;
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return out;
+    try {
+        RDKit::CIPLabeler::assignCIPLabels(*mol);
+    } catch (...) {
+        return out;  // e.g. the labeller's work limit on huge symmetric molecules
+    }
+    const int n = int(doc.atoms.size());
+    std::string code;
+    for (const auto* a : mol->atoms())
+        if (int(a->getIdx()) < n && a->getPropIfPresent(RDKit::common_properties::_CIPCode, code))
+            out.push_back({int(a->getIdx()), -1, QString::fromStdString(code)});
+    for (const auto* b : mol->bonds()) {
+        const int i = int(b->getBeginAtomIdx()), j = int(b->getEndAtomIdx());
+        if (i < n && j < n && b->getPropIfPresent(RDKit::common_properties::_CIPCode, code))
+            out.push_back({-1, doc.bondBetween(i, j), QString::fromStdString(code)});
+    }
     return out;
 }
 

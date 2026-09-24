@@ -784,6 +784,19 @@ void MainWindow::buildMenus() {
     });
     implicitH->setChecked(true);
     carbonGroup->actions().first()->setChecked(true);
+    // Stereo labels belong to the document (saved, and in exports), so toggling is an edit.
+    auto* stereo = view->addAction(tr("Show &Stereo Labels"));
+    stereo->setCheckable(true);
+    connect(stereo, &QAction::toggled, this, [this](bool on) {
+        if (canvas_->document().showStereo == on) return;
+        Document next = canvas_->document();
+        next.showStereo = on;
+        canvas_->commit(next, on ? tr("Show Stereo Labels") : tr("Hide Stereo Labels"));
+    });
+    connect(canvas_, &Canvas::documentChanged, stereo, [this, stereo] {
+        QSignalBlocker quiet(stereo);
+        stereo->setChecked(canvas_->document().showStereo);
+    });
     view->addSeparator();
     auto* themeMenu = view->addMenu(tr("&Theme"));
     auto* themeGroup = themeGroup_ = new QActionGroup(this);

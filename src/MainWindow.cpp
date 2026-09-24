@@ -53,6 +53,9 @@ static const char* kMolMime = "chemical/x-mdl-molfile";
 static const char* kPenzMime = "application/x-penzene";  // full fidelity: arrows and text too
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
+#ifdef Q_OS_MACOS
+    static ChemDrawPasteboard chemDraw;  // registers itself with Qt, once
+#endif
     setCentralWidget(canvas_);
     setWindowTitle("Penzene " PENZENE_BUILD);
     resize(1100, 750);
@@ -363,8 +366,32 @@ void MainWindow::copy() {
     QApplication::clipboard()->setMimeData(mime);
 }
 
+#ifdef Q_OS_MACOS
+// Qt only shows pasteboard types it has a converter for: ChemDraw's copies
+// carry binary CDX under this UTI.
+ChemDrawPasteboard::ChemDrawPasteboard() = default;
+QString ChemDrawPasteboard::mimeForUti(const QString& uti) const {
+    return uti == "com.perkinelmer.chemdraw.cdx-clipboard" ? "chemical/x-cdx" : QString();
+}
+QString ChemDrawPasteboard::utiForMime(const QString& mime) const {
+    return mime == "chemical/x-cdx" ? "com.perkinelmer.chemdraw.cdx-clipboard" : QString();
+}
+QVariant ChemDrawPasteboard::convertToMime(const QString&, const QList<QByteArray>& data, const QString&) const {
+    return data.value(0);
+}
+QList<QByteArray> ChemDrawPasteboard::convertFromMime(const QString&, const QVariant& data, const QString&) const {
+    return {data.toByteArray()};
+}
+#endif
+
 void MainWindow::paste() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
+    // ChemDraw: CDX as chemical/x-cdx (macOS, via ChemDrawPasteboard) or its
+    // Windows clipboard format; CDXML where an app offers that.
+    for (const QString& type : mime->formats())
+        if (type == "chemical/x-cdx" || type == "chemical/x-cdxml" || type.contains("ChemDraw Interchange Format"))
+            if (auto doc = chem::fromChemDraw(mime->data(type)); doc && !doc->empty())
+                return canvas_->insert(*doc, tr("Paste"));
     if (auto doc = Document::fromJson(mime->data(kPenzMime)); doc && !doc->empty())
         return canvas_->insert(*doc, tr("Paste"));
     // A figure Penzene exported, copied from another app or as a file: the drawing inside it.

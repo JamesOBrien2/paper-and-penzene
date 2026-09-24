@@ -419,6 +419,7 @@ std::optional<Document> readFile(const QString& path) {
     const QByteArray data = f.readAll();
     const QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "penz") return Document::fromJson(data);
+    if (ext == "png" || ext == "svg") return Document::fromEmbedded(data);
     if (ext == "cdxml" || ext == "cdx") return fromChemDraw(data);
     return fromMolBlock(data.toStdString());
 }

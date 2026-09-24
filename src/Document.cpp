@@ -1,6 +1,8 @@
 #include "Document.h"
 
 #include <QJsonArray>
+#include <QImage>
+#include <QRegularExpression>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
@@ -66,6 +68,13 @@ QByteArray Document::toJson() const {
     }
     if (!circleOverrides.isEmpty()) root["aromaticCircleOverrides"] = circleOverrides;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
+}
+
+std::optional<Document> Document::fromEmbedded(const QByteArray& file) {
+    if (file.startsWith("\x89PNG")) return fromJson(QImage::fromData(file, "PNG").text("penzene").toUtf8());
+    static const QRegularExpression svg(R"(<metadata id="penzene">([A-Za-z0-9+/=]*)</metadata>)");
+    const auto m = svg.match(QString::fromUtf8(file));
+    return m.hasMatch() ? fromJson(QByteArray::fromBase64(m.captured(1).toLatin1())) : std::nullopt;
 }
 
 std::optional<Document> Document::fromJson(const QByteArray& data) {

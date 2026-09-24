@@ -206,9 +206,19 @@ void MainWindow::offerRecovery() {
 
 bool MainWindow::saveTo(const QString& path, bool v3000) {
     const auto& doc = canvas_->document();
-    QByteArray data = path.endsWith(".penz", Qt::CaseInsensitive)
-                          ? doc.toJson()
-                          : QByteArray::fromStdString(chem::toMolBlock(doc, v3000));
+    QByteArray data;
+    if (path.endsWith(".penz", Qt::CaseInsensitive)) {
+        data = doc.toJson();
+    } else if (path.endsWith(".rxn", Qt::CaseInsensitive)) {
+        const auto r = chem::reactionOf(doc);
+        if (!r) {
+            QMessageBox::warning(this, tr("Save"), tr("An Rxnfile needs a reaction arrow in the drawing."));
+            return false;
+        }
+        data = QByteArray::fromStdString(chem::toRxn(*r));
+    } else {
+        data = QByteArray::fromStdString(chem::toMolBlock(doc, v3000));
+    }
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
         QMessageBox::warning(this, tr("Save"), tr("Cannot write %1").arg(path));
@@ -231,7 +241,8 @@ bool MainWindow::saveAs() {
     const QString v3000 = tr("MDL Molfile V3000 (*.mol)");
     QString filter;
     QString path = QFileDialog::getSaveFileName(this, tr("Save As"), path_,
-                                                tr("Penzene document (*.penz);;MDL Molfile (*.mol);;") + v3000, &filter);
+                                                tr("Penzene document (*.penz);;MDL Molfile (*.mol);;") + v3000 +
+                                                    tr(";;MDL Rxnfile (*.rxn)"), &filter);
     return !path.isEmpty() && saveTo(path, filter == v3000);
 }
 
@@ -427,6 +438,7 @@ void MainWindow::paste() {
     if (text.empty()) return;
     auto doc = text.find("M  END") != std::string::npos ? chem::fromMolBlock(text)
                : text.starts_with("InChI=")         ? chem::fromInchi(text)
+               : text.find('>') != std::string::npos ? chem::fromReactionSmiles(text)
                                                     : chem::fromSmiles(text);
     if (doc) canvas_->insert(*doc, tr("Paste"));
     else statusBar()->showMessage(tr("Clipboard has no structure or SMILES"), 4000);
@@ -818,7 +830,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
-                                                 tr("Structures (*.penz *.mol *.sdf *.smi *.inchi *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
+                                                 tr("Structures (*.penz *.mol *.sdf *.smi *.inchi *.rxn *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
     });
     auto* recent = file->addMenu(tr("Open &Recent"));
@@ -862,6 +874,12 @@ void MainWindow::buildMenus() {
     });
     edit->addAction(tr("Copy as InChI&Key"), this, [this] {
         QApplication::clipboard()->setText(QString::fromStdString(chem::toInchiKey(canvas_->selectedSubset())));
+    });
+    edit->addAction(tr("Copy as &Reaction SMILES"), this, [this] {
+        if (auto r = chem::reactionOf(canvas_->selectedSubset()))
+            QApplication::clipboard()->setText(QString::fromStdString(chem::toReactionSmiles(*r)));
+        else
+            statusBar()->showMessage(tr("No reaction arrow in the drawing"), 4000);
     });
     edit->addAction(tr("&Paste"), QKeySequence::Paste, this, &MainWindow::paste);
     edit->addAction(tr("&Delete"), canvas_, &Canvas::deleteSelection);

@@ -454,17 +454,19 @@ std::vector<Record> readRecords(const QString& path) {
     return out;
 }
 
+static QRectF atomBox(const Document& d) {
+    QPolygonF pts;
+    for (const auto& a : d.atoms) pts << a.pos;
+    return pts.boundingRect();
+}
+
 // Records side by side, row by row, each centred in a cell as big as the largest.
 static std::optional<Document> grid(const std::vector<Record>& records) {
     std::vector<Document> docs;
     for (const auto& r : records)
         if (r.doc && !r.doc->empty()) docs.push_back(*r.doc);
     if (docs.size() <= 1) return docs.empty() ? std::nullopt : std::optional(docs[0]);
-    auto box = [](const Document& d) {
-        QPolygonF pts;
-        for (const auto& a : d.atoms) pts << a.pos;
-        return pts.boundingRect();
-    };
+    auto box = atomBox;
     QSizeF cell;
     for (const auto& d : docs) cell = cell.expandedTo(box(d).size());
     cell += QSizeF(2 * kBondLength, 2 * kBondLength);
@@ -477,6 +479,133 @@ static std::optional<Document> grid(const std::vector<Record>& records) {
     return out;
 }
 
+// ---------------------------------------------------------------- reactions
+
+static std::vector<Document> molecules(const Document& doc) {
+    std::vector<Document> out;
+    std::vector<int> seen(doc.atoms.size(), 0);
+    for (int start = 0; start < int(doc.atoms.size()); ++start) {
+        if (seen[start]) continue;
+        std::vector<int> stack{start}, keep;
+        seen[start] = 1;
+        while (!stack.empty()) {
+            const int i = stack.back();
+            stack.pop_back();
+            keep.push_back(i);
+            for (int nb : doc.neighbors(i))
+                if (!seen[nb]) seen[nb] = 1, stack.push_back(nb);
+        }
+        Document m;
+        m.atoms = doc.atoms;
+        m.bonds = doc.bonds;
+        std::vector<int> drop;
+        std::sort(keep.begin(), keep.end());
+        for (int i = 0; i < int(doc.atoms.size()); ++i)
+            if (!std::binary_search(keep.begin(), keep.end(), i)) drop.push_back(i);
+        m.removeAtoms(drop);
+        out.push_back(std::move(m));
+    }
+    return out;
+}
+
+// ponytail: the first straight reaction or equilibrium arrow only; multi-step
+// schemes would need a split per arrow.
+std::optional<Reaction> reactionOf(const Document& doc) {
+    auto arrow = std::find_if(doc.arrows.begin(), doc.arrows.end(), [](const Arrow& a) {
+        return a.bend == 0 && (a.kind == ArrowKind::Reaction || a.kind == ArrowKind::Equilibrium);
+    });
+    if (arrow == doc.arrows.end()) return std::nullopt;
+    const QPointF d = arrow->to - arrow->from;
+    const double len2 = QPointF::dotProduct(d, d);
+    if (len2 <= 0) return std::nullopt;
+    Reaction r;
+    for (auto& m : molecules(doc)) {
+        const double t = QPointF::dotProduct(atomBox(m).center() - arrow->from, d) / len2;
+        (t < 0 ? r.reactants : t > 1 ? r.products : r.agents).push_back(std::move(m));
+    }
+    return r;
+}
+
+std::string toReactionSmiles(const Reaction& r) {
+    auto side = [](const std::vector<Document>& ms) {
+        std::string s;
+        for (const auto& m : ms) s += (s.empty() ? "" : ".") + toSmiles(m);
+        return s;
+    };
+    return side(r.reactants) + ">" + side(r.agents) + ">" + side(r.products);
+}
+
+std::string toRxn(const Reaction& r) {
+    std::string out = "$RXN\n\n  Penzene\n\n" + QString("%1%2").arg(r.reactants.size(), 3).arg(r.products.size(), 3).toStdString() + "\n";
+    for (const auto* side : {&r.reactants, &r.products})
+        for (const auto& m : *side) out += "$MOL\n" + toMolBlock(m);
+    return out;
+}
+
+// Reactants + … → (agents above the arrow) → products, left to right.
+Document layoutReaction(const Reaction& r) {
+    Document out;
+    const double gap = kBondLength;
+    double x = 0;
+    auto place = [&](const std::vector<Document>& ms) {
+        for (size_t k = 0; k < ms.size(); ++k) {
+            if (k) {  // a "+" between molecules
+                out.texts.push_back({{x + gap, kBondLength * 0.25}, "+"});
+                x += 3 * gap;
+            }
+            const QRectF b = atomBox(ms[k]);
+            out.append(ms[k], QPointF(x - b.left(), -b.center().y()));
+            x += b.width();
+        }
+    };
+    place(r.reactants);
+    double above = 0, width = 0;
+    for (const auto& m : r.agents) width += atomBox(m).width() + gap, above = std::max(above, atomBox(m).height());
+    const double len = std::max(3 * kBondLength, width + gap);
+    out.arrows.push_back({{x + gap, 0}, {x + gap + len, 0}});
+    double ax = x + gap + (len - width + gap) / 2;
+    for (const auto& m : r.agents) {
+        const QRectF b = atomBox(m);
+        out.append(m, QPointF(ax - b.left(), -gap - above / 2 - b.center().y()));
+        ax += b.width() + gap;
+    }
+    x += 2 * gap + len;
+    place(r.products);
+    return out;
+}
+
+std::optional<Document> fromReactionSmiles(const std::string& smiles) {
+    const QStringList sides = QString::fromStdString(smiles).trimmed().split('>');
+    if (sides.size() != 3) return std::nullopt;
+    Reaction r;
+    std::vector<Document>* into[] = {&r.reactants, &r.agents, &r.products};
+    for (int k = 0; k < 3; ++k)
+        for (const QString& part : sides[k].split('.', Qt::SkipEmptyParts)) {
+            auto m = fromSmiles(part.toStdString());
+            if (!m) return std::nullopt;
+            into[k]->push_back(std::move(*m));
+        }
+    if (r.reactants.empty() && r.products.empty()) return std::nullopt;
+    return layoutReaction(r);
+}
+
+std::optional<Document> fromRxn(const std::string& text) {
+    const QString s = QString::fromStdString(text).remove('\r');
+    if (!s.startsWith("$RXN")) return std::nullopt;
+    const QString counts = s.section('\n', 4, 4);
+    const int nr = counts.mid(0, 3).trimmed().toInt(), np = counts.mid(3, 3).trimmed().toInt();
+    QStringList blocks = s.split("$MOL\n");
+    blocks.removeFirst();
+    if (nr + np == 0 || int(blocks.size()) < nr + np) return std::nullopt;
+    Reaction r;
+    for (int k = 0; k < nr + np; ++k) {
+        auto m = fromMolBlock(blocks[k].toStdString());
+        if (!m) return std::nullopt;
+        (k < nr ? r.reactants : r.products).push_back(std::move(*m));
+    }
+    return layoutReaction(r);
+}
+
 std::optional<Document> readFile(const QString& path) {
     const QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "sdf" || ext == "smi" || ext == "inchi") return grid(readRecords(path));
@@ -484,6 +613,7 @@ std::optional<Document> readFile(const QString& path) {
     if (!f.open(QIODevice::ReadOnly)) return std::nullopt;
     const QByteArray data = f.readAll();
     if (ext == "penz") return Document::fromJson(data);
+    if (ext == "rxn") return fromRxn(data.toStdString());
     if (ext == "png" || ext == "svg") return Document::fromEmbedded(data);
     if (ext == "cdxml" || ext == "cdx") return fromChemDraw(data);
     return fromMolBlock(data.toStdString());

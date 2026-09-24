@@ -431,3 +431,35 @@ TEST_CASE("multi-record SDF, .smi and .inchi open as a grid; MOL V3000; InChI (#
     CHECK(chem::readRecords(sdf)[0].name == "aspirin");
     CHECK(chem::readRecords(smi)[1].name == "ethanol");
 }
+
+TEST_CASE("reactions: reaction SMILES and RXN, both ways (#101)") {
+    // Aspirin synthesis: salicylic acid + acetic anhydride, with pyridine over the arrow.
+    const std::string rsmi = "OC(=O)c1ccccc1O.CC(=O)OC(C)=O>c1ccncc1>CC(=O)Oc1ccccc1C(=O)O.CC(=O)O";
+    auto doc = chem::fromReactionSmiles(rsmi);
+    REQUIRE(doc);
+    REQUIRE(doc->arrows.size() == 1);
+    CHECK(doc->texts.size() == 2);  // the "+" signs
+    auto r = chem::reactionOf(*doc);
+    REQUIRE(r);
+    CHECK(r->reactants.size() == 2);
+    CHECK(r->agents.size() == 1);
+    CHECK(r->products.size() == 2);
+    auto canon = [](const std::string& s) { return chem::toSmiles(*chem::fromSmiles(s)); };
+    CHECK(chem::toReactionSmiles(*r) == canon("OC(=O)c1ccccc1O") + "." + canon("CC(=O)OC(C)=O") + ">" +
+                                           canon("c1ccncc1") + ">" + canon("CC(=O)Oc1ccccc1C(=O)O") + "." +
+                                           canon("CC(=O)O"));
+
+    const std::string rxn = chem::toRxn(*r);
+    CHECK(rxn.starts_with("$RXN"));
+    auto back = chem::fromRxn(rxn);
+    REQUIRE(back);
+    auto rb = chem::reactionOf(*back);
+    REQUIRE(rb);
+    CHECK(rb->reactants.size() == 2);
+    CHECK(rb->products.size() == 2);  // RXN V2000 carries no agents
+    CHECK(chem::toSmiles(rb->products[0]) == canon("CC(=O)Oc1ccccc1C(=O)O"));
+
+    CHECK_FALSE(chem::reactionOf(*chem::fromSmiles("CCO")));
+    CHECK_FALSE(chem::fromReactionSmiles("CCO"));
+    CHECK_FALSE(chem::fromRxn("not an rxn"));
+}

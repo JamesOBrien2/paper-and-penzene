@@ -12,6 +12,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     MainWindow();
+    ~MainWindow() override;
     bool openFile(const QString& path);
     // Crash recovery: offer the autosaved document left behind by a crash, if any.
     void offerRecovery();

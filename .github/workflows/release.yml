@@ -28,6 +28,7 @@ jobs:
         run: |
           mkdir dist && cp -R build/bin/penzene.app dist/
           pixi run macdeployqt6 dist/penzene.app -libpath="$PWD/.pixi/envs/default/lib"
+          test -d dist/penzene.app/Contents/PlugIns/tls   # HTTPS for the PubChem lookups
           codesign --force --deep --sign - dist/penzene.app
           mv .pixi .pixi-hidden   # prove the bundle doesn't need the build env
           dist/penzene.app/Contents/MacOS/penzene --version
@@ -54,6 +55,7 @@ jobs:
           if (!$qtpaths) { throw "qtpaths not found in the pixi env" }
           pixi run windeployqt6 --qtpaths "$qtpaths" --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
           if (!(Test-Path dist/penzene/platforms/qwindows.dll)) { throw "windeployqt did not bundle the platform plugin" }
+          if (!(Test-Path dist/penzene/tls)) { throw "windeployqt did not bundle a TLS backend" }
           pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/.pixi/envs/default/Library/bin"
           Rename-Item .pixi .pixi-hidden
           dist/penzene/penzene.exe --version
@@ -109,6 +111,7 @@ jobs:
             -d penzene.desktop -i penzene.svg --plugin qt --output appimage \
             -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
           mv Penzene*.AppImage penzene-linux-x86_64.AppImage
+          test -d AppDir/usr/plugins/tls   # HTTPS for the PubChem lookups
           mv .pixi .pixi-hidden
           xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
           test -s smoke.svg

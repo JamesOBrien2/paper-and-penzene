@@ -89,9 +89,10 @@ Document expanded(const Document& doc) {
     return out;
 }
 
-// Abbreviations are expanded first; atom i of `doc` is atom i of the mol.
-static std::unique_ptr<RWMol> toRDKit(const Document& in) {
-    const Document doc = expanded(in);
+// Abbreviations are expanded first (unless `expand` is false, for layout);
+// atom i of `doc` is atom i of the mol.
+static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
+    const Document doc = expand ? expanded(in) : in;
     auto mol = std::make_unique<RWMol>();
     auto* conf = new RDKit::Conformer(doc.atoms.size());
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
@@ -344,7 +345,9 @@ std::string toInchiKey(const Document& doc) {
 
 // One connected fragment, laid out around its old centroid.
 static Document cleanFragment(const Document& doc) {
-    auto mol = toRDKit(doc);
+    // Abbreviations stay single nodes, as in ChemDraw: expanding a ring onto a
+    // crowded atom squeezes the depictor's layout (#85).
+    auto mol = toRDKit(doc, false);
     perceive(*mol);
     layout(*mol);
     RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
@@ -394,7 +397,7 @@ Document clean2D(const Document& doc, const std::vector<int>& only) {
         frag.removeAtoms(drop);  // keeps order: frag atom k is doc atom ids[k]
         Document clean = cleanFragment(frag);
         for (size_t k = 0; k < ids.size(); ++k) out.atoms[ids[k]].pos = clean.atoms[k].pos;
-        const int m = int(ids.size());  // atoms past m are expanded abbreviations: dropped again
+        const int m = int(ids.size());  // defensive: only bonds between this fragment's atoms
         for (auto b : clean.bonds) {
             if (b.a >= m || b.b >= m) continue;
             b.a = ids[b.a], b.b = ids[b.b];

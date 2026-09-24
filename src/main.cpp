@@ -116,5 +116,6 @@ int main(int argc, char** argv) {
     MainWindow w;
     if (argc == 2) w.openFile(QString::fromLocal8Bit(argv[1]));
     w.show();
+    w.offerRecovery();  // after a crash, the last unsaved drawing
     return app.exec();
 }

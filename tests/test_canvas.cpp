@@ -6,7 +6,11 @@
 #include <QApplication>
 #include <QSettings>
 #include <QStatusBar>
+#include <QMessageBox>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 #include <QMenu>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -21,6 +25,7 @@ struct App {  // base class so the QApplication exists before any widget member
         static char* argv[] = {name};
         static QApplication app(argc, argv);
         QApplication::setOrganizationName("penzene-tests");  // keep the user's settings out of it
+        QStandardPaths::setTestModeEnabled(true);  // and their app data (autosave)
     }
 };
 
@@ -817,4 +822,35 @@ TEST_CASE("ring fill colour is picked from the fill button (#126)") {
     pink->click();
     CHECK(canvas->fillColor() == QColor(255, 214, 214));
     CHECK(fillButton->defaultAction()->isChecked());  // and the fill tool is chosen
+}
+
+TEST_CASE("recent files, autosave and crash recovery (#91)") {
+    App app;
+    QSettings().remove("recentFiles");
+    QFile::remove(MainWindow::autosavePath());
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
+    CHECK(w.recentFiles().value(0).endsWith("aspirin.mol"));
+
+    canvas->commit(*chem::fromSmiles("CCO"), "edit");  // unsaved changes
+    w.autosave();
+    REQUIRE(QFile::exists(MainWindow::autosavePath()));
+
+    // A fresh window after a "crash" offers the autosave back; answer Yes.
+    MainWindow after;
+    QTimer::singleShot(0, [] {
+        if (auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget()))
+            box->button(QMessageBox::Yes)->click();
+    });
+    after.offerRecovery();
+    auto* c2 = after.findChild<Canvas*>();
+    CHECK(chem::toSmiles(c2->document()) == "CCO");
+    CHECK_FALSE(QFile::exists(MainWindow::autosavePath()));  // offered once only
+
+    after.autosave();  // once changes are saved (the stack is clean), autosave removes its copy
+    REQUIRE(QFile::exists(MainWindow::autosavePath()));
+    after.findChild<QUndoStack*>()->setClean();
+    after.autosave();
+    CHECK_FALSE(QFile::exists(MainWindow::autosavePath()));
 }

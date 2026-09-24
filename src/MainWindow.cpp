@@ -18,7 +18,10 @@
 #include <QMenu>
 #include <QGridLayout>
 #include <QFrame>
+#include <QDir>
 #include <QSettings>
+#include <QStandardPaths>
+#include <QTimer>
 #include <QStyle>
 #include <QStyleHints>
 #include <QPainter>
@@ -49,6 +52,9 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     statusBar()->addPermanentWidget(info_);
     connect(canvas_, &Canvas::documentChanged, this, &MainWindow::updateInfo);
     connect(canvas_, &Canvas::selectionChanged, this, &MainWindow::updateInfo);
+    auto* autosaver = new QTimer(this);
+    connect(autosaver, &QTimer::timeout, this, &MainWindow::autosave);
+    autosaver->start(60 * 1000);
 }
 
 // Formula and masses of the selection, or of everything.
@@ -80,8 +86,41 @@ bool MainWindow::openFile(const QString& path) {
     canvas_->setDocumentSilently(*doc);
     canvas_->fitToDocument();
     path_ = ext == "cdxml" || ext == "cdx" ? QString() : path;  // never save over a ChemDraw file
+    remember(path);
     updateTitle();
     return true;
+}
+
+QStringList MainWindow::recentFiles() const { return QSettings().value("recentFiles").toStringList(); }
+
+void MainWindow::remember(const QString& path) {
+    QStringList files = recentFiles();
+    files.removeAll(QFileInfo(path).absoluteFilePath());
+    files.prepend(QFileInfo(path).absoluteFilePath());
+    QSettings().setValue("recentFiles", files.mid(0, 10));
+}
+
+QString MainWindow::autosavePath() {
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/autosave.penz";
+}
+
+void MainWindow::autosave() {
+    if (undo_->isClean()) return QFile::remove(autosavePath()), void();
+    QDir().mkpath(QFileInfo(autosavePath()).path());
+    QFile f(autosavePath());
+    if (f.open(QIODevice::WriteOnly)) f.write(canvas_->document().toJson());
+}
+
+void MainWindow::offerRecovery() {
+    QFile f(autosavePath());
+    if (!f.open(QIODevice::ReadOnly)) return;
+    auto doc = Document::fromJson(f.readAll());
+    f.close();
+    if (doc && !doc->empty() &&
+        QMessageBox::question(this, tr("Recover"),
+                              tr("Penzene closed without saving your last drawing. Recover it?")) == QMessageBox::Yes)
+        canvas_->commit(*doc, tr("Recover"));  // unsaved, so Save asks where to put it
+    QFile::remove(autosavePath());
 }
 
 bool MainWindow::saveTo(const QString& path) {
@@ -96,6 +135,8 @@ bool MainWindow::saveTo(const QString& path) {
     }
     path_ = path;
     undo_->setClean();
+    QFile::remove(autosavePath());
+    remember(path);
     updateTitle();
     return true;
 }
@@ -119,8 +160,9 @@ bool MainWindow::maybeSave() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
-    if (maybeSave()) e->accept();
-    else e->ignore();
+    if (!maybeSave()) return e->ignore();
+    QFile::remove(autosavePath());  // a deliberate quit: nothing to recover
+    e->accept();
 }
 
 void MainWindow::exportImage() {
@@ -553,6 +595,17 @@ void MainWindow::buildMenus() {
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
                                                  tr("Structures (*.penz *.mol *.sdf *.cdxml *.cdx);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
+    });
+    auto* recent = file->addMenu(tr("Open &Recent"));
+    connect(recent, &QMenu::aboutToShow, this, [this, recent] {
+        recent->clear();
+        for (const QString& p : recentFiles())
+            recent->addAction(QFileInfo(p).fileName(), this, [this, p] {
+                if (maybeSave()) openFile(p);
+            })->setToolTip(p);
+        if (recent->isEmpty()) recent->addAction(tr("No recent files"))->setEnabled(false);
+        recent->addSeparator();
+        recent->addAction(tr("Clear Menu"), this, [] { QSettings().remove("recentFiles"); });
     });
     file->addAction(tr("&Save"), QKeySequence::Save, this, &MainWindow::save);
     file->addAction(tr("Save &As…"), QKeySequence::SaveAs, this, &MainWindow::saveAs);

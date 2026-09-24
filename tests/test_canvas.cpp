@@ -1049,3 +1049,10 @@ TEST_CASE("x and r label an atom X and R; free-text labels keep unspecified chem
     CHECK(edit::hotkey(e, {-1, 0}, "r").valid());
     CHECK(e.atoms[0].label.isEmpty());
 }
+
+TEST_CASE("the window title names the build (#165)") {
+    App app;
+    MainWindow w;
+    CHECK(w.windowTitle().endsWith("Penzene " PENZENE_BUILD));
+    CHECK(QString(PENZENE_BUILD).startsWith(PENZENE_VERSION));
+}

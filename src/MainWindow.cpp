@@ -54,7 +54,7 @@ static const char* kPenzMime = "application/x-penzene";  // full fidelity: arrow
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
     setCentralWidget(canvas_);
-    setWindowTitle("Penzene");
+    setWindowTitle("Penzene " PENZENE_BUILD);
     resize(1100, 750);
     // Properties panel (built before the menus, which offer its toggle): descriptors for the selection or everything.
     profileDock_ = new QDockWidget(tr("Properties"), this);
@@ -149,7 +149,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::updateTitle() {
     QString name = path_.isEmpty() ? tr("Untitled") : QFileInfo(path_).fileName();
-    setWindowTitle(name + "[*] — Penzene");
+    setWindowTitle(name + "[*] — Penzene " PENZENE_BUILD);
     setWindowModified(!undo_->isClean());
 }
 
@@ -1040,6 +1040,6 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
         QMessageBox::about(this, tr("About Penzene"),
                            tr("<h3>Penzene %1</h3><p>An open-source chemical structure editor.</p>"
                               "<p>GPL-3.0 • <a href='https://github.com/JamesOBrien2/penzene'>GitHub</a></p>"
-                              "<p>Chemistry by RDKit. GUI by Qt.</p>").arg(PENZENE_VERSION));
+                              "<p>Chemistry by RDKit. GUI by Qt.</p>").arg(PENZENE_BUILD));
     });
 }

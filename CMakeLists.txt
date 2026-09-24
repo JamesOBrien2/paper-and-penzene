@@ -29,6 +29,10 @@ target_link_libraries(penzene_core PUBLIC
     Qt6::Gui Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol
     RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler)
+# Binary CDX writing, where RDKit was built with ChemDraw support (not conda's Windows build).
+if(TARGET RDKit::RDChemDrawLib)
+    target_link_libraries(penzene_core PUBLIC RDKit::RDChemDrawLib)
+endif()
 
 if(PENZENE_APP)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)

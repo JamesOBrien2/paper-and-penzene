@@ -23,6 +23,8 @@ struct Record {
 };
 std::vector<Record> readRecords(const QString& path);
 std::string toMolBlock(const Document& doc, bool v3000 = false);
+QByteArray toCdxml(const Document& doc);  // molecules, arrows and text
+QByteArray toCdx(const Document& doc);    // binary CDX: molecules only
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
 
 // A drawn reaction: the molecules before, alongside and after its arrow.

@@ -63,7 +63,9 @@ set_target_properties(penzene PROPERTIES
 find_package(Catch2 3 REQUIRED)
 enable_testing()
 add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
-target_link_libraries(penzene_tests PRIVATE penzene_ui Qt6::Test Catch2::Catch2WithMain)
+# GuiPrivate: tests inject input the way the window system does (QWindowSystemInterface).
+find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+target_link_libraries(penzene_tests PRIVATE penzene_ui Qt6::Test Qt6::GuiPrivate Catch2::Catch2WithMain)
 add_test(NAME core COMMAND penzene_tests)
 add_test(NAME version COMMAND penzene --version)
 # --help prints usage; it must not open a window that tries to read "--help" as a file.

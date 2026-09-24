@@ -20,7 +20,11 @@
 #include <QSpinBox>
 #include <QTest>
 #include <QTemporaryDir>
+#include <QLineEdit>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTimer>
+#include <qpa/qwindowsysteminterface.h>
 #include <QMenu>
 #include <QToolButton>
 #include <QWidgetAction>
@@ -1055,4 +1059,26 @@ TEST_CASE("the window title names the build (#165)") {
     MainWindow w;
     CHECK(w.windowTitle().endsWith("Penzene " PENZENE_BUILD));
     CHECK(QString(PENZENE_BUILD).startsWith(PENZENE_VERSION));
+}
+
+TEST_CASE("a PubChem lookup holds user input until it returns (#171)") {
+    App app;
+    QTcpServer server;  // accepts, stays silent, then hangs up
+    REQUIRE(server.listen(QHostAddress::LocalHost));
+    QObject::connect(&server, &QTcpServer::newConnection, [&] {
+        QTcpSocket* s = server.nextPendingConnection();
+        QTimer::singleShot(300, s, [s] { s->close(); });
+    });
+    QLineEdit typing;
+    typing.show();
+    QTimer::singleShot(50, [&] {
+        // As the window system delivers it (a posted QKeyEvent would bypass the filter).
+        QWindowSystemInterface::handleKeyEvent(typing.windowHandle(), QEvent::KeyPress, Qt::Key_A, Qt::NoModifier, "a");
+    });
+    QString error;
+    const QUrl url(QString("http://127.0.0.1:%1/").arg(server.serverPort()));
+    CHECK(pubchem::fetch(url, "SMILES", &error).isEmpty());
+    CHECK(typing.text().isEmpty());  // not handled mid-request
+    QApplication::processEvents();
+    CHECK(typing.text() == "a");  // delivered afterwards
 }

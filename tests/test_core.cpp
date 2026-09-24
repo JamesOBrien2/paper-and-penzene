@@ -237,3 +237,30 @@ TEST_CASE("explicit hydrogens and carbon/H display options (#97)") {
     CHECK(back->carbonLabels == Document::CarbonLabels::Terminal);
     CHECK(back->hideImplicitH);
 }
+
+TEST_CASE("CIP stereo labels, and E/Z read from the drawing (#94)") {
+    auto ala = chem::fromSmiles("C[C@H](N)C(=O)O");  // L-alanine
+    REQUIRE(ala);
+    auto labels = chem::stereoLabels(*ala);
+    REQUIRE(labels.size() == 1);
+    CHECK(labels[0].atom == 1);
+    CHECK(labels[0].text == "S");
+
+    auto ene = chem::fromSmiles("C/C=C/C");
+    REQUIRE(ene);
+    labels = chem::stereoLabels(*ene);
+    REQUIRE(labels.size() == 1);
+    CHECK(labels[0].bond >= 0);
+    CHECK(labels[0].text == "E");
+
+    // A plain zig-zag drawing of 2-butene is trans: SMILES now says so.
+    Document drawn;
+    drawn.atoms = {{{0, 0}}, {{12.47, -7.2}}, {{24.94, 0}}, {{37.41, -7.2}}};
+    drawn.bonds = {{0, 1}, {1, 2, 2}, {2, 3}};
+    CHECK(chem::toSmiles(drawn) == "C/C=C/C");
+
+    ala->showStereo = true;
+    auto back = Document::fromJson(ala->toJson());
+    REQUIRE(back);
+    CHECK(back->showStereo);
+}

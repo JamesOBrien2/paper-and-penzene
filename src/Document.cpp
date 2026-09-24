@@ -52,6 +52,8 @@ QByteArray Document::toJson() const {
     }
     if (!fs.isEmpty()) root["fills"] = fs;
     if (!style.isEmpty()) root["style"] = style;
+    if (carbonLabels != CarbonLabels::None) root["carbonLabels"] = carbonLabels == CarbonLabels::All ? "all" : "terminal";
+    if (hideImplicitH) root["hideImplicitH"] = true;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -61,6 +63,11 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         return std::nullopt;
     Document doc;
     doc.style = root["style"].toString();
+    const QString carbons = root["carbonLabels"].toString();
+    doc.carbonLabels = carbons == "all"        ? Document::CarbonLabels::All
+                       : carbons == "terminal" ? Document::CarbonLabels::Terminal
+                                               : Document::CarbonLabels::None;
+    doc.hideImplicitH = root["hideImplicitH"].toBool();
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),

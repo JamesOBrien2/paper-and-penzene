@@ -40,8 +40,11 @@ const DrawingStyle& drawingStyle(const QString& name) {
         if (s.name == name) return s;
     return drawingStyles()[0];
 }
+// Carbons are skeletal unless alone or the document asks for their labels.
 static bool hasLabel(const Document& doc, int i, const std::vector<int>& degree) {
-    return doc.atoms[i].z != 6 || degree[i] == 0 || !doc.atoms[i].label.isEmpty();
+    if (doc.atoms[i].z != 6 || degree[i] == 0 || !doc.atoms[i].label.isEmpty()) return true;
+    return doc.carbonLabels == Document::CarbonLabels::All ||
+           (doc.carbonLabels == Document::CarbonLabels::Terminal && degree[i] == 1);
 }
 
 // ---------------------------------------------------------------- rendering
@@ -81,7 +84,12 @@ static void drawAbbreviation(QPainter& p, const Atom& a, bool fromRight, const D
     p.fillPath(path.translated(x, 0), p.pen().color());
 }
 
-static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bool hLeft, const DrawingStyle& st) {
+// Where a label's implicit H goes: after the symbol, before it, or stacked
+// below/above when bonds leave neither side free (a middle CH2).
+enum class HSide { Right, Left, Below, Above };
+
+static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, HSide side, const DrawingStyle& st) {
+    const bool hLeft = side == HSide::Left;
     const auto& a = doc.atoms[i];
     if (!a.label.isEmpty()) return drawAbbreviation(p, a, hLeft, st);
     QFont f = labelFont(st), sub = labelFont(st, 0.7);
@@ -96,10 +104,16 @@ static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, bo
     if (hydrogens > 0) {
         QString n = hydrogens > 1 ? QString::number(hydrogens) : QString();
         double hw = fm.horizontalAdvance("H"), nw = sm.horizontalAdvance(n);
-        double hx = hLeft ? x - hw - nw : right;
-        drawText(p, "H", {hx, base}, f);
-        if (!n.isEmpty()) drawText(p, n, {hx + hw, base + fm.capHeight() * 0.35}, sub);
-        if (!hLeft) right += hw + nw;
+        if (side == HSide::Below || side == HSide::Above) {
+            const double hx = a.pos.x() - (hw + nw) / 2, dy = fm.capHeight() * 1.35 * (side == HSide::Below ? 1 : -1);
+            drawText(p, "H", {hx, base + dy}, f);
+            if (!n.isEmpty()) drawText(p, n, {hx + hw, base + dy + fm.capHeight() * 0.35}, sub);
+        } else {
+            double hx = hLeft ? x - hw - nw : right;
+            drawText(p, "H", {hx, base}, f);
+            if (!n.isEmpty()) drawText(p, n, {hx + hw, base + fm.capHeight() * 0.35}, sub);
+            if (!hLeft) right += hw + nw;
+        }
     }
     if (a.charge) {
         QString c = QString(a.charge > 0 ? "+" : "−");
@@ -341,10 +355,17 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         const auto& a = doc.atoms[i];
         p.setPen(QPen(info[i].valenceError ? style.error : ink(a.color), lineWidth));
         if (labeled[i]) {
-            // H goes on the side away from the bonds.
+            // H goes on the side away from the bonds; if bonds leave from both
+            // left and right, above or below, whichever is clear.
             double dx = 0;
-            for (int nb : doc.neighbors(int(i))) dx += doc.atoms[nb].pos.x() - a.pos.x();
-            drawLabel(p, doc, int(i), info[i].hydrogens, dx > 0.1, st);
+            bool left = false, right = false, up = false;
+            for (int nb : doc.neighbors(int(i))) {
+                const QPointF d = doc.atoms[nb].pos - a.pos;
+                dx += d.x();
+                left |= d.x() < -0.3 * kBondLength, right |= d.x() > 0.3 * kBondLength, up |= d.y() < -0.3 * kBondLength;
+            }
+            const HSide side = left && right ? (up ? HSide::Below : HSide::Above) : dx > 0.1 ? HSide::Left : HSide::Right;
+            drawLabel(p, doc, int(i), doc.hideImplicitH ? 0 : info[i].hydrogens, side, st);
         } else if (a.charge) {
             QFont sub = labelFont(st, 0.7);
             QString c = QString(a.charge > 0 ? "+" : "−");
@@ -372,9 +393,14 @@ QRectF documentBounds(const Document& doc) {
         lo = {std::min(lo.x(), r.left()), std::min(lo.y(), r.top())};
         hi = {std::max(hi.x(), r.right()), std::max(hi.y(), r.bottom())};
     };
-    for (const auto& a : doc.atoms) {  // room for labels, which can run either way
+    std::vector<int> degree(doc.atoms.size(), 0);
+    for (const auto& b : doc.bonds) ++degree[b.a], ++degree[b.b];
+    for (size_t i = 0; i < doc.atoms.size(); ++i) {  // room for labels, which can run either way
+        const Atom& a = doc.atoms[i];
         double w = fs * std::max(1.5, 0.7 * a.label.size());
-        grow(QRectF(a.pos, a.pos).adjusted(-w, -fs, w, fs));
+        // A labelled atom with bonds on both sides may stack its H above or below.
+        double h = fs * (degree[i] >= 2 && hasLabel(doc, int(i), degree) ? 2.2 : 1);
+        grow(QRectF(a.pos, a.pos).adjusted(-w, -h, w, h));
     }
     for (const auto& a : doc.arrows) grow(arrowPath(a).boundingRect().adjusted(-4, -4, 4, 4));
     for (const auto& t : doc.texts) grow(textPath(t, st).boundingRect().adjusted(-2, -2, 2, 2));

@@ -25,6 +25,7 @@
 #include <QFrame>
 #include <QDir>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QStyle>
@@ -712,6 +713,12 @@ void MainWindow::buildMenus() {
     arrange->addAction(tr("Distribute &Horizontally"), this, [this] { canvas_->distributeSelection(true); });
     arrange->addAction(tr("Distribute &Vertically"), this, [this] { canvas_->distributeSelection(false); });
     structure->addSeparator();
+    structure->addAction(tr("Add Explicit &Hydrogens"), this, [this] {
+        canvas_->commit(chem::addHydrogens(canvas_->document()), tr("Add hydrogens"));
+    });
+    structure->addAction(tr("Remove Explicit Hydro&gens"), this, [this] {
+        canvas_->commit(chem::removeHydrogens(canvas_->document()), tr("Remove hydrogens"));
+    });
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         const auto& sel = canvas_->selection();  // selected molecules only, else everything
         canvas_->commit(chem::clean2D(canvas_->document(), {sel.begin(), sel.end()}), tr("Clean"));
@@ -747,6 +754,37 @@ void MainWindow::buildMenus() {
     view->addAction(tr("Zoom &In"), QKeySequence::ZoomIn, this, [this] { canvas_->zoomBy(1.25); });
     view->addAction(tr("Zoom &Out"), QKeySequence::ZoomOut, this, [this] { canvas_->zoomBy(0.8); });
     view->addAction(tr("&Fit to Window"), QKeySequence(tr("Ctrl+0")), canvas_, &Canvas::fitToDocument);
+    // Display options belong to the document (saved, and in exports), so changing one is an edit.
+    auto setDisplay = [this](auto change, const QString& what) {
+        Document next = canvas_->document();
+        change(next);
+        if (!(next == canvas_->document())) canvas_->commit(next, what);
+    };
+    auto* carbons = view->addMenu(tr("&Carbon Labels"));
+    auto* carbonGroup = new QActionGroup(carbons);
+    using CL = Document::CarbonLabels;
+    for (auto [text, mode] : {std::pair{tr("&None (skeletal)"), CL::None}, {tr("&Terminal CH₃"), CL::Terminal},
+                              {tr("&All Carbons"), CL::All}}) {
+        auto* a = carbons->addAction(text, this, [=] {
+            setDisplay([mode](Document& d) { d.carbonLabels = mode; }, tr("Carbon labels"));
+        });
+        a->setCheckable(true);
+        a->setData(int(mode));
+        carbonGroup->addAction(a);
+    }
+    auto* implicitH = view->addAction(tr("Show &Implicit Hydrogens"));
+    implicitH->setCheckable(true);
+    connect(implicitH, &QAction::triggered, this, [=](bool on) {
+        setDisplay([on](Document& d) { d.hideImplicitH = !on; }, tr("Implicit hydrogens"));
+    });
+    connect(canvas_, &Canvas::documentChanged, this, [this, carbonGroup, implicitH] {
+        for (auto* a : carbonGroup->actions()) a->setChecked(a->data().toInt() == int(canvas_->document().carbonLabels));
+        QSignalBlocker quiet(implicitH);
+        implicitH->setChecked(!canvas_->document().hideImplicitH);
+    });
+    implicitH->setChecked(true);
+    carbonGroup->actions().first()->setChecked(true);
+    view->addSeparator();
     auto* themeMenu = view->addMenu(tr("&Theme"));
     auto* themeGroup = themeGroup_ = new QActionGroup(this);
     const QString current = QSettings().value("theme", "System").toString();

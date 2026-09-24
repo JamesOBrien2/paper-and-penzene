@@ -30,6 +30,11 @@ std::string toInchiKey(const Document& doc);
 // Smallest set of smallest rings, each in ring order (abbreviations excluded).
 std::vector<std::vector<int>> rings(const Document& doc);
 
+// Explicit hydrogens: add them where atoms have implicit ones (placed by RDKit),
+// or remove plain terminal H atoms again (wedged/hashed ones carry stereo, so stay).
+Document addHydrogens(const Document& doc);
+Document removeHydrogens(const Document& doc);
+
 struct AtomInfo {
     int hydrogens = 0;
     bool valenceError = false;

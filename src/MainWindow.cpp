@@ -16,6 +16,9 @@
 #include <QListWidget>
 #include <QDialogButtonBox>
 #include <QDialog>
+#include <QVBoxLayout>
+#include <QPushButton>
+#include <QDockWidget>
 #include <QFileInfo>
 #include <QInputDialog>
 #include <memory>
@@ -52,6 +55,26 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     setCentralWidget(canvas_);
     setWindowTitle("Penzene");
     resize(1100, 750);
+    // Properties panel (built before the menus, which offer its toggle): descriptors for the selection or everything.
+    profileDock_ = new QDockWidget(tr("Properties"), this);
+    profileDock_->setObjectName("properties");
+    auto* panel = new QWidget;
+    auto* panelLayout = new QVBoxLayout(panel);
+    profile_ = new QLabel;
+    profile_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    profile_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    auto* copyProfile = new QPushButton(tr("Copy as Text"));
+    connect(copyProfile, &QPushButton::clicked, this, [this] { QApplication::clipboard()->setText(profileText_); });
+    panelLayout->addWidget(profile_);
+    panelLayout->addWidget(copyProfile);
+    panelLayout->addStretch();
+    panel->setMinimumWidth(300);  // room for the values beside their names
+    profileDock_->setWidget(panel);
+    addDockWidget(Qt::RightDockWidgetArea, profileDock_);
+    profileDock_->hide();
+    connect(profileDock_, &QDockWidget::visibilityChanged, this, &MainWindow::updateProfile);
+    connect(canvas_, &Canvas::documentChanged, this, &MainWindow::updateProfile);
+    connect(canvas_, &Canvas::selectionChanged, this, &MainWindow::updateProfile);
     buildTools();
     buildMenus();
     connect(undo_, &QUndoStack::cleanChanged, this, &MainWindow::updateTitle);
@@ -61,9 +84,47 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     statusBar()->addPermanentWidget(info_);
     connect(canvas_, &Canvas::documentChanged, this, &MainWindow::updateInfo);
     connect(canvas_, &Canvas::selectionChanged, this, &MainWindow::updateInfo);
+
     auto* autosaver = new QTimer(this);
     connect(autosaver, &QTimer::timeout, this, &MainWindow::autosave);
     autosaver->start(60 * 1000);
+}
+
+void MainWindow::updateProfile() {
+    if (!profileDock_->isVisible()) return;
+    const auto p = chem::profile(canvas_->selectedSubset());
+    if (!p) {
+        profile_->setText(tr("Draw or select a valid structure."));
+        profileText_.clear();
+        return;
+    }
+    QString formula = QString::fromStdString(p->basic.formula).toHtmlEscaped();
+    formula.replace(QRegularExpression("(\\d+)"), "<sub>\\1</sub>");
+    QStringList analysis, plain;
+    for (const auto& [el, pct] : p->elemental) {
+        analysis << QString("%1 %2").arg(QString::fromStdString(el)).arg(pct, 0, 'f', 2);
+    }
+    const QList<std::pair<QString, QString>> rows{
+        {tr("Formula"), formula},
+        {tr("MW"), QString::number(p->basic.mw, 'f', 2)},
+        {tr("Exact mass"), QString::number(p->basic.exactMass, 'f', 4)},
+        {tr("Elemental (%)"), analysis.join(", ")},
+        {tr("cLogP"), QString::number(p->logP, 'f', 2)},
+        {tr("TPSA (Å²)"), QString::number(p->tpsa, 'f', 1)},
+        {tr("H-bond donors"), QString::number(p->hbd)},
+        {tr("H-bond acceptors"), QString::number(p->hba)},
+        {tr("Rotatable bonds"), QString::number(p->rotatable)},
+        {tr("Heavy atoms"), QString::number(p->heavyAtoms)},
+        {tr("Lipinski (Ro5)"), p->lipinskiViolations ? tr("%n violation(s)", "", p->lipinskiViolations) : tr("passes")},
+        {tr("Veber"), p->veber ? tr("passes") : tr("fails")},
+    };
+    QString html = "<table cellspacing='4'>";
+    for (const auto& [k, v] : rows) {
+        html += QString("<tr><td><b>%1</b></td><td>%2</td></tr>").arg(k, v);
+        plain << k + "\t" + QString(v).remove(QRegularExpression("<[^>]*>"));
+    }
+    profile_->setText(html + "</table>");
+    profileText_ = plain.join("\n");
 }
 
 // Formula and masses of the selection, or of everything.
@@ -858,6 +919,10 @@ void MainWindow::buildMenus() {
         if (!(next == canvas_->document())) canvas_->commit(next, tr("Toggle aromatic circles"));
     });
     view->addSeparator();
+    auto* panelToggle = profileDock_->toggleViewAction();
+    panelToggle->setText(tr("&Properties Panel"));
+    panelToggle->setShortcut(QKeySequence(tr("Ctrl+I")));
+    view->addAction(panelToggle);
     auto* themeMenu = view->addMenu(tr("&Theme"));
     auto* themeGroup = themeGroup_ = new QActionGroup(this);
     const QString current = QSettings().value("theme", "System").toString();

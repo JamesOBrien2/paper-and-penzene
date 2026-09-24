@@ -38,6 +38,7 @@ private:
     void paste();
     void updateTitle();
     void updateInfo();
+    void updateProfile();  // the Properties panel, while it's visible
     void applyTheme(const QString& name);
     void remember(const QString& path);  // most recent first, at most 10
 
@@ -46,5 +47,8 @@ private:
     QString path_;
     QLabel* info_;
     class QActionGroup* themeGroup_ = nullptr;
+    class QDockWidget* profileDock_;
+    QLabel* profile_;
+    QString profileText_;  // plain-text copy of the panel, for the Copy button
     std::vector<std::pair<QAction*, std::function<QIcon()>>> icons_;
 };

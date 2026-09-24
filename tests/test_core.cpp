@@ -352,3 +352,24 @@ TEST_CASE("aromatic circles preserve chemistry and survive save/load (#98)") {
         CHECK(exportDocument(*pyridine, QString::fromUtf8(prefix) + "-pyridine.png", 150, Qt::white));
     }
 }
+
+TEST_CASE("properties panel profile for aspirin (#96)") {
+    auto p = chem::profile(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O"));
+    REQUIRE(p);
+    INFO("logP " << p->logP << " tpsa " << p->tpsa << " hbd " << p->hbd << " hba " << p->hba << " rot " << p->rotatable);
+    CHECK(p->basic.formula == "C9H8O4");
+    CHECK(std::abs(p->logP - 1.31) < 0.01);   // Crippen
+    CHECK(std::abs(p->tpsa - 63.6) < 0.1);
+    CHECK(p->hbd == 1);
+    CHECK(p->hba == 3);
+    CHECK(p->rotatable == 2);
+    CHECK(p->heavyAtoms == 13);
+    REQUIRE(p->elemental.size() == 3);   // C, H, O in Hill order
+    CHECK(p->elemental[0].first == "C");
+    CHECK(std::abs(p->elemental[0].second - 60.00) < 0.01);
+    CHECK(std::abs(p->elemental[1].second - 4.48) < 0.01);
+    CHECK(p->elemental[2].first == "O");
+    CHECK(p->lipinskiViolations == 0);
+    CHECK(p->veber);
+    CHECK_FALSE(chem::profile(Document{}));
+}

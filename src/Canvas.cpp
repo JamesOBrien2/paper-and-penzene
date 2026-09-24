@@ -506,6 +506,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             what = tr("Erase");
             break;
         case Tool::Text:
+            if (pressAtom_ >= 0) return editLabel(pressAtom_);
             return editText(textAt(pressPos_), pressPos_);
         case Tool::Colour: {
             // Paint what was clicked; clicking it again in the same colour clears it.
@@ -751,14 +752,14 @@ void Canvas::moveHotspot(QPointF dir, bool jump) {
 void Canvas::editLabel(int at) {
     bool ok = false;
     QString label = QInputDialog::getText(this, tr("Atom label"),
-                                          tr("Element, group (OMe, CF3, Ph, Boc…) or SMILES:"), QLineEdit::Normal,
+                                          tr("Element, group (OMe, CF3, Ph, Boc…), SMILES or any text (R, X, MgEt):"), QLineEdit::Normal,
                                           doc_.atoms[at].label.isEmpty()
                                               ? QString::fromStdString(chem::symbol(doc_.atoms[at].z))
                                               : doc_.atoms[at].label,
                                           &ok)
                         .trimmed();
     Document next = doc_;
-    if (ok && !label.isEmpty() && applyLabel(next, at, label)) commit(next, tr("Edit label"));
+    if (ok && !label.isEmpty() && applyLabel(next, at, label, true)) commit(next, tr("Edit label"));
 }
 
 void Canvas::expandAbbreviations() {
@@ -864,7 +865,8 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
     const QString t = e->text();
     Document next = doc_;
 
-    if (hoverAtom_ >= 0 && (key == Qt::Key_Return || key == Qt::Key_Enter || t == "=")) return editLabel(hoverAtom_);
+    if (hoverAtom_ >= 0 && (key == Qt::Key_Return || key == Qt::Key_Enter || t == "=" || t == "t"))
+        return editLabel(hoverAtom_);
     if (hoverAtom_ < 0 && hoverBond_ < 0) {  // no hotspot: tool keys
         static const QStringList tools{"x", "X", "j", "t", "e", " "};
         if (tools.contains(t)) return emit toolKey(t);

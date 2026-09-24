@@ -123,15 +123,15 @@ TEST_CASE("clean lays out each fragment in place and keeps arrows and text") {
 }
 
 TEST_CASE("formula, weights and InChI") {
-    auto caffeine = chem::fromSmiles("CN1C=NC2=C1C(=O)N(C(=O)N2C)C");
-    REQUIRE(caffeine);
-    auto p = chem::properties(*caffeine);
+    auto aspirin = chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    REQUIRE(aspirin);
+    auto p = chem::properties(*aspirin);
     REQUIRE(p);
-    CHECK(p->formula == "C8H10N4O2");
-    CHECK(std::abs(p->mw - 194.194) < 0.01);
-    CHECK(std::abs(p->exactMass - 194.0804) < 0.001);
-    CHECK(chem::toInchiKey(*caffeine) == "RYYVLZVUVIJVGH-UHFFFAOYSA-N");
-    CHECK(chem::toInchi(*caffeine).rfind("InChI=1S/C8H10N4O2/", 0) == 0);
+    CHECK(p->formula == "C9H8O4");
+    CHECK(std::abs(p->mw - 180.159) < 0.01);
+    CHECK(std::abs(p->exactMass - 180.0423) < 0.001);
+    CHECK(chem::toInchiKey(*aspirin) == "BSYNRYMUTXBXSQ-UHFFFAOYSA-N");
+    CHECK(chem::toInchi(*aspirin).rfind("InChI=1S/C9H8O4/", 0) == 0);
     CHECK_FALSE(chem::properties(Document{}));
 }
 

@@ -891,6 +891,19 @@ void MainWindow::buildMenus() {
         QSignalBlocker quiet(stereo);
         stereo->setChecked(canvas_->document().showStereo);
     });
+    auto* numbers = view->addAction(tr("Atom &Numbers"));
+    numbers->setCheckable(true);
+    numbers->setStatusTip(tr("Number every atom; ' on an atom sets its reaction map number"));
+    connect(numbers, &QAction::toggled, this, [this](bool on) {
+        if (canvas_->document().showAtomNumbers == on) return;
+        Document next = canvas_->document();
+        next.showAtomNumbers = on;
+        canvas_->commit(next, on ? tr("Show atom numbers") : tr("Hide atom numbers"));
+    });
+    connect(canvas_, &Canvas::documentChanged, numbers, [this, numbers] {
+        QSignalBlocker quiet(numbers);
+        numbers->setChecked(canvas_->document().showAtomNumbers);
+    });
     auto* circles = view->addAction(tr("&Aromatic Circles"));
     circles->setCheckable(true);
     connect(circles, &QAction::toggled, this, [this](bool on) {

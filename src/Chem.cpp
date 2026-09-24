@@ -107,6 +107,8 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
         const auto& a = doc.atoms[i];
         auto* atom = new RDKit::Atom(a.z);
         atom->setFormalCharge(a.charge);
+        // Not setAtomMapNum: it logs through rdErrorLog, which the Windows DLL doesn't export.
+        if (a.map > 0) atom->setProp(RDKit::common_properties::molAtomMapNumber, a.map);
         mol->addAtom(atom, true, true);
         conf->setAtomPos(i, {a.pos.x() / kScale, -a.pos.y() / kScale, 0});
     }
@@ -172,7 +174,7 @@ static Document fromRDKit(RWMol& mol, double scale = 0) {
     for (const auto* a : mol.atoms()) {
         const auto& p = conf.getAtomPos(a->getIdx());
         doc.atoms.push_back({QPointF(p.x * scale, -p.y * scale), int(a->getAtomicNum()),
-                             a->getFormalCharge()});
+                             a->getFormalCharge(), {}, {}, int(a->getAtomMapNum())});
     }
     for (const auto* b : mol.bonds()) {
         Bond out{int(b->getBeginAtomIdx()), int(b->getEndAtomIdx())};

@@ -375,6 +375,12 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
             doc.atoms[at].charge += t == "+" ? 1 : -1;
             return h;
         }
+        if (t == "'") {  // atom-map number: the next free one, or off again
+            int next = 0;
+            for (const auto& a : doc.atoms) next = std::max(next, a.map);
+            doc.atoms[at].map = doc.atoms[at].map ? 0 : next + 1;
+            return h;
+        }
         int hot = sproutHotkey(doc, at, t);
         if (hot == kUnhandled) {
             QString label = labelHotkey(t);

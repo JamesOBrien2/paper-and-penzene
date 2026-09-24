@@ -18,6 +18,7 @@ QByteArray Document::toJson() const {
         if (a.charge) o["charge"] = a.charge;
         if (!a.label.isEmpty()) o["label"] = a.label;
         if (a.color.isValid()) o["color"] = a.color.name();
+        if (a.map) o["map"] = a.map;
         as.append(o);
     }
     for (const auto& b : bonds) {
@@ -55,6 +56,7 @@ QByteArray Document::toJson() const {
     if (carbonLabels != CarbonLabels::None) root["carbonLabels"] = carbonLabels == CarbonLabels::All ? "all" : "terminal";
     if (hideImplicitH) root["hideImplicitH"] = true;
     if (showStereo) root["showStereo"] = true;
+    if (showAtomNumbers) root["showAtomNumbers"] = true;
     if (aromaticCircles) root["aromaticCircles"] = true;
     QJsonArray circleOverrides;
     for (const auto& ring : aromaticCircleOverrides) {
@@ -78,12 +80,13 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
                                                : Document::CarbonLabels::None;
     doc.hideImplicitH = root["hideImplicitH"].toBool();
     doc.showStereo = root["showStereo"].toBool();
+    doc.showAtomNumbers = root["showAtomNumbers"].toBool();
     doc.aromaticCircles = root["aromaticCircles"].toBool();
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),
                              o["z"].toInt(6), o["charge"].toInt(), o["label"].toString(),
-                             QColor(o["color"].toString())});
+                             QColor(o["color"].toString()), std::max(0, o["map"].toInt())});
     }
     const int n = int(doc.atoms.size());
     for (const auto& v : root["bonds"].toArray()) {

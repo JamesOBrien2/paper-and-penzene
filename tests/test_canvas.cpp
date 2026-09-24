@@ -1016,3 +1016,11 @@ TEST_CASE("PubChem name lookup: URL and response parsing (#28)") {
     CHECK(pubchem::property(R"({"Fault": {"Code": "PUGREST.NotFound"}})", "SMILES").isEmpty());
     CHECK(pubchem::property("not json", "SMILES").isEmpty());
 }
+
+TEST_CASE("PubChem structure lookup: POSTed SMILES and the IUPAC name (#27)") {
+    CHECK(pubchem::smilesToNameUrl().toString() ==
+          "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/property/IUPACName/JSON");
+    CHECK(pubchem::smilesToNameForm("C#N/C=C/O") == "smiles=C%23N%2FC%3DC%2FO");
+    CHECK(pubchem::property(R"({"PropertyTable": {"Properties": [{"CID": 2244, "IUPACName": "2-acetyloxybenzoic acid"}]}})",
+                            "IUPACName") == "2-acetyloxybenzoic acid");
+}

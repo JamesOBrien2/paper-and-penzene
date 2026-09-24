@@ -830,6 +830,23 @@ void MainWindow::buildMenus() {
     structure->addAction(tr("Remove Explicit Hydro&gens"), this, [this] {
         canvas_->commit(chem::removeHydrogens(canvas_->document()), tr("Remove hydrogens"));
     });
+    structure->addAction(tr("&Name from PubChem"), this, [this] {
+        const Document doc = canvas_->selectedSubset();
+        if (doc.atoms.empty()) return;
+        QString error;
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        const QString smiles = QString::fromStdString(chem::toSmiles(doc));
+        const QString name = pubchem::fetch(pubchem::smilesToNameUrl(), "IUPACName", &error,
+                                            pubchem::smilesToNameForm(smiles));
+        QApplication::restoreOverrideCursor();
+        if (name.isEmpty()) {
+            QMessageBox::warning(this, tr("Name from PubChem"),
+                                 tr("No name for %1: %2").arg(smiles, error.isEmpty() ? tr("PubChem has no match.") : error));
+            return;
+        }
+        QApplication::clipboard()->setText(name);
+        QMessageBox::information(this, tr("Name from PubChem"), tr("%1\n\n(copied to the clipboard)").arg(name));
+    });
     structure->addAction(tr("Chec&k Structure…"), QKeySequence(tr("Ctrl+Alt+K")), this, [this] { checkStructure(); });
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         const auto& sel = canvas_->selection();  // selected molecules only, else everything

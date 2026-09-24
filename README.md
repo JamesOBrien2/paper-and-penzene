@@ -37,6 +37,26 @@ penzene --render library.sdf hits.smi --out figs --format png --drawing-style RS
 
 Inputs can be SMILES strings or `.smi`, `.sdf`, `.mol`, `.penz` and `.cdxml` files. In a `.smi` or `.sdf`, every record becomes its own file, named after the record's name. The paths written are printed one per line. On macOS the binary is `Penzene.app/Contents/MacOS/penzene`.
 
+## Python
+
+The same engine as the app, from Python 3.12+ on macOS, Linux (glibc 2.17+) and Windows:
+
+Until it is on PyPI, download the `.whl` for your platform from the [latest release](https://github.com/JamesOBrien2/penzene/releases/latest) and install it:
+
+```sh
+pip install penzene-*.whl
+```
+
+```python
+import penzene as pz
+doc = pz.from_smiles("CC(=O)Oc1ccccc1C(=O)O")   # aspirin
+doc.clean(); doc.export("aspirin.svg")          # identical to the app's export
+doc.formula, doc.mw                             # ('C9H8O4', 180.16)
+doc                                             # renders inline in Jupyter
+```
+
+More in [python/README.md](python/README.md).
+
 ## Build
 
 Requires [pixi](https://pixi.sh). It fetches Qt, RDKit and the toolchain from conda-forge.
@@ -52,9 +72,16 @@ pixi run install-app   # macOS: self-contained app in ~/Applications
 
 | Milestone | Highlights |
 |---|---|
-| v0.1 | Draw atoms/bonds/rings, undo, MOL/SDF + `.penz`, SMILES paste, Clean, SVG/PNG/PDF export, clipboard |
-| v0.2 | Dark/light mode, Catppuccin themes, ring fill, text, arrows, formula/MW, InChI, CDXML import |
-| Later | Structure → name, name → structure, style presets, templates, printing |
+| v0.1–v0.3 | Drawing and ChemDraw hotkeys, MOL/SDF/`.penz`, SMILES, Clean, SVG/PNG/PDF; schemes (arrows, text), abbreviations, formula/MW/InChI, CDXML import; themes, ring fill, ACS/JDP/RSC styles |
+| v0.4 | Python package (`import penzene`), batch command line |
+| v0.5 | Polish and correctness: flip/align, context menus, colouring, preferences, autosave |
+| v0.6 | Chemistry: stereo labels, structure checks, properties panel, name ↔ structure |
+| v0.7 | Interop: editable exports, reactions, more formats, paste from ChemDraw |
+| v0.8 | Templates, brackets and electron dots, shapes, projections |
+| v0.9 | Beta: documentation site, signed installers, PyPI, accessibility |
+| v1.0 | Stable `.penz` format and Python API |
+
+Details and progress on the [project board](https://github.com/users/JamesOBrien2/projects/1).
 
 ## Acknowledgements
 

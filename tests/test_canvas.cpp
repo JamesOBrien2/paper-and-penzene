@@ -588,3 +588,42 @@ TEST_CASE("curved arrows are circular arcs, exact past 180 degrees (#86)") {
     QPointF mid = arrowPath({{0, 0}, {40, 0}, ArrowKind::Reaction, 8}).pointAtPercent(0.5);
     CHECK(std::abs(mid.y() + 8) < 0.2);
 }
+
+TEST_CASE("flip mirrors (enantiomer with wedges kept), align and distribute (#87)") {
+    Fixture f;
+    auto ala = chem::fromSmiles("C[C@H](N)C(=O)O");
+    REQUIRE(ala);
+    Document d = *ala;
+    d.arrows.push_back({{60, 0}, {100, 0}, ArrowKind::Reaction, 10});
+    int dbl = -1;
+    for (int i = 0; i < int(d.bonds.size()); ++i)
+        if (d.bonds[i].order == 2) dbl = i;
+    d.bonds[dbl].position = BondPosition::Left;
+    f.canvas.setDocumentSilently(d);
+    const std::string before = chem::toSmiles(f.doc());
+    f.canvas.flipSelection(true);
+    CHECK(chem::toSmiles(f.doc()) == chem::toSmiles(*chem::fromSmiles("C[C@@H](N)C(=O)O")));  // mirror image
+    CHECK(f.doc().bonds[dbl].position == BondPosition::Right);
+    CHECK(f.doc().arrows[0].bend == -10);
+    f.canvas.flipSelection(true);  // flipping back restores everything
+    CHECK(chem::toSmiles(f.doc()) == before);
+    for (size_t i = 0; i < d.atoms.size(); ++i)
+        CHECK(std::hypot(f.doc().atoms[i].pos.x() - d.atoms[i].pos.x(), f.doc().atoms[i].pos.y() - d.atoms[i].pos.y()) < 1e-6);
+
+    // Three methanols at uneven spacing and heights.
+    Document three;
+    for (double x : {0.0, 30.0, 100.0}) {
+        int c = three.addAtom({x, x / 5});
+        int o = three.addAtom({x + kBondLength, x / 5}, 8);
+        three.bonds.push_back({c, o});
+    }
+    f.canvas.setDocumentSilently(three);
+    f.canvas.alignSelection(Canvas::Align::Top);
+    for (int i = 0; i < 6; ++i) CHECK(std::abs(f.doc().atoms[i].pos.y() - f.doc().atoms[0].pos.y()) < 1e-6);
+    f.canvas.distributeSelection(true);
+    const double gap1 = f.doc().atoms[2].pos.x() - f.doc().atoms[1].pos.x();
+    const double gap2 = f.doc().atoms[4].pos.x() - f.doc().atoms[3].pos.x();
+    CHECK(std::abs(gap1 - gap2) < 1e-6);
+    CHECK(std::abs(f.doc().atoms[0].pos.x()) < 1e-9);  // outermost objects stay put
+    CHECK(std::abs(f.doc().atoms[4].pos.x() - 100) < 1e-9);
+}

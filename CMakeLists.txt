@@ -42,8 +42,8 @@ target_link_libraries(penzene_tests PRIVATE penzene_ui Qt6::Test Catch2::Catch2W
 add_test(NAME core COMMAND penzene_tests)
 add_test(NAME version COMMAND penzene --version)
 # Batch CLI: a MOL file and a SMILES into a directory, RSC style, freshly laid out.
-add_test(NAME render COMMAND penzene --render ${CMAKE_SOURCE_DIR}/tests/data/caffeine.mol CCO
+add_test(NAME render COMMAND penzene --render ${CMAKE_SOURCE_DIR}/tests/data/aspirin.mol CCO
          --out ${CMAKE_BINARY_DIR}/render-test --format png --drawing-style RSC --clean)
 set_tests_properties(render PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen
-                     PASS_REGULAR_EXPRESSION "caffeine\\.png.*structure\\.png")
+                     PASS_REGULAR_EXPRESSION "aspirin\\.png.*structure\\.png")
 target_compile_definitions(penzene_tests PRIVATE PENZENE_TEST_DATA="${CMAKE_SOURCE_DIR}/tests/data")

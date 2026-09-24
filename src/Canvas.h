@@ -33,6 +33,8 @@ public:
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     void rotateSelection(double degrees);
+    // `t` (rotate, scale, stretch) about the selection's centre; everything if nothing is selected.
+    void transformSelection(const QTransform& t, const QString& what);
     void duplicateSelection(QPointF dir);
     void flipSelection(bool horizontal);  // mirror image, as ChemDraw's flip
     enum class Align { Left, HCentre, Right, Top, VCentre, Bottom };
@@ -108,7 +110,12 @@ private:
     int hoverAtom_ = -1, hoverBond_ = -1;
 
     // Drag state
-    enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan } drag_ = Drag::None;
+    enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan, Scale } drag_ = Drag::None;
+    // Scale handles around the selection: corners scale, edges stretch along one axis.
+    QRectF selectionBox() const;  // empty unless something with extent is selected
+    int handleAt(QPointF p) const;  // 0..7 clockwise from the top-left corner, or -1
+    int scaleHandle_ = -1;
+    QRectF scaleBox_;
     QPointF pressPos_, curPos_;
     bool shift_ = false;  // held during the drag: free bond angle, or move along one axis
     int pressAtom_ = -1;

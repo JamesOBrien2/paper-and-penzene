@@ -10,6 +10,7 @@
 #include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QMenu>
+#include <array>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -101,6 +102,27 @@ static QSet<int> range(int from, int to) {
     for (int i = from; i < to; ++i) out.insert(i);
     return out;
 }
+
+// Positions only: labels, text and line widths keep their size. Arrows keep
+// their curve's shape (its bend scales with the drawing, and flips with a mirror).
+static void applyTransform(Document& d, const QSet<int>& atoms, const QSet<int>& arrows, const QSet<int>& texts,
+                           const QTransform& t) {
+    for (int i : atoms) d.atoms[i].pos = t.map(d.atoms[i].pos);
+    for (int i : arrows) {
+        Arrow& a = d.arrows[i];
+        const double oldLen = len(a.to - a.from);
+        a.from = t.map(a.from), a.to = t.map(a.to);
+        if (oldLen > 1e-9) a.bend *= len(a.to - a.from) / oldLen * (t.determinant() < 0 ? -1 : 1);
+    }
+    for (int i : texts) d.texts[i].pos = t.map(d.texts[i].pos);
+}
+
+static std::array<QPointF, 8> handlePoints(const QRectF& r) {
+    const QPointF c = r.center();
+    return {r.topLeft(), {c.x(), r.top()}, r.topRight(), {r.right(), c.y()},
+            r.bottomRight(), {c.x(), r.bottom()}, r.bottomLeft(), {r.left(), c.y()}};
+}
+
 
 void Canvas::selectAll() {
     setSelection(range(0, int(doc_.atoms.size())), range(0, int(doc_.arrows.size())), range(0, int(doc_.texts.size())));
@@ -214,6 +236,17 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
         p->drawLine(doc_.atoms[b.a].pos, doc_.atoms[b.b].pos);
     }
 
+    if (tool_ == Tool::Select && (drag_ == Drag::None || drag_ == Drag::Scale)) {
+        if (const QRectF box = selectionBox(); !box.isNull()) {
+            p->setBrush(Qt::NoBrush);
+            p->setPen(QPen(line, 0, Qt::DotLine));
+            p->drawRect(box);
+            p->setPen(QPen(line, 0));
+            p->setBrush(theme_.paper);
+            const double s = 2.5 / transform().m11();
+            for (QPointF h : handlePoints(box)) p->drawRect(QRectF(h - QPointF(s, s), h + QPointF(s, s)));
+        }
+    }
     p->setBrush(Qt::NoBrush);
     if (drag_ == Drag::Rubber) {
         p->setPen(QPen(line, 0, Qt::DashLine));
@@ -330,6 +363,10 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
 
     switch (tool_) {
     case Tool::Select: {
+        if (int h = handleAt(pressPos_); h >= 0) {  // a scale handle wins over what's under it
+            drag_ = Drag::Scale, scaleHandle_ = h, scaleBox_ = selectionBox();
+            break;
+        }
         const int arrow = pressAtom_ < 0 && bond < 0 ? arrowAt(pressPos_) : -1;
         const int text = pressAtom_ < 0 && bond < 0 && arrow < 0 ? textAt(pressPos_) : -1;
         const bool shift = e->modifiers() & Qt::ShiftModifier;
@@ -407,6 +444,26 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
         refresh();
         return;
     }
+    if (drag_ == Drag::Scale) {
+        const auto h = handlePoints(scaleBox_);
+        const QPointF anchor = h[(scaleHandle_ + 4) % 8], from = h[scaleHandle_] - anchor, to = curPos_ - anchor;
+        auto factor = [](double want, double had) { return std::abs(had) < 1e-9 ? 1.0 : std::max(0.05, want / had); };
+        double sx = 1, sy = 1;
+        if (scaleHandle_ % 2 == 0) {  // corner: uniform, along the diagonal
+            sx = sy = std::max(0.05, QPointF::dotProduct(to, from) / QPointF::dotProduct(from, from));
+        } else if (scaleHandle_ == 1 || scaleHandle_ == 5) {
+            sy = factor(to.y(), from.y());
+        } else {
+            sx = factor(to.x(), from.x());
+        }
+        Document next = beforeDrag_;
+        applyTransform(next, selectedAtoms_, selectedArrows_, selectedTexts_,
+                       QTransform::fromTranslate(-anchor.x(), -anchor.y()) * QTransform::fromScale(sx, sy) *
+                           QTransform::fromTranslate(anchor.x(), anchor.y()));
+        doc_ = next;
+        refresh();
+        return;
+    }
     if (drag_ == Drag::Bond || drag_ == Drag::Chain) preview_ = dragPath();
     if (drag_ == Drag::None) {
         // The hotspot sticks until the cursor reaches another atom or bond, so
@@ -438,6 +495,14 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
     const bool wedge = stereo == BondStereo::Wedge || stereo == BondStereo::Hash;
     const int order = wedge ? 1 : bondOrder_;
 
+    if (drag == Drag::Scale) {
+        if (!click) {
+            Document scaled = doc_;
+            doc_ = beforeDrag_;
+            commit(scaled, scaleHandle_ % 2 == 0 ? tr("Scale") : tr("Stretch"));
+        }
+        return;
+    }
     if (drag == Drag::Move || drag == Drag::Rotate) {
         if (!click) {
             Document moved = doc_;
@@ -713,17 +778,45 @@ void Canvas::distributeSelection(bool horizontal) {
 }
 
 void Canvas::rotateSelection(double degrees) {
-    Document next = doc_;
-    std::vector<QPointF*> pts;
-    for (int i : selectedAtoms_) pts.push_back(&next.atoms[i].pos);
-    for (int i : selectedArrows_) pts.push_back(&next.arrows[i].from), pts.push_back(&next.arrows[i].to);
-    for (int i : selectedTexts_) pts.push_back(&next.texts[i].pos);
+    if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return;
+    transformSelection(QTransform().rotate(degrees), tr("Rotate"));
+}
+
+void Canvas::transformSelection(const QTransform& t, const QString& what) {
+    QSet<int> atoms = selectedAtoms_, arrows = selectedArrows_, texts = selectedTexts_;
+    if (atoms.isEmpty() && arrows.isEmpty() && texts.isEmpty()) {
+        atoms = range(0, int(doc_.atoms.size())), arrows = range(0, int(doc_.arrows.size()));
+        texts = range(0, int(doc_.texts.size()));
+    }
+    std::vector<QPointF> pts;
+    for (int i : atoms) pts.push_back(doc_.atoms[i].pos);
+    for (int i : arrows) pts.push_back(doc_.arrows[i].from), pts.push_back(doc_.arrows[i].to);
+    for (int i : texts) pts.push_back(doc_.texts[i].pos);
     if (pts.empty()) return;
     QPointF c;
-    for (QPointF* p : pts) c += *p;
-    c /= double(pts.size());
-    for (QPointF* p : pts) *p = c + rotated(*p - c, degrees);
-    commit(next, tr("Rotate"));
+    for (QPointF p : pts) c += p / double(pts.size());
+    Document next = doc_;
+    applyTransform(next, atoms, arrows, texts, QTransform::fromTranslate(-c.x(), -c.y()) * t * QTransform::fromTranslate(c.x(), c.y()));
+    commit(next, what);
+}
+
+QRectF Canvas::selectionBox() const {
+    QPolygonF pts;
+    for (int i : selectedAtoms_) pts << doc_.atoms[i].pos;
+    for (int i : selectedArrows_) pts << doc_.arrows[i].from << doc_.arrows[i].to;
+    for (int i : selectedTexts_) pts << doc_.texts[i].pos;
+    const QRectF r = pts.boundingRect();
+    if (pts.size() < 2 || (r.width() < 1e-6 && r.height() < 1e-6)) return {};
+    return r.adjusted(-6, -6, 6, 6);  // clear of the atoms' labels' centres
+}
+
+int Canvas::handleAt(QPointF p) const {
+    const QRectF r = selectionBox();
+    if (r.isNull()) return -1;
+    const auto h = handlePoints(r);
+    for (int k = 0; k < 8; ++k)
+        if (len(h[k] - p) < 5 / transform().m11()) return k;
+    return -1;
 }
 
 // Arrow keys walk atom -> bond -> atom; with Shift, atom -> atom or bond -> bond.

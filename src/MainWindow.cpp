@@ -20,6 +20,7 @@
 #include <QListWidget>
 #include <QDialogButtonBox>
 #include <QDialog>
+#include <QDoubleSpinBox>
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QDockWidget>
@@ -939,6 +940,29 @@ void MainWindow::buildMenus() {
     auto* structure = menuBar()->addMenu(tr("&Structure"));
     structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
                          [this] { canvas_->flipSelection(true); });
+    structure->addAction(tr("&Transform…"), this, [this] {
+        QDialog dialog(this);
+        dialog.setWindowTitle(tr("Transform"));
+        auto* form = new QFormLayout(&dialog);
+        auto spin = [&](const QString& label, double lo, double hi, double value, const QString& suffix) {
+            auto* s = new QDoubleSpinBox;
+            s->setRange(lo, hi), s->setValue(value), s->setSuffix(suffix), s->setDecimals(1);
+            form->addRow(label, s);
+            return s;
+        };
+        auto* angle = spin(tr("Rotate:"), -360, 360, 0, "°");
+        auto* scale = spin(tr("Scale:"), 5, 1000, 100, "%");
+        auto* sx = spin(tr("Stretch across:"), 5, 1000, 100, "%");
+        auto* sy = spin(tr("Stretch up and down:"), 5, 1000, 100, "%");
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        form->addRow(buttons);
+        connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        if (dialog.exec() != QDialog::Accepted) return;
+        const double k = scale->value() / 100;
+        canvas_->transformSelection(QTransform().rotate(angle->value()).scale(k * sx->value() / 100, k * sy->value() / 100),
+                                    tr("Transform"));
+    });
     structure->addAction(tr("Flip &Vertical"), QKeySequence(tr("Ctrl+Shift+V")), this,
                          [this] { canvas_->flipSelection(false); });
     auto* arrange = structure->addMenu(tr("&Align and Distribute"));

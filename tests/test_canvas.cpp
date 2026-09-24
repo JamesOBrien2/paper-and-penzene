@@ -1201,3 +1201,37 @@ TEST_CASE("page mode: shown, saved, exported at page size (#105)") {
         w.grab().save(out);
     }
 }
+
+TEST_CASE("stretch, squash and transform a selection (#174)") {
+    Fixture f;
+    auto size = [](const Document& d) {
+        QPolygonF pts;
+        for (const auto& a : d.atoms) pts << a.pos;
+        return pts.boundingRect().size();
+    };
+    const Document benzene = *chem::fromSmiles("c1ccccc1");
+    f.canvas.setDocumentSilently(benzene);
+    const QSizeF before = size(f.doc());
+    f.canvas.transformSelection(QTransform::fromScale(1, 0.5), "Squash");  // nothing selected: everything
+    CHECK(std::abs(size(f.doc()).height() - before.height() / 2) < 0.01);
+    CHECK(std::abs(size(f.doc()).width() - before.width()) < 0.01);
+    CHECK(chem::toSmiles(f.doc()) == chem::toSmiles(benzene));
+    f.undo.undo();
+    CHECK(f.doc() == benzene);
+
+    // Handles: drag the bottom edge down to stretch, then a corner out to scale.
+    f.canvas.setTool(Canvas::Tool::Select);
+    f.canvas.selectAll();
+    QPolygonF pts;
+    for (const auto& a : f.doc().atoms) pts << a.pos;
+    const QRectF box = pts.boundingRect().adjusted(-6, -6, 6, 6);
+    const QPointF bottom(box.center().x(), box.bottom());
+    f.drag(bottom, bottom + QPointF(0, box.height()));
+    CHECK(std::abs(size(f.doc()).width() - before.width()) < 0.5);
+    CHECK(size(f.doc()).height() > 1.8 * before.height());
+    f.undo.undo();
+    f.canvas.selectAll();
+    f.drag(box.bottomRight(), box.bottomRight() + (box.bottomRight() - box.topLeft()));  // twice the diagonal
+    CHECK(std::abs(size(f.doc()).width() / before.width() - size(f.doc()).height() / before.height()) < 0.05);
+    CHECK(size(f.doc()).width() > 1.8 * before.width());
+}

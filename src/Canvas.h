@@ -106,6 +106,7 @@ private:
     // Drag state
     enum class Drag { None, Bond, Chain, Arrow, Move, Rotate, Rubber, Pan } drag_ = Drag::None;
     QPointF pressPos_, curPos_;
+    bool shift_ = false;  // held during the drag: free bond angle, or move along one axis
     int pressAtom_ = -1;
     Document beforeDrag_;
     QPoint panLast_;

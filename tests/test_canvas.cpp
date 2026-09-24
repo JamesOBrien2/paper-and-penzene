@@ -738,3 +738,40 @@ TEST_CASE("choosing a tool explains it in the status bar (#93)") {
     CHECK(w.statusBar()->currentMessage().startsWith("Chain"));
     CHECK(w.statusBar()->currentMessage().contains("drag"));
 }
+
+TEST_CASE("drop an atom on another to merge; Shift for free angles and straight moves (#88)") {
+    Fixture f;
+    auto drag = [&](QPointF from, QPointF to, Qt::KeyboardModifiers mods) {
+        QTest::mousePress(f.canvas.viewport(), Qt::LeftButton, {}, f.at(from));
+        QMouseEvent move(QEvent::MouseMove, f.at(to), f.canvas.viewport()->mapToGlobal(f.at(to)), Qt::NoButton,
+                         Qt::LeftButton, mods);
+        QApplication::sendEvent(f.canvas.viewport(), &move);
+        QTest::mouseRelease(f.canvas.viewport(), Qt::LeftButton, mods, f.at(to));
+    };
+    // Two separate bonds; drag the second's end atom onto the first's.
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{60, 30}}, {{60 + kBondLength, 30}}};
+    d.bonds = {{0, 1}, {2, 3}};
+    f.canvas.setDocumentSilently(d);
+    f.canvas.setTool(Canvas::Tool::Select);
+    drag({60, 30}, {kBondLength, 0}, {});
+    CHECK(f.doc().atoms.size() == 3);
+    CHECK(f.doc().bonds.size() == 2);
+    CHECK(f.doc().neighbors(1).size() == 2);  // one connected chain now
+    f.undo.undo();
+    CHECK(f.doc().atoms.size() == 4);
+
+    // Shift-drag: moves along one axis only.
+    f.canvas.setSelection({2, 3});
+    drag({60, 30}, {90, 36}, Qt::ShiftModifier);
+    CHECK(std::abs(f.doc().atoms[2].pos.y() - 30) < 1e-6);
+    CHECK(std::abs(f.doc().atoms[2].pos.x() - 90) < 0.5);
+
+    // Shift while drawing a bond: any angle, not snapped to 30 degrees.
+    f.canvas.setDocumentSilently({});
+    f.canvas.setTool(Canvas::Tool::Bond);
+    drag({0, 0}, {20, 20}, Qt::ShiftModifier);
+    REQUIRE(f.doc().bonds.size() == 1);
+    QPointF v = f.doc().atoms[1].pos - f.doc().atoms[0].pos;
+    CHECK(std::abs(std::atan2(v.y(), v.x()) * 180 / M_PI - 45) < 2);
+}

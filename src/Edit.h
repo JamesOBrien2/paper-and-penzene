@@ -22,6 +22,9 @@ std::vector<int> ringOnAtom(Document& doc, int atom, int n, bool aromatic);
 void ringOnBond(Document& doc, int bond, int n, bool aromatic);
 void chairOnBond(Document& doc, int bond, int edge);
 void straightenSp(Document& doc, int bond);
+// Fuses each (keep, drop) pair: drop's bonds and ring fills move to keep, then
+// drop is removed. Duplicate and self bonds are dropped (the higher order wins).
+void mergeAtoms(Document& doc, const std::vector<std::pair<int, int>>& keepDrop);
 
 // Element symbol, abbreviation (drawn as its label) or SMILES (drawn out).
 bool applyLabel(Document& doc, int atom, const QString& label);

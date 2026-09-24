@@ -169,6 +169,29 @@ void straightenSp(Document& doc, int bond) {
     }
 }
 
+void mergeAtoms(Document& doc, const std::vector<std::pair<int, int>>& keepDrop) {
+    if (keepDrop.empty()) return;
+    std::vector<int> target(doc.atoms.size());
+    for (int i = 0; i < int(target.size()); ++i) target[i] = i;
+    for (auto [keep, drop] : keepDrop) target[drop] = keep;
+    std::vector<Bond> bonds;
+    for (Bond b : doc.bonds) {
+        b.a = target[b.a], b.b = target[b.b];
+        if (b.a == b.b) continue;
+        auto same = std::find_if(bonds.begin(), bonds.end(), [&](const Bond& o) {
+            return (o.a == b.a && o.b == b.b) || (o.a == b.b && o.b == b.a);
+        });
+        if (same == bonds.end()) bonds.push_back(b);
+        else if (b.order > same->order) *same = b;
+    }
+    doc.bonds = std::move(bonds);
+    for (auto& f : doc.fills)
+        for (int& i : f.atoms) i = target[i];
+    std::vector<int> drops;
+    for (auto [keep, drop] : keepDrop) drops.push_back(drop);
+    doc.removeAtoms(drops);
+}
+
 namespace {
 enum class Site { Primary, Secondary, Tertiary, Aromatic };
 

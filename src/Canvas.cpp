@@ -263,7 +263,8 @@ std::vector<QPointF> Canvas::dragPath() const {
     int target = atomNear(doc_, curPos_, kMergeRadius, pressAtom_);
     if (drag_ == Drag::Bond) {
         if (target >= 0) return {start, doc_.atoms[target].pos};
-        return {start, start + snapped(start, curPos_) * kBondLength};
+        const QPointF dir = shift_ ? unit(curPos_ - start) : snapped(start, curPos_);  // Shift: any angle
+        return {start, start + dir * kBondLength};
     }
     // Chain: zig-zag at ±30° around the drag direction.
     QPointF dir = snapped(start, curPos_), side = perp(dir);
@@ -334,6 +335,11 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
         return;
     }
     curPos_ = mapToScene(e->pos());
+    shift_ = e->modifiers() & Qt::ShiftModifier;
+    if (drag_ == Drag::Move && shift_) {  // Shift: along whichever axis the drag mostly follows
+        QPointF d = curPos_ - pressPos_;
+        curPos_ = pressPos_ + (std::abs(d.x()) >= std::abs(d.y()) ? QPointF(d.x(), 0) : QPointF(0, d.y()));
+    }
     if (drag_ == Drag::Move || drag_ == Drag::Rotate) {
         Document next = beforeDrag_;
         std::vector<QPointF*> pts;
@@ -375,6 +381,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
     }
     if (e->button() != Qt::LeftButton) return;
     curPos_ = mapToScene(e->pos());
+    shift_ = e->modifiers() & Qt::ShiftModifier;
     const bool click = len(curPos_ - pressPos_) < 3 / transform().m11();
     const int bond = pressAtom_ < 0 ? bondAt(pressPos_) : -1;
     const Drag drag = std::exchange(drag_, Drag::None);
@@ -391,7 +398,14 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         if (!click) {
             Document moved = doc_;
             doc_ = beforeDrag_;
-            commit(moved, drag == Drag::Move ? tr("Move") : tr("Rotate"));
+            // A moved atom dropped onto another one fuses with it, as in ChemDraw.
+            std::vector<std::pair<int, int>> fuse;
+            for (int i : selectedAtoms_)
+                if (int j = atomNear(moved, moved.atoms[i].pos, kMergeRadius, i); j >= 0 && !selectedAtoms_.contains(j))
+                    fuse.push_back({j, i});
+            if (!fuse.empty()) selectedAtoms_.clear(), hoverAtom_ = hoverBond_ = -1;
+            mergeAtoms(moved, fuse);
+            commit(moved, !fuse.empty() ? tr("Merge") : drag == Drag::Move ? tr("Move") : tr("Rotate"));
         }
         return;
     } else if (drag == Drag::Rubber) {

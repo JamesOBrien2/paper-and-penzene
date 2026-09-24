@@ -1088,6 +1088,31 @@ void MainWindow::buildMenus() {
     panelToggle->setText(tr("&Properties Panel"));
     panelToggle->setShortcut(QKeySequence(tr("Ctrl+I")));
     view->addAction(panelToggle);
+    auto* pageMenu = view->addMenu(tr("&Page"));
+    auto* pageGroup = new QActionGroup(pageMenu);
+    QStringList pages{""};
+    for (const auto& p : pageSizes()) pages << p.name;
+    for (const QString& name : pages) {
+        auto* a = pageMenu->addAction(name.isEmpty() ? tr("None") : name);
+        a->setCheckable(true);
+        a->setData(name);
+        a->setChecked(name.isEmpty());
+        pageGroup->addAction(a);
+        connect(a, &QAction::triggered, this, [this, name] {
+            Document next = canvas_->document();
+            if (next.page == name) return;
+            const QRectF was = pageRect(next);
+            next.page = name;
+            // Keep the page where it was, or centre a new one on the drawing.
+            const QSizeF size = pageRect(next).size();
+            next.pageOrigin = was.isEmpty() ? documentBounds(next).center() - QPointF(size.width(), size.height()) / 2
+                                            : was.topLeft();
+            canvas_->commit(next, name.isEmpty() ? tr("No page") : tr("Page: %1").arg(name));
+        });
+    }
+    connect(canvas_, &Canvas::documentChanged, pageGroup, [this, pageGroup] {
+        for (auto* a : pageGroup->actions()) a->setChecked(a->data().toString() == canvas_->document().page);
+    });
     auto* themeMenu = view->addMenu(tr("&Theme"));
     auto* themeGroup = themeGroup_ = new QActionGroup(this);
     const QString current = QSettings().value("theme", "System").toString();

@@ -490,11 +490,30 @@ QRectF documentBounds(const Document& doc) {
     return QRectF(lo, hi);
 }
 
+const std::vector<PageSize>& pageSizes() {
+    static const std::vector<PageSize> p{
+        {"A4", {595.3, 841.9}, 72},
+        {"US Letter", {612, 792}, 72},
+        {"ACS single column", {240, 684}},  // 3.33 in × 9.5 in
+        {"ACS double column", {504, 684}},  // 7 in
+        {"RSC single column", {235.3, 660.5}},  // 8.3 cm × 23.3 cm
+        {"RSC double column", {484.7, 660.5}},  // 17.1 cm
+    };
+    return p;
+}
+
+QRectF pageRect(const Document& doc) {
+    for (const auto& p : pageSizes())
+        if (p.name == doc.page) return QRectF(doc.pageOrigin, p.size / exportScale(doc));
+    return {};
+}
+
 double exportScale(const Document& doc) { return drawingStyle(doc.style).bondLength / kBondLength; }
 
 // The exported area (model units) and the points per model unit.
 static std::pair<QRectF, double> exportFrame(const Document& doc, const ExportOptions& o) {
     const double s = exportScale(doc) * o.scale, m = o.margin / s;
+    if (const QRectF page = pageRect(doc); !page.isEmpty()) return {page, s};  // the whole page, as laid out
     return {documentBounds(doc).adjusted(-m, -m, m, m), s};
 }
 

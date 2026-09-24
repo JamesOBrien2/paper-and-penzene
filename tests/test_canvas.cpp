@@ -1170,3 +1170,34 @@ TEST_CASE("printing: to PDF, at export size, centred (#33)") {
     if (auto out = qgetenv("PENZENE_PRINT_SHOT"); !out.isEmpty()) QFile::copy(dir.filePath("aspirin.pdf"), out);
     CHECK_FALSE(printDocument(printer, Document{}));
 }
+
+TEST_CASE("page mode: shown, saved, exported at page size (#105)") {
+    App app;
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    canvas->setDocumentSilently(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O"));
+    QAction* column = nullptr;
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->text() == "ACS single column") column = a;
+    REQUIRE(column);
+    column->trigger();
+    const Document& doc = canvas->document();
+    CHECK(doc.page == "ACS single column");
+    const QRectF page = pageRect(doc);
+    CHECK(page.contains(documentBounds(doc).center()));
+    auto back = Document::fromJson(doc.toJson());
+    REQUIRE(back);
+    CHECK(*back == doc);
+    const QImage img = renderImage(doc, {72});  // the page: 240 × 684 pt
+    CHECK(std::abs(img.width() - 240) <= 1);
+    CHECK(std::abs(img.height() - 684) <= 1);
+    canvas->selectAll();
+    CHECK(canvas->selectedSubset().page.isEmpty());  // a selection exports just the drawing
+    if (auto out = qgetenv("PENZENE_PAGE_SHOT"); !out.isEmpty()) {
+        w.resize(900, 900);
+        w.show();
+        canvas->setSelection({});
+        QApplication::processEvents();
+        w.grab().save(out);
+    }
+}

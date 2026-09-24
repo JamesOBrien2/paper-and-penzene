@@ -181,3 +181,18 @@ TEST_CASE("clean keeps bond display styles and double-bond positions (#84)") {
     CHECK(b1.position == BondPosition::Right);
     CHECK(b2.stereo == BondStereo::Bold);
 }
+
+TEST_CASE("clean lays abbreviations out as single nodes, so bonds stay even (#85)") {
+    // Found by fuzzing: "79P7" puts a Ph label on a crowded atom. Expanding the
+    // ring before layout squeezed some bonds to about half length.
+    auto d = std::make_optional<Document>();
+    d->addAtom({0, 0});
+    edit::Hotspot h{0, -1};
+    for (QChar k : QString("79P7")) h = edit::hotkey(*d, h, k);
+    Document clean = chem::clean2D(*d);
+    REQUIRE(clean.atoms.size() == d->atoms.size());
+    for (const auto& b : clean.bonds) {
+        QPointF v = clean.atoms[b.a].pos - clean.atoms[b.b].pos;
+        CHECK(std::abs(std::hypot(v.x(), v.y()) - kBondLength) < 0.2 * kBondLength);
+    }
+}

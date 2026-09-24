@@ -5,7 +5,11 @@
 
 #include <QImage>
 #include <QInputDialog>
+#include <QApplication>
+#include <QClipboard>
+#include <QContextMenuEvent>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -806,6 +810,104 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
         return;
     }
     QGraphicsView::keyPressEvent(e);
+}
+
+// Every entry reuses an existing edit: hotkeys for bonds and charges,
+// applyLabel for atoms, the selection commands for selections.
+QMenu* Canvas::contextMenuAt(QPointF at) {
+    auto* menu = new QMenu(this);
+    auto keyOn = [this](Hotspot h, const QString& key, const QString& what) {
+        return [this, h, key, what] {
+            Document next = doc_;
+            if (hotkey(next, h, key).valid()) commit(next, what);
+        };
+    };
+    auto label = [this](int atom, const QString& text) {
+        return [this, atom, text] {
+            Document next = doc_;
+            if (applyLabel(next, atom, text)) commit(next, tr("Set atom"));
+        };
+    };
+    const int atom = atomAt(at), bond = atom < 0 ? bondAt(at) : -1;
+    const bool onSelection = (atom >= 0 && selectedAtoms_.contains(atom)) ||
+                             (bond >= 0 && selectedAtoms_.contains(doc_.bonds[bond].a) &&
+                              selectedAtoms_.contains(doc_.bonds[bond].b));
+    if (onSelection || (atom < 0 && bond < 0 && !selectedAtoms_.isEmpty())) {
+        menu->addAction(tr("Clean"), this, [this] {
+            commit(chem::clean2D(doc_, {selectedAtoms_.begin(), selectedAtoms_.end()}), tr("Clean"));
+        });
+        menu->addAction(tr("Flip Horizontal"), this, [this] { flipSelection(true); });
+        menu->addAction(tr("Flip Vertical"), this, [this] { flipSelection(false); });
+        menu->addAction(tr("Rotate 90°"), this, [this] { rotateSelection(90); });
+        menu->addSeparator();
+        menu->addAction(tr("Copy as SMILES"), this, [this] {
+            QApplication::clipboard()->setText(QString::fromStdString(chem::toSmiles(selectedSubset())));
+        });
+        menu->addAction(tr("Copy as InChI"), this, [this] {
+            QApplication::clipboard()->setText(QString::fromStdString(chem::toInchi(selectedSubset())));
+        });
+        menu->addSeparator();
+        menu->addAction(tr("Delete"), this, &Canvas::deleteSelection);
+    } else if (atom >= 0) {
+        auto* elements = menu->addMenu(tr("Element"));
+        for (auto sym : {"C", "N", "O", "S", "P", "F", "Cl", "Br", "I", "H", "B", "Si"})
+            elements->addAction(sym, this, label(atom, sym));
+        auto* groups = menu->addMenu(tr("Abbreviation"));
+        for (auto g : {"Me", "Et", "iPr", "tBu", "Ph", "Bn", "OMe", "OAc", "Ac", "CO2Me", "CF3", "NO2", "CN",
+                       "Boc", "Cbz", "Fmoc", "Ts", "TBS", "Bpin"})
+            groups->addAction(g, this, label(atom, g));
+        menu->addAction(tr("Edit Label…"), this, [this, atom] { editLabel(atom); });
+        if (!doc_.atoms[atom].label.isEmpty())
+            menu->addAction(tr("Expand Abbreviation"), this, [this, atom] {
+                Document next = doc_;
+                chem::attach(next, atom, doc_.atoms[atom].label.toStdString());
+                commit(next, tr("Expand"));
+            });
+        menu->addSeparator();
+        menu->addAction(tr("Increase Charge"), this, keyOn({atom, -1}, "+", tr("Charge")));
+        menu->addAction(tr("Decrease Charge"), this, keyOn({atom, -1}, "-", tr("Charge")));
+        menu->addSeparator();
+        menu->addAction(tr("Delete Atom"), this, [this, atom] {
+            Document next = doc_;
+            next.removeAtoms({atom});
+            hoverAtom_ = hoverBond_ = -1;
+            commit(next, tr("Delete"));
+        });
+    } else if (bond >= 0) {
+        const Hotspot h{-1, bond};
+        for (auto [text, key] : {std::pair{tr("Single"), "1"}, {tr("Double"), "2"}, {tr("Triple"), "3"}})
+            menu->addAction(text, this, keyOn(h, key, tr("Change bond")));
+        auto* style = menu->addMenu(tr("Style"));
+        for (auto [text, key] : {std::pair{tr("Wedge"), "w"}, {tr("Hash"), "h"}, {tr("Wavy"), "y"},
+                                 {tr("Bold"), "b"}, {tr("Dashed"), "d"}})
+            style->addAction(text, this, keyOn(h, key, tr("Bond style")));
+        if (doc_.bonds[bond].order == 2) {
+            auto* side = menu->addMenu(tr("Double Bond Position"));
+            for (auto [text, key] : {std::pair{tr("Left"), "l"}, {tr("Centre"), "c"}, {tr("Right"), "r"}})
+                side->addAction(text, this, keyOn(h, key, tr("Bond position")));
+        }
+        auto* fuse = menu->addMenu(tr("Fuse Ring"));
+        for (auto [text, key] : {std::pair{tr("Benzene"), "a"}, {tr("Cyclopropane"), "v"}, {tr("Cyclobutane"), "4"},
+                                 {tr("Cyclopentane"), "5"}, {tr("Cyclohexane"), "6"}, {tr("Chair"), "9"}})
+            fuse->addAction(text, this, keyOn(h, key, tr("Fuse ring")));
+        menu->addSeparator();
+        menu->addAction(tr("Delete Bond"), this, [this, bond] {
+            Document next = doc_;
+            next.bonds.erase(next.bonds.begin() + bond);
+            hoverAtom_ = hoverBond_ = -1;
+            commit(next, tr("Delete"));
+        });
+    } else {
+        menu->addAction(tr("Select All"), this, &Canvas::selectAll);
+        menu->addAction(tr("Fit to Window"), this, &Canvas::fitToDocument);
+    }
+    return menu;
+}
+
+void Canvas::contextMenuEvent(QContextMenuEvent* e) {
+    QMenu* menu = contextMenuAt(mapToScene(e->pos()));
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(e->globalPos());
 }
 
 void Canvas::wheelEvent(QWheelEvent* e) {

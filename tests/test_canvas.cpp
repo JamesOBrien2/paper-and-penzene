@@ -1235,3 +1235,25 @@ TEST_CASE("stretch, squash and transform a selection (#174)") {
     CHECK(std::abs(size(f.doc()).width() / before.width() - size(f.doc()).height() / before.height()) < 0.05);
     CHECK(size(f.doc()).width() > 1.8 * before.width());
 }
+
+TEST_CASE("lone pairs, radicals and brackets from the keyboard and menu (#106)") {
+    Fixture f;
+    f.canvas.setDocumentSilently(*chem::fromSmiles("CCO"));
+    Document d = f.doc();
+    REQUIRE(edit::hotkey(d, {2, -1}, ":").valid());
+    edit::hotkey(d, {2, -1}, ":");
+    CHECK(d.atoms[2].lonePairs == 2);
+    edit::hotkey(d, {0, -1}, "*");
+    CHECK(d.atoms[0].radicals == 1);
+    CHECK(chem::toSmiles(d) == "[CH2]CO");
+
+    f.canvas.setSelection({0, 1});
+    f.canvas.bracketSelection(true, "n");
+    REQUIRE(f.doc().brackets.size() == 1);
+    CHECK(f.doc().brackets[0].atoms == std::vector<int>{0, 1});
+    Document moved = f.doc();
+    moved.removeAtoms({0});  // a bracket keeps around what's left
+    CHECK(moved.brackets[0].atoms == std::vector<int>{0});
+    f.canvas.removeBrackets();
+    CHECK(f.doc().brackets.empty());
+}

@@ -590,3 +590,19 @@ TEST_CASE("R-groups and generic atoms export and read back (#34)") {
     REQUIRE(edit::applyLabel(ar, 1, "Ar"));
     CHECK(ar.atoms[1].z == 18);  // the strict (Python) path: the element
 }
+
+TEST_CASE("radicals are chemistry; lone pairs and δ are drawn (#106)") {
+    Document methyl = *chem::fromSmiles("C");
+    methyl.atoms[0].radicals = 1;
+    CHECK(chem::properties(methyl)->formula == "CH3");
+    CHECK(chem::toSmiles(methyl) == "[CH3]");
+    CHECK(chem::fromSmiles("[CH3]")->atoms[0].radicals == 1);  // read back from SMILES
+
+    Document water = *chem::fromSmiles("O");
+    water.atoms[0].lonePairs = 2;
+    water.atoms[0].partial = -1;
+    CHECK(chem::toSmiles(water) == "O");  // display only
+    auto back = Document::fromJson(water.toJson());
+    REQUIRE(back);
+    CHECK(*back == water);
+}

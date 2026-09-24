@@ -385,6 +385,14 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
             doc.atoms[at].charge += t == "+" ? 1 : -1;
             return h;
         }
+        if (t == ":") {  // lone pairs: none, 1, 2, 3, none
+            doc.atoms[at].lonePairs = (doc.atoms[at].lonePairs + 1) % 4;
+            return h;
+        }
+        if (t == "*") {  // radical dot on / off
+            doc.atoms[at].radicals = doc.atoms[at].radicals ? 0 : 1;
+            return h;
+        }
         if (t == "'") {  // atom-map number: the next free one, or off again
             int next = 0;
             for (const auto& a : doc.atoms) next = std::max(next, a.map);

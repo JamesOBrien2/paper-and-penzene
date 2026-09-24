@@ -115,6 +115,7 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
         const auto& a = doc.atoms[i];
         auto* atom = new RDKit::Atom(a.z);
         atom->setFormalCharge(a.charge);
+        atom->setNumRadicalElectrons(a.radicals);
         // Not setAtomMapNum: it logs through rdErrorLog, which the Windows DLL doesn't export.
         if (a.map > 0) atom->setProp(RDKit::common_properties::molAtomMapNumber, a.map);
         // Generic atoms (expansion drops their labels, so they come from `in`): R1…Rn as
@@ -208,7 +209,8 @@ static Document fromRDKit(RWMol& mol, double scale = 0) {
         else if (a->getAtomicNum() == 0 && a->getPropIfPresent(RDKit::common_properties::_MolFileRLabel, r) && r)
             label = QString("R%1").arg(r);
         doc.atoms.push_back({QPointF(p.x * scale, -p.y * scale), int(a->getAtomicNum()),
-                             a->getFormalCharge(), label, {}, int(a->getAtomMapNum())});
+                             a->getFormalCharge(), label, {}, int(a->getAtomMapNum()), 0,
+                             int(std::min(2u, a->getNumRadicalElectrons()))});
     }
     for (const auto* b : mol.bonds()) {
         Bond out{int(b->getBeginAtomIdx()), int(b->getEndAtomIdx())};

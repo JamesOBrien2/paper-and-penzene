@@ -777,6 +777,24 @@ void Canvas::distributeSelection(bool horizontal) {
     commit(next, tr("Distribute"));
 }
 
+void Canvas::bracketSelection(bool square, const QString& label) {
+    if (selectedAtoms_.isEmpty()) return;
+    std::vector<int> atoms(selectedAtoms_.begin(), selectedAtoms_.end());
+    std::sort(atoms.begin(), atoms.end());
+    Document next = doc_;
+    next.brackets.push_back({atoms, square, label});
+    commit(next, tr("Brackets"));
+}
+
+void Canvas::removeBrackets() {
+    Document next = doc_;
+    std::erase_if(next.brackets, [&](const Bracket& b) {  // those around any selected atom (all, with none selected)
+        return selectedAtoms_.isEmpty() ||
+               std::any_of(b.atoms.begin(), b.atoms.end(), [&](int i) { return selectedAtoms_.contains(i); });
+    });
+    if (!(next == doc_)) commit(next, tr("Remove brackets"));
+}
+
 void Canvas::rotateSelection(double degrees) {
     if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return;
     transformSelection(QTransform().rotate(degrees), tr("Rotate"));
@@ -1044,6 +1062,15 @@ QMenu* Canvas::contextMenuAt(QPointF at) {
         menu->addSeparator();
         menu->addAction(tr("Increase Charge"), this, keyOn({atom, -1}, "+", tr("Charge")));
         menu->addAction(tr("Decrease Charge"), this, keyOn({atom, -1}, "-", tr("Charge")));
+        auto* marks = menu->addMenu(tr("Electrons and δ"));
+        marks->addAction(tr("Add Lone Pair — :"), this, keyOn({atom, -1}, ":", tr("Lone pairs")));
+        marks->addAction(tr("Radical — *"), this, keyOn({atom, -1}, "*", tr("Radical")));
+        for (int d : {1, -1, 0})
+            marks->addAction(d > 0 ? tr("δ+") : d < 0 ? tr("δ−") : tr("No δ"), this, [this, atom, d] {
+                Document next = doc_;
+                next.atoms[atom].partial = d;
+                commit(next, tr("Partial charge"));
+            });
         menu->addSeparator();
         menu->addAction(tr("Delete Atom"), this, [this, atom] {
             Document next = doc_;

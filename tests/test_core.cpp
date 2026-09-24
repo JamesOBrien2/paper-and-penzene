@@ -2,6 +2,9 @@
 #include "Edit.h"
 #include "Render.h"
 
+#include <QFile>
+#include <QTemporaryDir>
+
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
 #include <cmath>
@@ -392,4 +395,39 @@ TEST_CASE("atom-map numbers survive SMILES, .penz and the ' hotkey (#99)") {
     edit::hotkey(ethanol, {2, -1}, "'");
     CHECK(ethanol.atoms[2].map == 0);
     CHECK(chem::toSmiles(ethanol).find("[CH3:2]") != std::string::npos);
+}
+
+TEST_CASE("multi-record SDF, .smi and .inchi open as a grid; MOL V3000; InChI (#102)") {
+    const std::string aspirin = "CC(=O)Oc1ccccc1C(=O)O";
+    const auto inchi = chem::toInchi(*chem::fromSmiles(aspirin));
+    auto fromInchi = chem::fromInchi(inchi);
+    REQUIRE(fromInchi);
+    CHECK(chem::toSmiles(*fromInchi) == chem::toSmiles(*chem::fromSmiles(aspirin)));
+    CHECK_FALSE(chem::fromInchi("InChI=nonsense"));
+
+    const auto v3000 = chem::toMolBlock(*fromInchi, true);
+    CHECK(v3000.find("V3000") != std::string::npos);
+    CHECK(chem::toSmiles(*chem::fromMolBlock(v3000)) == chem::toSmiles(*fromInchi));
+
+    QTemporaryDir dir;
+    auto write = [&](const QString& name, const std::string& text) {
+        QFile f(dir.filePath(name));
+        REQUIRE(f.open(QIODevice::WriteOnly));
+        f.write(text.c_str());
+        return dir.filePath(name);
+    };
+    const std::string mol = chem::toMolBlock(*fromInchi), ethanol = chem::toMolBlock(*chem::fromSmiles("CCO"));
+    const QString sdf = write("two.sdf", "aspirin" + mol.substr(mol.find('\n')) + "$$$$\n" + ethanol + "$$$$\n");
+    const QString smi = write("two.smi", aspirin + " aspirin\nCCO ethanol\n");
+    const QString inchis = write("two.inchi", inchi + "\n" + chem::toInchi(*chem::fromSmiles("CCO")) + "\n");
+    for (const QString& path : {sdf, smi, inchis}) {
+        INFO(path.toStdString());
+        auto doc = chem::readFile(path);
+        REQUIRE(doc);
+        CHECK(doc->atoms.size() == 16);  // 13 + 3, side by side
+        CHECK(chem::toSmiles(*doc).find('.') != std::string::npos);
+        CHECK(chem::readRecords(path).size() == 2);
+    }
+    CHECK(chem::readRecords(sdf)[0].name == "aspirin");
+    CHECK(chem::readRecords(smi)[1].name == "ethanol");
 }

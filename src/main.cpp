@@ -16,38 +16,16 @@
 
 namespace {
 
-struct Record {
-    QString name;
-    std::optional<Document> doc;
-};
+using chem::Record;
 
-// One input: a SMILES string, a .smi file (one "SMILES name" per line), an SDF
-// (one record per molecule) or any single file Penzene opens.
+// One input: a SMILES string, a multi-record file (SDF, .smi, .inchi) or any
+// single file Penzene opens.
 std::vector<Record> records(const QString& in) {
     const QFileInfo info(in);
     if (!info.exists()) return {{"structure", chem::fromSmiles(in.toStdString())}};
-    const QString base = info.completeBaseName(), ext = info.suffix().toLower();
-    QFile f(in);
-    if ((ext == "smi" || ext == "sdf") && f.open(QIODevice::ReadOnly)) {
-        std::vector<Record> out;
-        const QString text = QString::fromUtf8(f.readAll()).remove('\r');
-        const QStringList parts = ext == "smi" ? text.split('\n') : text.split("$$$$");
-        for (const QString& raw : parts) {
-            const QString part = ext == "smi" ? raw.trimmed() : raw;
-            if (part.trimmed().isEmpty() || part.startsWith('#')) continue;
-            const QString n = QString("%1-%2").arg(base).arg(out.size() + 1);
-            if (ext == "smi") {
-                const QStringList cols = part.split(QRegularExpression("\\s+"));
-                out.push_back({cols.size() > 1 ? cols[1] : n, chem::fromSmiles(cols[0].toStdString())});
-            } else {
-                const QString block = part.startsWith('\n') ? part.mid(1) : part;  // after "$$$$\n"
-                const QString title = block.section('\n', 0, 0).trimmed();  // the molfile's name line
-                out.push_back({title.isEmpty() ? n : title, chem::fromMolBlock(block.toStdString())});
-            }
-        }
-        return out;
-    }
-    return {{base, chem::readFile(in)}};
+    const QString ext = info.suffix().toLower();
+    if (ext == "smi" || ext == "sdf" || ext == "inchi") return chem::readRecords(in);
+    return {{info.completeBaseName(), chem::readFile(in)}};
 }
 
 // penzene --render IN [IN...] (OUT | --out DIR) [--format svg|png|pdf] [--drawing-style NAME] [--clean]
@@ -59,7 +37,7 @@ int render(const QStringList& args) {
     // Not --style: QApplication claims that for widget styles.
     p.addOption({"drawing-style", "ACS 1996 (default), JDP or RSC.", "name"});
     p.addOption({"clean", "Lay out each structure afresh with RDKit."});
-    p.addPositionalArgument("inputs", "SMILES, .smi, .sdf, .mol, .penz or .cdxml");
+    p.addPositionalArgument("inputs", "SMILES, .smi, .sdf, .inchi, .mol, .penz or .cdxml");
     if (!p.parse(args)) {
         std::fprintf(stderr, "penzene: %s\n", qPrintable(p.errorText()));
         return 2;

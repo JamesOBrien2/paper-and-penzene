@@ -201,11 +201,11 @@ void MainWindow::offerRecovery() {
     QFile::remove(autosavePath());
 }
 
-bool MainWindow::saveTo(const QString& path) {
+bool MainWindow::saveTo(const QString& path, bool v3000) {
     const auto& doc = canvas_->document();
     QByteArray data = path.endsWith(".penz", Qt::CaseInsensitive)
                           ? doc.toJson()
-                          : QByteArray::fromStdString(chem::toMolBlock(doc));
+                          : QByteArray::fromStdString(chem::toMolBlock(doc, v3000));
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
         QMessageBox::warning(this, tr("Save"), tr("Cannot write %1").arg(path));
@@ -225,9 +225,11 @@ bool MainWindow::save() {
 }
 
 bool MainWindow::saveAs() {
+    const QString v3000 = tr("MDL Molfile V3000 (*.mol)");
+    QString filter;
     QString path = QFileDialog::getSaveFileName(this, tr("Save As"), path_,
-                                                tr("Penzene document (*.penz);;MDL Molfile (*.mol)"));
-    return !path.isEmpty() && saveTo(path);
+                                                tr("Penzene document (*.penz);;MDL Molfile (*.mol);;") + v3000, &filter);
+    return !path.isEmpty() && saveTo(path, filter == v3000);
 }
 
 bool MainWindow::maybeSave() {
@@ -375,7 +377,9 @@ void MainWindow::paste() {
     std::string text = mime->hasFormat(kMolMime) ? mime->data(kMolMime).toStdString()
                                                  : mime->text().trimmed().toStdString();
     if (text.empty()) return;
-    auto doc = text.find("M  END") != std::string::npos ? chem::fromMolBlock(text) : chem::fromSmiles(text);
+    auto doc = text.find("M  END") != std::string::npos ? chem::fromMolBlock(text)
+               : text.starts_with("InChI=")         ? chem::fromInchi(text)
+                                                    : chem::fromSmiles(text);
     if (doc) canvas_->insert(*doc, tr("Paste"));
     else statusBar()->showMessage(tr("Clipboard has no structure or SMILES"), 4000);
 }
@@ -766,7 +770,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
-                                                 tr("Structures (*.penz *.mol *.sdf *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
+                                                 tr("Structures (*.penz *.mol *.sdf *.smi *.inchi *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
     });
     auto* recent = file->addMenu(tr("Open &Recent"));

@@ -48,6 +48,15 @@ const DrawingStyle& drawingStyle(const QString& name);  // unknown or empty: ACS
 // Paints a document in its drawing style. Shared by the canvas and export.
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = {});
 QRectF documentBounds(const Document& doc);
+// Pages for laying a figure out at final size: paper, or a journal's column
+// widths at its maximum figure height. Sizes and margins in points.
+struct PageSize {
+    QString name;
+    QSizeF size;
+    double margin = 0;
+};
+const std::vector<PageSize>& pageSizes();
+QRectF pageRect(const Document& doc);  // model units; empty without a (known) page
 double exportScale(const Document& doc);  // points per model unit in exports
 struct ExportOptions {
     double dpi = 300;                     // PNG only

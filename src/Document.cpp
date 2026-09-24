@@ -60,6 +60,7 @@ QByteArray Document::toJson() const {
     if (showStereo) root["showStereo"] = true;
     if (showAtomNumbers) root["showAtomNumbers"] = true;
     if (aromaticCircles) root["aromaticCircles"] = true;
+    if (!page.isEmpty()) root["page"] = QJsonObject{{"name", page}, {"x", pageOrigin.x()}, {"y", pageOrigin.y()}};
     QJsonArray circleOverrides;
     for (const auto& ring : aromaticCircleOverrides) {
         QJsonArray ids;
@@ -91,6 +92,10 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     doc.showStereo = root["showStereo"].toBool();
     doc.showAtomNumbers = root["showAtomNumbers"].toBool();
     doc.aromaticCircles = root["aromaticCircles"].toBool();
+    const auto page = root["page"].toObject();
+    doc.page = page["name"].toString();
+    doc.pageOrigin = {page["x"].toDouble(), page["y"].toDouble()};
+    if (!std::isfinite(doc.pageOrigin.x()) || !std::isfinite(doc.pageOrigin.y())) return std::nullopt;
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),

@@ -72,6 +72,8 @@ struct Document {
     bool showStereo = false;  // draw CIP (R)/(S) and (E)/(Z) labels
     bool showAtomNumbers = false;  // draw each atom's index (from 1)
     bool aromaticCircles = false;  // default for every aromatic ring
+    QString page;         // a pageSizes() name: laid out at final size; "" = no page
+    QPointF pageOrigin;   // the page's top-left corner
     std::vector<std::vector<int>> aromaticCircleOverrides;  // sorted ring atom IDs with the opposite display
     bool operator==(const Document&) const = default;
     bool empty() const { return atoms.empty() && arrows.empty() && texts.empty(); }

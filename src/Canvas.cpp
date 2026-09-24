@@ -109,6 +109,7 @@ void Canvas::selectAll() {
 // Drops every item not in the given sets.
 static Document keepOnly(const Document& doc, const QSet<int>& atoms, const QSet<int>& arrows, const QSet<int>& texts) {
     Document out = doc;
+    out.page.clear();  // a selection exports as just the drawing
     std::vector<int> drop;
     for (int i = 0; i < int(doc.atoms.size()); ++i)
         if (!atoms.contains(i)) drop.push_back(i);
@@ -169,6 +170,19 @@ void Canvas::refresh() {
 
 void Canvas::drawBackground(QPainter* p, const QRectF& rect) {
     p->fillRect(rect, theme_.paper);
+    if (const QRectF page = pageRect(doc_); !page.isEmpty()) {  // the page's edge, and its margins dashed
+        QColor edge = theme_.ink;
+        edge.setAlphaF(0.35);
+        p->setPen(QPen(edge, 0));
+        p->setBrush(Qt::NoBrush);
+        p->drawRect(page);
+        for (const auto& s : pageSizes())
+            if (s.name == doc_.page && s.margin > 0) {
+                const double m = s.margin / exportScale(doc_);
+                p->setPen(QPen(edge, 0, Qt::DashLine));
+                p->drawRect(page.adjusted(m, m, -m, -m));
+            }
+    }
     picture_.play(p);
 }
 

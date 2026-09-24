@@ -140,9 +140,12 @@ void MainWindow::updateInfo() {
                        .arg(p->exactMass, 0, 'f', 4));
 }
 
-// The undo stack is a child, deleted after this destructor has run; clearing
-// itself emits cleanChanged, which must not reach a half-destroyed window.
-MainWindow::~MainWindow() { undo_->disconnect(this); }
+// Children are deleted after this destructor has run, and some signal on the way
+// out (the undo stack's cleanChanged, a dock's visibilityChanged as it hides):
+// none of that may reach a half-destroyed window.
+MainWindow::~MainWindow() {
+    for (QObject* child : findChildren<QObject*>()) child->disconnect(this);
+}
 
 void MainWindow::updateTitle() {
     QString name = path_.isEmpty() ? tr("Untitled") : QFileInfo(path_).fileName();

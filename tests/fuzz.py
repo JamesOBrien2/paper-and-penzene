@@ -38,7 +38,7 @@ def bond_lengths(d):
         yield ((p.x - q.x) ** 2 + (p.y - q.y) ** 2) ** 0.5
 
 
-ATOM_KEYS = list("1234567890avuzkKcnowqspflCbihdBSLmePAONFEZMQHY+-")
+ATOM_KEYS = list("1234567890avuzkKcnowqspflCbihdBSLmePAONFEZMQHY+-xr'")
 BOND_KEYS = list("123whHazv45678dbyDBlcr90")
 for _ in range(args.trials):
     d = pz.Document()

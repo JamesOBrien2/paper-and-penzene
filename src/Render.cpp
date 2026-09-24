@@ -239,6 +239,14 @@ static std::vector<QPointF> arrowPoints(const Arrow& a) {
 }
 
 QPainterPath arrowPath(const Arrow& a) {
+    if (isShape(a.kind) && a.kind != ArrowKind::Line) {
+        const QRectF r = QRectF(a.from, a.to).normalized();
+        QPainterPath path;
+        if (a.kind == ArrowKind::Box) path.addRect(r);
+        else if (a.kind == ArrowKind::RoundedBox) path.addRoundedRect(r, 0.35 * kBondLength, 0.35 * kBondLength);
+        else path.addEllipse(r);
+        return path;
+    }
     const auto pts = arrowPoints(a);
     QPainterPath path(pts[0]);
     for (size_t k = 1; k < pts.size(); ++k) path.lineTo(pts[k]);
@@ -263,6 +271,15 @@ static void drawHead(QPainter& p, QPointF tip, QPointF dir, int sides = 0) {
 }
 
 static void drawArrow(QPainter& p, const Arrow& a) {
+    if (a.dashed) {
+        QPen dashes = p.pen();
+        dashes.setDashPattern({3, 2.5});
+        p.setPen(dashes);
+    }
+    if (isShape(a.kind)) {
+        p.drawPath(arrowPath(a));
+        return;
+    }
     QPointF d = unit(a.to - a.from), n = perp(d);
     if (a.kind == ArrowKind::Equilibrium) {  // ⇌: two half-headed lines
         QPointF o = n * kEquilibriumGap;

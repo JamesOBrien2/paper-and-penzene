@@ -45,7 +45,11 @@ inline int chemicalOrder(const Bond& b) {
     return drawnOnly ? 0 : b.order;
 }
 
-enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook };
+// Arrows, and the plain shapes that share their two-point geometry (so they
+// select, move, recolour and save the same way): a line from `from` to `to`, or
+// a box or ellipse with `from` and `to` as opposite corners.
+enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook, Line, Box, RoundedBox, Ellipse };
+inline bool isShape(ArrowKind k) { return k >= ArrowKind::Line; }
 
 // Straight when bend == 0; otherwise a curve whose midpoint sits `bend` points
 // to the left of from->to as seen on screen (electron pushing).
@@ -54,6 +58,7 @@ struct Arrow {
     ArrowKind kind = ArrowKind::Reaction;
     double bend = 0;
     QColor color;
+    bool dashed = false;
     bool operator==(const Arrow&) const = default;
 };
 

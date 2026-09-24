@@ -606,3 +606,26 @@ TEST_CASE("radicals are chemistry; lone pairs and δ are drawn (#106)") {
     REQUIRE(back);
     CHECK(*back == water);
 }
+
+TEST_CASE("shapes and lines: saved, exported and read from CDXML (#107)") {
+    Document doc = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    doc.arrows.push_back({{-40, -40}, {40, 40}, ArrowKind::RoundedBox, 0, {}, true});  // a dashed box around it
+    doc.arrows.push_back({{-40, 50}, {40, 50}, ArrowKind::Line});
+    doc.arrows.push_back({{50, -20}, {90, 10}, ArrowKind::Ellipse});
+    auto back = Document::fromJson(doc.toJson());
+    REQUIRE(back);
+    CHECK(*back == doc);
+    CHECK_FALSE(chem::reactionOf(doc));  // shapes aren't reaction arrows
+    CHECK(documentBounds(doc).contains(QRectF(-40, -40, 80, 80)));
+
+    auto cdx = chem::fromChemDraw(chem::toCdxml(doc));
+    REQUIRE(cdx);
+    REQUIRE(cdx->arrows.size() == 3);
+    for (size_t k = 0; k < 3; ++k) {
+        INFO(k);
+        CHECK(cdx->arrows[k].kind == doc.arrows[k].kind);
+        CHECK(cdx->arrows[k].dashed == doc.arrows[k].dashed);
+        CHECK(QRectF(cdx->arrows[k].from, cdx->arrows[k].to).normalized() ==
+              QRectF(doc.arrows[k].from, doc.arrows[k].to).normalized());
+    }
+}

@@ -527,9 +527,10 @@ static Document ringDoc(int n, bool aromatic) {
     return d;
 }
 
-static Document arrowDoc(ArrowKind kind, double bend = 0) {
+static Document arrowDoc(ArrowKind kind, double bend = 0, bool dashed = false) {
     Document d;
-    d.arrows.push_back({{0, 0}, {16, 0}, kind, bend});
+    const bool area = isShape(kind) && kind != ArrowKind::Line;
+    d.arrows.push_back({{0, area ? -5.0 : 0.0}, {16, area ? 5.0 : 0.0}, kind, bend, {}, dashed});
     return d;
 }
 
@@ -815,8 +816,8 @@ void MainWindow::buildTools() {
                                   }));
         }
     section();
-    auto arrow = [this](ArrowKind k, bool curved) {
-        return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
+    auto arrow = [this](ArrowKind k, bool curved, bool dashed = false) {
+        return [this, k, curved, dashed] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved, dashed); };
     };
     const QString drag = tr(" (drag to draw; click an arrow to restyle it)");
     keys["e"] = add(docIcon(arrowDoc(ArrowKind::Reaction)), tr("Reaction arrow — e") + drag,
@@ -828,6 +829,15 @@ void MainWindow::buildTools() {
         arrow(ArrowKind::Reaction, true));
     add(docIcon(arrowDoc(ArrowKind::Fishhook, 10)), tr("Fishhook arrow, single electron (click it again to flip)"),
         arrow(ArrowKind::Fishhook, true));
+    section();
+    const QString shape = tr(" (drag to draw; Shift for a square or circle; click one to restyle it)");
+    add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
+    add(docIcon(arrowDoc(ArrowKind::Line, 0, true)), tr("Dashed line (drag to draw)"), arrow(ArrowKind::Line, false, true));
+    add(docIcon(arrowDoc(ArrowKind::Box)), tr("Box") + shape, arrow(ArrowKind::Box, false));
+    add(docIcon(arrowDoc(ArrowKind::RoundedBox, 0, true)), tr("Dashed rounded box") + shape, arrow(ArrowKind::RoundedBox, false, true));
+    add(docIcon(arrowDoc(ArrowKind::RoundedBox)), tr("Rounded box") + shape, arrow(ArrowKind::RoundedBox, false));
+    add(docIcon(arrowDoc(ArrowKind::Ellipse)), tr("Ellipse") + shape, arrow(ArrowKind::Ellipse, false));
+    section();
     keys["t"] = add(docIcon(textDoc("T")), tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
     connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
         if (auto* a = keys.value(k)) a->trigger();

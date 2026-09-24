@@ -11,7 +11,8 @@
 
 static const char* kStereo[] = {"none", "wedge", "hash", "bold", "dashed", "wavy", "interaction", "partial"};
 static const char* kPosition[] = {"auto", "left", "centre", "right"};
-static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook"};
+static const char* kArrow[] = {"reaction", "equilibrium", "resonance", "retro", "fishhook",
+                               "line", "box", "roundedbox", "ellipse"};
 
 QByteArray Document::toJson() const {
     QJsonArray as, bs;
@@ -40,6 +41,7 @@ QByteArray Document::toJson() const {
                       {"kind", kArrow[int(a.kind)]}};
         if (a.bend) o["bend"] = a.bend;
         if (a.color.isValid()) o["color"] = a.color.name();
+        if (a.dashed) o["dashed"] = true;
         ar.append(o);
     }
     for (const auto& t : texts) {
@@ -145,6 +147,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
             return std::nullopt;
         a.kind = ArrowKind(k - std::begin(kArrow));
         a.color = QColor(o["color"].toString());
+        a.dashed = o["dashed"].toBool();
         doc.arrows.push_back(a);
     }
     for (const auto& v : root["texts"].toArray()) {

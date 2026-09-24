@@ -81,6 +81,7 @@ struct Document {
     int bondBetween(int a, int b) const;  // bond index or -1
     std::vector<int> neighbors(int atom) const;
     QPointF awayDirection(int atom) const;  // bisects the widest gap between its bonds
+    void removeBond(int bond);  // also drops endpoints left isolated
     void removeAtoms(const std::vector<int>& atoms);  // also drops their bonds
 };
 

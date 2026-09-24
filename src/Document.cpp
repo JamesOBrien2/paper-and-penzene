@@ -157,6 +157,17 @@ std::vector<int> Document::neighbors(int atom) const {
     return out;
 }
 
+void Document::removeBond(int bond) {
+    const int a = bonds[bond].a, b = bonds[bond].b;
+    const bool dropA = neighbors(a).size() == 1;
+    const bool dropB = neighbors(b).size() == 1;
+    bonds.erase(bonds.begin() + bond);
+    std::vector<int> drop;
+    if (dropA) drop.push_back(a);
+    if (dropB) drop.push_back(b);
+    if (!drop.empty()) removeAtoms(drop);
+}
+
 void Document::removeAtoms(const std::vector<int>& drop) {
     std::vector<int> remap(atoms.size(), 0);
     for (int i : drop) remap[i] = -1;

@@ -500,7 +500,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             break;
         case Tool::Erase:
             if (pressAtom_ >= 0) next.removeAtoms({pressAtom_});
-            else if (bond >= 0) next.bonds.erase(next.bonds.begin() + bond);
+            else if (bond >= 0) next.removeBond(bond);
             else if (int a = arrowAt(pressPos_); a >= 0) next.arrows.erase(next.arrows.begin() + a);
             else if (int t = textAt(pressPos_); t >= 0) next.texts.erase(next.texts.begin() + t);
             what = tr("Erase");
@@ -852,7 +852,7 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
             if (a.z != 6 || a.charge || !a.label.isEmpty()) a.z = 6, a.charge = 0, a.label.clear();
             else next.removeAtoms({hoverAtom_}), hoverAtom_ = -1;
         } else if (hoverBond_ >= 0) {
-            next.bonds.erase(next.bonds.begin() + hoverBond_);
+            next.removeBond(hoverBond_);
             hoverBond_ = -1;
         } else {
             return;
@@ -959,7 +959,7 @@ QMenu* Canvas::contextMenuAt(QPointF at) {
         menu->addSeparator();
         menu->addAction(tr("Delete Bond"), this, [this, bond] {
             Document next = doc_;
-            next.bonds.erase(next.bonds.begin() + bond);
+            next.removeBond(bond);
             hoverAtom_ = hoverBond_ = -1;
             commit(next, tr("Delete"));
         });

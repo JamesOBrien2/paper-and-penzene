@@ -21,6 +21,28 @@ TEST_CASE("bad SMILES is rejected") {
     CHECK_FALSE(chem::fromSmiles("C1CC"));
 }
 
+TEST_CASE("deleting a bond removes only endpoints left isolated") {
+    Document chain;
+    chain.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{2 * kBondLength, 0}}};
+    chain.bonds = {{0, 1}, {1, 2}};
+    chain.removeBond(1);
+    REQUIRE(chain.atoms.size() == 2);
+    REQUIRE(chain.bonds.size() == 1);
+    CHECK(chain.bonds[0].a == 0);
+    CHECK(chain.bonds[0].b == 1);
+
+    Document bridge;
+    for (int i = 0; i < 4; ++i) bridge.addAtom({i * kBondLength, 0});
+    bridge.bonds = {{0, 1}, {1, 2}, {2, 3}};
+    bridge.removeBond(1);
+    CHECK(bridge.atoms.size() == 4);
+    CHECK(bridge.bonds.size() == 2);
+
+    bridge.removeBond(0);
+    CHECK(bridge.atoms.size() == 2);
+    CHECK(bridge.bonds.size() == 1);
+}
+
 TEST_CASE(".penz round-trips") {
     auto doc = chem::fromSmiles("C[C@H](N)C(=O)[O-]");
     REQUIRE(doc);

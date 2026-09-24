@@ -33,7 +33,11 @@ QByteArray Document::toJson() const {
         if (a.bend) o["bend"] = a.bend;
         ar.append(o);
     }
-    for (const auto& t : texts) ts.append(QJsonObject{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}});
+    for (const auto& t : texts) {
+        QJsonObject o{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}};
+        if (t.scale != 1) o["scale"] = t.scale;
+        ts.append(o);
+    }
     if (!ar.isEmpty()) root["arrows"] = ar;
     if (!ts.isEmpty()) root["texts"] = ts;
     QJsonArray fs;
@@ -88,8 +92,8 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     }
     for (const auto& v : root["texts"].toArray()) {
         auto o = v.toObject();
-        Text t{{o["x"].toDouble(), o["y"].toDouble()}, o["text"].toString()};
-        if (!finite({t.pos.x(), t.pos.y()})) return std::nullopt;
+        Text t{{o["x"].toDouble(), o["y"].toDouble()}, o["text"].toString(), o["scale"].toDouble(1)};
+        if (!finite({t.pos.x(), t.pos.y(), t.scale}) || t.scale <= 0) return std::nullopt;
         doc.texts.push_back(t);
     }
     for (const auto& v : root["fills"].toArray()) {

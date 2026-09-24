@@ -14,6 +14,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QSet>
 #include <QXmlStreamReader>
 #include <QStringList>
 #include <cmath>
@@ -206,41 +207,81 @@ std::optional<Document> fromMolBlock(const std::string& block) {
     return fromRDKit(*mol);
 }
 
-// Arrows and text from the CDXML itself; RDKit only reads the molecules.
+// A ChemDraw label node (nickname, generic R, or free text drawn as an atom).
+struct LabelNode {
+    int id = 0;
+    QPointF pos, textPos;
+    QString text;
+    double textScale = 1;
+    std::vector<QPointF> inner;  // positions of the atoms inside its fragment
+};
+
+// Arrows, free text and label nodes from the CDXML itself; RDKit only reads the
+// molecules. Returns the label nodes and how many bonds each node id has.
 // ponytail: plain lines, brackets, shapes and binary .cdx graphics are skipped.
-static void chemDrawGraphics(const QByteArray& xml, Document& doc) {
+static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& doc, QHash<int, int>& bondCount) {
     QXmlStreamReader r(xml);
     double scale = kBondLength / 30;  // CDXML's default BondLength
-    QStringList stack;
+    struct Open { QString tag; int label = -1; };  // label: index into `labels` for label <n>s
+    std::vector<Open> stack;
+    std::vector<LabelNode> labels;
     auto point = [&](QStringView s) {
         auto v = s.split(' ');
         return v.size() >= 2 ? QPointF(v[0].toDouble(), v[1].toDouble()) * scale : QPointF();
     };
+    // Where characters go: a free Text, or a label node's own text (not its inner fragment's).
     Text* text = nullptr;
+    int labelText = -1;
+    auto inside = [&](const char* tag) {
+        return std::any_of(stack.begin(), stack.end(), [&](const Open& o) { return o.tag == tag; });
+    };
+    static const QStringList labelTypes{"Fragment",    "Nickname",  "GenericNickname", "Unspecified", "Anonymous",
+                                        "AnonymousAlternativeGroup", "NamedAlternativeGroup", "Variable"};
     while (!r.atEnd()) {
         auto tok = r.readNext();
         if (tok == QXmlStreamReader::EndElement) {
-            if (r.name() == u"t") text = nullptr;
-            stack.removeLast();
+            if (r.name() == u"t") text = nullptr, labelText = -1;
+            stack.pop_back();
             continue;
         }
-        if (tok == QXmlStreamReader::Characters && text && stack.last() == "s") {
-            text->text += r.text();
+        if (tok == QXmlStreamReader::Characters && !stack.empty() && stack.back().tag == "s") {
+            if (text) text->text += r.text();
+            if (labelText >= 0) labels[labelText].text += r.text();
             continue;
         }
         if (tok != QXmlStreamReader::StartElement) continue;
-        stack.append(r.name().toString());
+        const QString tag = r.name().toString();
         const auto at = r.attributes();
-        if (r.name() == u"CDXML" && at.hasAttribute("BondLength")) {
+        const int parentLabel = stack.empty() ? -1 : stack.back().label;
+        stack.push_back({tag});
+        if (tag == "CDXML" && at.hasAttribute("BondLength")) {
             scale = kBondLength / std::max(1.0, at.value("BondLength").toDouble());
-        } else if (r.name() == u"t" && !stack.contains("n") && !stack.contains("fragment")) {
+        } else if (tag == "b") {
+            ++bondCount[at.value("B").toInt()], ++bondCount[at.value("E").toInt()];
+        } else if (tag == "n") {
+            const int id = at.value("id").toInt();
+            for (const Open& o : stack)  // an atom inside a label's fragment
+                if (o.label >= 0) labels[o.label].inner.push_back(point(at.value("p")));
+            if (labelTypes.contains(at.value("NodeType").toString())) {
+                labels.push_back({id, point(at.value("p"))});
+                stack.back().label = int(labels.size()) - 1;
+            }
+        } else if (tag == "t" && parentLabel >= 0) {
+            labels[parentLabel].textPos = point(at.value("p"));
+            auto box = at.value("BoundingBox").split(' ');
+            if (box.size() == 4) labels[parentLabel].textPos.setX(std::min(box[0].toDouble(), box[2].toDouble()) * scale);
+            labelText = parentLabel;
+        } else if (tag == "s" && (text || labelText >= 0) && at.hasAttribute("size")) {
+            const double rel = at.value("size").toDouble() * scale / 10;  // 10 pt: the default (ACS) label size
+            (text ? text->scale : labels[labelText].textScale) = rel;
+        } else if (tag == "t" && !inside("n") && !inside("fragment")) {
             // p is the first baseline; the bounding box gives the left edge whatever the justification.
             QPointF p = point(at.value("p"));
             auto box = at.value("BoundingBox").split(' ');
             if (box.size() == 4) p.setX(std::min(box[0].toDouble(), box[2].toDouble()) * scale);
             doc.texts.push_back({p, {}});
             text = &doc.texts.back();
-        } else if (r.name() == u"arrow") {
+        } else if (tag == "arrow") {
             const auto head = at.value("ArrowheadHead"), tail = at.value("ArrowheadTail");
             if (head.isEmpty() && tail.isEmpty()) continue;  // a plain line
             Arrow a{point(at.value("Tail3D")), point(at.value("Head3D"))};
@@ -269,6 +310,59 @@ static void chemDrawGraphics(const QByteArray& xml, Document& doc) {
     }
     std::erase_if(doc.texts, [](const Text& t) { return t.text.trimmed().isEmpty(); });
     for (auto& t : doc.texts) t.text = t.text.trimmed().replace('\r', '\n');
+    for (auto& l : labels) l.text = l.text.trimmed().replace('\r', '\n');
+    return labels;
+}
+
+// RDKit expands label nodes itself, at their fragment's own coordinates (often
+// far off the page), and leaves unbonded ones as stray atoms. Put them back the
+// way ChemDraw shows them (#86):
+//  - an unbonded label is text (reagents such as "LiBr, acetone");
+//  - a bonded label is one labelled atom, as ChemDraw draws it: a known
+//    abbreviation keeps its chemistry, an unknown one (SCoA) becomes an
+//    unknown group (*) rather than pretending to be its attachment atom;
+//  - a label RDKit kept as one atom (R, X) keeps its text as the atom's label.
+// RDKit tags only some atoms with their node id, but keeps every atom at its
+// CDXML position (even inside a nickname's own fragment), so match by position.
+static void placeLabels(Document& doc, const std::vector<int>& nodeOf, const std::vector<LabelNode>& labels,
+                        const QHash<int, int>& bondCount) {
+    std::vector<int> drop;
+    auto at = [](QPointF a, QPointF b) { return std::abs(a.x() - b.x()) < 0.6 && std::abs(a.y() - b.y()) < 0.6; };
+    for (const LabelNode& l : labels) {
+        std::vector<int> atoms;
+        for (int i = 0; i < int(doc.atoms.size()); ++i) {
+            const QPointF p = doc.atoms[i].pos;
+            if (nodeOf[i] == l.id || at(p, l.pos) ||
+                std::any_of(l.inner.begin(), l.inner.end(), [&](QPointF q) { return at(p, q); }))
+                atoms.push_back(i);
+        }
+        if (bondCount.value(l.id) == 0) {
+            if (!l.text.isEmpty()) doc.texts.push_back({l.textPos, l.text, l.textScale});
+            drop.insert(drop.end(), atoms.begin(), atoms.end());
+            continue;
+        }
+        if (atoms.empty()) continue;
+        auto self = std::find_if(atoms.begin(), atoms.end(), [&](int i) {
+            return nodeOf[i] == l.id || (at(doc.atoms[i].pos, l.pos) && l.inner.empty());
+        });
+        if (self != atoms.end()) {  // kept as a single atom
+            doc.atoms[*self].pos = l.pos;
+            if (!l.text.isEmpty()) doc.atoms[*self].label = l.text;
+            continue;
+        }
+        const QSet<int> group(atoms.begin(), atoms.end());
+        auto attach = std::find_if(atoms.begin(), atoms.end(), [&](int i) {
+            auto n = doc.neighbors(i);
+            return std::any_of(n.begin(), n.end(), [&](int j) { return !group.contains(j); });
+        });
+        if (attach == atoms.end()) continue;
+        const auto head = abbreviationHead(l.text);
+        Atom& a = doc.atoms[*attach];
+        a.z = head ? head->z : 0, a.charge = head ? head->charge : 0, a.label = l.text, a.pos = l.pos;
+        for (int i : atoms)
+            if (i != *attach) drop.push_back(i);
+    }
+    doc.removeAtoms(drop);
 }
 
 std::optional<Document> fromChemDraw(const QByteArray& data) {
@@ -281,20 +375,30 @@ std::optional<Document> fromChemDraw(const QByteArray& data) {
         return std::nullopt;
     }
     Document doc;
+    std::vector<int> nodeOf;  // CDX node id of each atom, to match label nodes
     for (auto& mol : mols) {
         if (!mol->getNumConformers()) continue;
         if (!mol->getNumAtoms()) continue;
         RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
+        for (const auto* a : mol->atoms()) {
+            unsigned id = 0;
+            a->getPropIfPresent("CDX_NODE_ID", id);
+            nodeOf.push_back(int(id));
+        }
         doc.append(fromRDKit(*mol, kScale));  // RDKit scales CDXML to 1.5 Å bonds, like MOL
     }
-    // Nicknames come back expanded plus stray unbonded atoms (a dummy, a lone
-    // carbon). ponytail: this also drops a deliberately drawn methane.
+    if (data.trimmed().startsWith('<')) {
+        Document graphics;
+        QHash<int, int> bondCount;
+        placeLabels(doc, nodeOf, chemDrawGraphics(data, graphics, bondCount), bondCount);
+        doc.arrows = graphics.arrows;
+        doc.texts.insert(doc.texts.end(), graphics.texts.begin(), graphics.texts.end());
+    }
+    // Any dummy atom left unbonded and unlabelled is an artefact of the expansion.
     std::vector<int> strays;
     for (int i = 0; i < int(doc.atoms.size()); ++i)
-        if ((doc.atoms[i].z == 0 || (doc.atoms[i].z == 6 && !doc.atoms[i].charge)) && doc.neighbors(i).empty())
-            strays.push_back(i);
+        if (doc.atoms[i].z == 0 && doc.atoms[i].label.isEmpty() && doc.neighbors(i).empty()) strays.push_back(i);
     doc.removeAtoms(strays);
-    if (data.trimmed().startsWith('<')) chemDrawGraphics(data, doc);
     if (doc.empty()) return std::nullopt;
     return doc;
 }

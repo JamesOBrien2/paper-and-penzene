@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE CDXML SYSTEM "http://www.cambridgesoft.com/xml/cdxml.dtd" >
+<CDXML BondLength="14.40">
+<page id="1">
+<fragment id="10">
+<n id="11" p="100 100"/>
+<n id="12" p="112.47 107.20" NodeType="GenericNickname" GenericNickname="R"><t p="109 111"><s font="3" size="10">R</s></t></n>
+<b id="13" B="11" E="12"/>
+</fragment>
+<fragment id="20">
+<n id="21" p="160 80" NodeType="Unspecified"><t p="150 83" BoundingBox="150 76 190 83"><s font="3" size="7">LiBr, acetone</s></t></n>
+</fragment>
+</page>
+</CDXML>

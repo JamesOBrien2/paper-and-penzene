@@ -196,3 +196,18 @@ TEST_CASE("clean lays abbreviations out as single nodes, so bonds stay even (#85
         CHECK(std::abs(std::hypot(v.x(), v.y()) - kBondLength) < 0.2 * kBondLength);
     }
 }
+
+TEST_CASE("CDXML label nodes: reagent labels become text, R groups stay labelled (#86)") {
+    auto doc = chem::readFile(QString(PENZENE_TEST_DATA) + "/labels.cdxml");
+    REQUIRE(doc);
+    REQUIRE(doc->atoms.size() == 2);  // the carbon and R; no stray atoms from the reagent label
+    CHECK(doc->atoms[1].label == "R");
+    CHECK(doc->bonds.size() == 1);
+    REQUIRE(doc->texts.size() == 1);
+    CHECK(doc->texts[0].text == "LiBr, acetone");
+    CHECK(std::abs(doc->texts[0].scale - 0.7) < 0.01);  // 7 pt against the 10 pt default
+    CHECK(std::abs(doc->texts[0].pos.x() - 150) < 0.5);
+    auto back = Document::fromJson(doc->toJson());  // text scale survives .penz
+    REQUIRE(back);
+    CHECK(*back == *doc);
+}

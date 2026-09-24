@@ -332,9 +332,11 @@ void MainWindow::buildTools() {
         auto* a = new QAction(icon(), {}, this);
         icons_.push_back({a, icon});
         a->setToolTip(tip);
+        a->setStatusTip(tip);  // the status bar explains the tool while it's chosen
         a->setCheckable(true);
         group->addAction(a);
         connect(a, &QAction::triggered, this, setup);
+        connect(a, &QAction::triggered, this, [this, tip] { statusBar()->showMessage(tip); });
         button(a);
         return a;
     };
@@ -364,20 +366,20 @@ void MainWindow::buildTools() {
     auto bondIcon = [&](int order, BondStereo st = BondStereo::None) {
         return docIcon(chainDoc({std::begin(bondPts), std::end(bondPts)}, order, st));
     };
-    keys["x"] = add(bondIcon(1), tr("Single bond / chain start — x"), bond(1));
+    keys["x"] = add(bondIcon(1), tr("Single bond — x: click empty space or an atom to add a bond; drag to aim it; click a bond to change it"), bond(1));
     keys["x"]->setChecked(true);
-    add(bondIcon(2), tr("Double bond"), bond(2));
-    add(bondIcon(3), tr("Triple bond"), bond(3));
-    add(bondIcon(1, BondStereo::Wedge), tr("Wedge bond"), tool(T::Wedge));
-    add(bondIcon(1, BondStereo::Hash), tr("Hashed bond"), tool(T::Hash));
-    keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X"), tool(T::Chain));
+    add(bondIcon(2), tr("Double bond: click an atom to add one, or a bond to make it double"), bond(2));
+    add(bondIcon(3), tr("Triple bond: click an atom to add one, or a bond to make it triple"), bond(3));
+    add(bondIcon(1, BondStereo::Wedge), tr("Wedge bond: points from the atom you start at; click a wedge again to flip it"), tool(T::Wedge));
+    add(bondIcon(1, BondStereo::Hash), tr("Hashed bond: points from the atom you start at; click a hash again to flip it"), tool(T::Hash));
+    keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X: drag to draw a zig-zag chain; it grows with the drag"), tool(T::Chain));
     section();
 
     auto ring = [this](int n, bool arom) {
         return [this, n, arom] { canvas_->setTool(T::Ring), canvas_->setRing(n, arom); };
     };
-    keys["j"] = add(docIcon(ringDoc(6, true)), tr("Benzene — j"), ring(6, true));
-    for (int n = 3; n <= 8; ++n) add(docIcon(ringDoc(n, false)), tr("%1-membered ring").arg(n), ring(n, false));
+    keys["j"] = add(docIcon(ringDoc(6, true)), tr("Benzene — j: click empty space for a ring, an atom to attach one, or a bond to fuse one"), ring(6, true));
+    for (int n = 3; n <= 8; ++n) add(docIcon(ringDoc(n, false)), tr("%1-membered ring: click empty space, an atom (spiro/attached) or a bond (fused)").arg(n), ring(n, false));
     Document filled = ringDoc(6, false);
     filled.fills.push_back({{0, 1, 2, 3, 4, 5}, QColor(120, 170, 255)});
     add(docIcon(filled), tr("Ring fill (click inside a ring; again to clear) — colour in Structure menu"), tool(T::Fill));
@@ -408,6 +410,9 @@ void MainWindow::buildTools() {
                         "or point at an atom and type N, O, S…)"));
     atom->setCheckable(true);
     group->addAction(atom);
+    connect(atom, &QAction::toggled, this, [this, atom](bool on) {
+        if (on) statusBar()->showMessage(atom->toolTip());
+    });
     connect(atom, &QAction::triggered, this, [this] { canvas_->setTool(T::Atom); });
     if (slot % 2) ++slot;
     auto* atomButton = button(atom);
@@ -436,8 +441,8 @@ void MainWindow::buildTools() {
             if (plus) p.drawLine(QPointF(12, 8.5), QPointF(12, 15.5));
         });
     };
-    add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
-    add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
+    add(charge(true), tr("Positive charge: click an atom to add +1"), tool(T::ChargePlus));
+    add(charge(false), tr("Negative charge: click an atom to add −1"), tool(T::ChargeMinus));
     // Colour tool: paints atoms, bonds, arrows and text; the arrow picks the colour.
     auto colour = std::make_shared<QColor>(canvas_->colour());
     const IconMaker colourIcon = paintedIcon([colour](QPainter& p, QColor ink) {

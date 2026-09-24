@@ -166,3 +166,18 @@ TEST_CASE("hotkeys without a canvas: ChemDraw's dipeptide example") {
     CHECK(chem::toSmiles(*chem::fromSmiles(smi)) == chem::toSmiles(*chem::fromSmiles("CC(N)C(=O)NC(C)C(=O)O")));
     CHECK_FALSE(edit::hotkey(doc, {0, -1}, "~").valid());  // not a hotkey
 }
+
+TEST_CASE("clean keeps bond display styles and double-bond positions (#84)") {
+    auto d = chem::fromSmiles("CC=CC(C)C");
+    REQUIRE(d);
+    int dbl = -1, single = -1;
+    for (int i = 0; i < int(d->bonds.size()); ++i)
+        (d->bonds[i].order == 2 ? dbl : single) = i;
+    d->bonds[dbl].position = BondPosition::Right;
+    d->bonds[single].stereo = BondStereo::Bold;
+    Document clean = chem::clean2D(*d);
+    const Bond& b1 = clean.bonds[clean.bondBetween(d->bonds[dbl].a, d->bonds[dbl].b)];
+    const Bond& b2 = clean.bonds[clean.bondBetween(d->bonds[single].a, d->bonds[single].b)];
+    CHECK(b1.position == BondPosition::Right);
+    CHECK(b2.stereo == BondStereo::Bold);
+}

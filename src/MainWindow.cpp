@@ -489,7 +489,6 @@ void MainWindow::buildMenus() {
     edit->addAction(tr("Select &All"), QKeySequence::SelectAll, canvas_, &Canvas::selectAll);
 
     auto* structure = menuBar()->addMenu(tr("&Structure"));
-    // ponytail: cleans the whole document; clean just the selection when someone asks.
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         const auto& sel = canvas_->selection();  // selected molecules only, else everything
         canvas_->commit(chem::clean2D(canvas_->document(), {sel.begin(), sel.end()}), tr("Clean"));

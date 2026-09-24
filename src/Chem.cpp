@@ -395,8 +395,18 @@ Document clean2D(const Document& doc, const std::vector<int>& only) {
         Document clean = cleanFragment(frag);
         for (size_t k = 0; k < ids.size(); ++k) out.atoms[ids[k]].pos = clean.atoms[k].pos;
         const int m = int(ids.size());  // atoms past m are expanded abbreviations: dropped again
-        for (auto b : clean.bonds)
-            if (b.a < m && b.b < m) b.a = ids[b.a], b.b = ids[b.b], out.bonds.push_back(b);
+        for (auto b : clean.bonds) {
+            if (b.a >= m || b.b >= m) continue;
+            b.a = ids[b.a], b.b = ids[b.b];
+            // RDKit only knows order and wedges: keep what the user chose for display.
+            if (int o = doc.bondBetween(b.a, b.b); o >= 0) {
+                const Bond& was = doc.bonds[o];
+                const bool styled = was.stereo == BondStereo::Bold || was.stereo == BondStereo::Dashed;
+                if (styled && b.stereo == BondStereo::None) b.stereo = was.stereo;
+                if (b.order == 2 && was.order == 2) b.position = was.position;
+            }
+            out.bonds.push_back(b);
+        }
     }
     return out;
 }

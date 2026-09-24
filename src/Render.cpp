@@ -152,6 +152,14 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
         return;
     }
 
+    if (b.stereo == BondStereo::Interaction) {  // dotted, whatever the order
+        QPen dots = p.pen();
+        dots.setCapStyle(Qt::RoundCap);
+        dots.setDashPattern({0.01, 2.2});
+        p.setPen(dots);
+        p.drawLine(a, e);
+        return;
+    }
     if (b.stereo == BondStereo::Wavy) {
         QPainterPath wave(a);
         const double L = len(e - a);
@@ -163,12 +171,13 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
         p.drawPath(wave);
         return;
     }
-    // Bold styles the main line, Dashed the other one (or the only one).
+    // Bold styles the main line, Dashed and Partial the other one (or the only one).
     const QPen pen = p.pen();
     auto line = [&](QPointF x, QPointF y, bool main) {
         QPen q = pen;
         if (b.stereo == BondStereo::Bold && main) q.setWidthF(st.boldWidth), q.setCapStyle(Qt::FlatCap);
-        if (b.stereo == BondStereo::Dashed && (!main || b.order == 1)) q.setDashPattern({2.5, 2.5});
+        const bool dashed = b.stereo == BondStereo::Dashed || b.stereo == BondStereo::Partial;
+        if (dashed && (!main || b.order == 1)) q.setDashPattern({2.5, 2.5});
         p.setPen(q);
         p.drawLine(x, y);
         p.setPen(pen);

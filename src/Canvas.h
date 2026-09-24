@@ -84,6 +84,8 @@ private:
     int arrowAt(QPointF p) const;
     int textAt(QPointF p) const;
     Arrow draggedArrow() const;
+    int draggedRingSize() const;
+    void addDraggedRing(Document& doc) const;
     void refresh();
     std::vector<QPointF> dragPath() const;
 
@@ -104,7 +106,7 @@ private:
     int hoverAtom_ = -1, hoverBond_ = -1;
 
     // Drag state
-    enum class Drag { None, Bond, Chain, Arrow, Move, Rotate, Rubber, Pan } drag_ = Drag::None;
+    enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan } drag_ = Drag::None;
     QPointF pressPos_, curPos_;
     bool shift_ = false;  // held during the drag: free bond angle, or move along one axis
     int pressAtom_ = -1;

@@ -775,3 +775,26 @@ TEST_CASE("drop an atom on another to merge; Shift for free angles and straight 
     QPointF v = f.doc().atoms[1].pos - f.doc().atoms[0].pos;
     CHECK(std::abs(std::atan2(v.y(), v.x()) * 180 / M_PI - 45) < 2);
 }
+
+TEST_CASE("drag the ring tool to size a ring (#127)") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Ring);
+    f.canvas.setRing(6, false);
+    // One atom per half bond length of drag, from 3.
+    Document none;
+    f.canvas.setDocumentSilently(none);
+    f.drag({0, 0}, {5.2 * kBondLength / 2, 0});  // 5 steps: an 8-membered ring
+    CHECK(f.doc().atoms.size() == 8);
+    CHECK(f.doc().bonds.size() == 8);
+    f.canvas.setDocumentSilently(none);
+    f.drag({0, 0}, {0.5, 0});  // barely moved: a click, so the chosen 6-ring
+    CHECK(f.doc().atoms.size() == 6);
+    // Dragging from a bond fuses the sized ring onto it.
+    Document bond;
+    bond.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    bond.bonds = {{0, 1}};
+    f.canvas.setDocumentSilently(bond);
+    f.drag({kBondLength / 2, 0}, {kBondLength / 2, 2.2 * kBondLength / 2});  // 2 steps: a 5-ring
+    CHECK(f.doc().atoms.size() == 5);  // 2 shared + 3 new
+    CHECK(f.doc().bonds.size() == 5);
+}

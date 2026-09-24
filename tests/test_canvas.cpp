@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QSettings>
 #include <QTest>
+#include <QMenu>
 #include <QToolButton>
 #include <QWidgetAction>
 #include <QUndoStack>
@@ -639,4 +640,40 @@ TEST_CASE("exports come out at the drawing style's own bond length (#92)") {
     const QRectF model = documentBounds(*d);
     CHECK(std::abs(rsc.width() - model.width() * 12.2 / 14.4) <= 1);
     CHECK(rsc.width() < acs.width());
+}
+
+// Finds a menu entry by its text, looking inside submenus.
+static QAction* findAction(QMenu* menu, const QString& text) {
+    for (QAction* a : menu->actions()) {
+        if (a->text() == text) return a;
+        if (a->menu())
+            if (QAction* sub = findAction(a->menu(), text)) return sub;
+    }
+    return nullptr;
+}
+
+TEST_CASE("right-click menus for atoms, bonds, selection and canvas (#89)") {
+    Fixture f;
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    d.bonds = {{0, 1}};
+    f.canvas.setDocumentSilently(d);
+
+    QMenu* atomMenu = f.canvas.contextMenuAt(f.doc().atoms[1].pos);
+    REQUIRE(findAction(atomMenu, "N"));
+    findAction(atomMenu, "N")->trigger();
+    CHECK(f.doc().atoms[1].z == 7);
+    findAction(f.canvas.contextMenuAt(f.doc().atoms[1].pos), "Boc")->trigger();
+    CHECK(f.doc().atoms[1].label == "Boc");
+
+    QMenu* bondMenu = f.canvas.contextMenuAt({kBondLength / 2, 0});
+    REQUIRE(findAction(bondMenu, "Double"));
+    findAction(bondMenu, "Double")->trigger();
+    CHECK(f.doc().bonds[0].order == 2);
+    CHECK(findAction(f.canvas.contextMenuAt({kBondLength / 2, 0}), "Right"));  // double: position submenu
+
+    f.canvas.selectAll();
+    CHECK(findAction(f.canvas.contextMenuAt(f.doc().atoms[0].pos), "Flip Horizontal"));
+    f.canvas.setSelection({});
+    CHECK(findAction(f.canvas.contextMenuAt({200, 200}), "Select All"));
 }

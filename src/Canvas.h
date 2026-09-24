@@ -9,6 +9,7 @@
 #include <vector>
 
 class QPainter;
+class QMenu;
 class QUndoStack;
 
 class Canvas : public QGraphicsView {
@@ -37,6 +38,8 @@ public:
     enum class Align { Left, HCentre, Right, Top, VCentre, Bottom };
     void alignSelection(Align edge);
     void distributeSelection(bool horizontal);
+    // The right-click menu for whatever is at `scenePos` (public so tests can inspect it).
+    QMenu* contextMenuAt(QPointF scenePos);
     void moveHotspot(QPointF dir, bool jump);
     void editLabel(int atom);
     void expandAbbreviations();  // selection, else hotspot atom, else everything
@@ -70,6 +73,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* e) override;
     void keyPressEvent(QKeyEvent* e) override;
     void wheelEvent(QWheelEvent* e) override;
+    void contextMenuEvent(QContextMenuEvent* e) override;
 
 private:
     int atomAt(QPointF p) const;

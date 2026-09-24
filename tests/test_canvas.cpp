@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QSettings>
+#include <QStatusBar>
 #include <QTest>
 #include <QMenu>
 #include <QToolButton>
@@ -723,4 +724,17 @@ TEST_CASE("colour atoms, bonds, arrows and text; exports keep the colour (#82)")
         for (int x = 0; x < img.width(); ++x)
             if (QColor c = img.pixelColor(x, y); c.alpha() > 200 && c.red() > 150 && c.green() < 90) sawRed = true;
     CHECK(sawRed);
+}
+
+TEST_CASE("choosing a tool explains it in the status bar (#93)") {
+    App app;
+    MainWindow w;
+    w.show();
+    QAction* chain = nullptr;
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->toolTip().startsWith("Chain")) chain = a;
+    REQUIRE(chain);
+    chain->trigger();
+    CHECK(w.statusBar()->currentMessage().startsWith("Chain"));
+    CHECK(w.statusBar()->currentMessage().contains("drag"));
 }

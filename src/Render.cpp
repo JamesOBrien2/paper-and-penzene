@@ -503,6 +503,7 @@ QImage renderImage(const Document& doc, double dpi, QColor background) {
     p.scale(s, s);
     p.translate(-r.topLeft());
     paintDocument(p, doc);
+    img.setText("penzene", QString::fromUtf8(doc.toJson()));  // reopens as an editable drawing
     return img;
 }
 
@@ -522,7 +523,11 @@ QByteArray renderSvg(const Document& doc, QColor background) {
     if (background.alpha()) p.fillRect(r, background);
     paintDocument(p, doc);
     p.end();
-    return buf.data();
+    // The editable drawing rides along (base64: nothing in it can break the XML).
+    QByteArray svg = buf.data();
+    const qsizetype open = svg.indexOf('>', svg.indexOf("<svg"));
+    if (open > 0) svg.insert(open + 1, "\n<metadata id=\"penzene\">" + doc.toJson().toBase64() + "</metadata>");
+    return svg;
 }
 
 bool exportDocument(const Document& doc, const QString& path, double dpi, QColor background) {

@@ -80,6 +80,8 @@ struct Document {
     // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...],"arrows":[...],"texts":[...]}
     QByteArray toJson() const;
     static std::optional<Document> fromJson(const QByteArray& data);
+    // The drawing Penzene embedded in an exported PNG (text chunk) or SVG (<metadata>).
+    static std::optional<Document> fromEmbedded(const QByteArray& file);
 
     int addAtom(QPointF pos, int z = 6);
     int bondBetween(int a, int b) const;  // bond index or -1

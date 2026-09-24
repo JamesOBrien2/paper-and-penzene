@@ -3,6 +3,7 @@
 #include "Edit.h"
 #include "MainWindow.h"
 #include "PubChem.h"
+#include "Render.h"
 
 #include <QApplication>
 #include <QSettings>
@@ -24,6 +25,8 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QClipboard>
+#include <QMimeData>
 #include <qpa/qwindowsysteminterface.h>
 #include <QMenu>
 #include <QToolButton>
@@ -1081,4 +1084,32 @@ TEST_CASE("a PubChem lookup holds user input until it returns (#171)") {
     CHECK(typing.text().isEmpty());  // not handled mid-request
     QApplication::processEvents();
     CHECK(typing.text() == "a");  // delivered afterwards
+}
+
+TEST_CASE("exported SVG and PNG reopen as the editable drawing (#100)") {
+    App app;
+    Document doc = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    doc.atoms[0].color = Qt::red;
+    doc.atoms[3].map = 4;
+    doc.texts.push_back({{0, 60}, "aspirin"});
+    QTemporaryDir dir;
+    for (const char* ext : {"svg", "png"}) {
+        const QString path = dir.filePath(QString("aspirin.") + ext);
+        REQUIRE(exportDocument(doc, path));
+        auto back = chem::readFile(path);
+        REQUIRE(back);
+        CHECK(*back == doc);
+    }
+    CHECK_FALSE(Document::fromEmbedded(QByteArray("<svg xmlns='http://www.w3.org/2000/svg'/>")));
+    CHECK_FALSE(Document::fromEmbedded(QByteArray()));
+
+    // A copied figure pastes back as structure, not as a picture.
+    MainWindow w;
+    auto* mime = new QMimeData;
+    mime->setData("image/svg+xml", renderSvg(doc));
+    QApplication::clipboard()->setMimeData(mime);
+    w.findChild<Canvas*>()->setDocumentSilently(Document{});
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->shortcut() == QKeySequence::Paste) a->trigger();
+    CHECK(w.findChild<Canvas*>()->document().atoms.size() == doc.atoms.size());
 }

@@ -365,6 +365,13 @@ void MainWindow::paste() {
     const QMimeData* mime = QApplication::clipboard()->mimeData();
     if (auto doc = Document::fromJson(mime->data(kPenzMime)); doc && !doc->empty())
         return canvas_->insert(*doc, tr("Paste"));
+    // A figure Penzene exported, copied from another app or as a file: the drawing inside it.
+    for (const char* type : {"image/svg+xml", "image/png"})
+        if (auto doc = Document::fromEmbedded(mime->data(type)); doc && !doc->empty())
+            return canvas_->insert(*doc, tr("Paste"));
+    for (const QUrl& url : mime->urls())
+        if (auto doc = url.isLocalFile() ? chem::readFile(url.toLocalFile()) : std::nullopt; doc && !doc->empty())
+            return canvas_->insert(*doc, tr("Paste"));
     std::string text = mime->hasFormat(kMolMime) ? mime->data(kMolMime).toStdString()
                                                  : mime->text().trimmed().toStdString();
     if (text.empty()) return;
@@ -759,7 +766,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
-                                                 tr("Structures (*.penz *.mol *.sdf *.cdxml *.cdx);;All files (*)"));
+                                                 tr("Structures (*.penz *.mol *.sdf *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
     });
     auto* recent = file->addMenu(tr("Open &Recent"));

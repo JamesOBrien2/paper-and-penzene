@@ -44,6 +44,7 @@ struct Arrow {
 struct Text {
     QPointF pos;
     QString text;
+    double scale = 1;  // relative to the drawing style's label size
     bool operator==(const Text&) const = default;
 };
 

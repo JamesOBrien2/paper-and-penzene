@@ -577,3 +577,14 @@ TEST_CASE("Ac, Pr and Ts are groups, not actinium, praseodymium and tennessine (
     f.key("A");
     CHECK(f.doc().atoms[1].label == "Ac");
 }
+
+TEST_CASE("curved arrows are circular arcs, exact past 180 degrees (#86)") {
+    // Chord 40, bend 30: more than a semicircle, radius (20² + 30²) / 60 = 21.7.
+    const QRectF r = arrowPath({{0, 0}, {40, 0}, ArrowKind::Reaction, 30}).boundingRect();
+    CHECK(std::abs(r.top() + 30) < 0.2);          // the arc's midpoint sits 30 above the chord
+    CHECK(r.left() < -1.4);                          // and it bulges past both ends
+    CHECK(r.right() > 41.4);
+    // A small bend still matches the old midpoint.
+    QPointF mid = arrowPath({{0, 0}, {40, 0}, ArrowKind::Reaction, 8}).pointAtPercent(0.5);
+    CHECK(std::abs(mid.y() + 8) < 0.2);
+}

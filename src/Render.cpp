@@ -185,13 +185,44 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
 constexpr double kHeadLength = 6, kHeadWidth = 2.2, kEquilibriumGap = 1.6;
 
 // Quadratic control point: puts the curve's midpoint `bend` to the left of from->to.
-static QPointF control(const Arrow& a) { return (a.from + a.to) / 2 - perp(unit(a.to - a.from)) * (2 * a.bend); }
+// Points along the arrow. A curve is a circular arc through both ends whose
+// midpoint sits `bend` off the chord, so arcs past 180° (ChemDraw's cycle
+// arrows) are exact too.
+static std::vector<QPointF> arrowPoints(const Arrow& a) {
+    if (!a.bend || len(a.to - a.from) < 1e-6) return {a.from, a.to};
+    const QPointF mid = (a.from + a.to) / 2, u = -perp(unit(a.to - a.from)) * (a.bend > 0 ? 1 : -1);
+    const double h = len(a.to - a.from) / 2, sag = std::abs(a.bend), radius = (h * h + sag * sag) / (2 * sag);
+    const QPointF top = mid + u * sag, c = top - u * radius;
+    auto angle = [&](QPointF p) { return std::atan2(p.y() - c.y(), p.x() - c.x()); };
+    const double from = angle(a.from), through = angle(top);
+    double sweep = angle(a.to) - from;
+    // Go the way that passes through the arc's midpoint.
+    auto wrap = [](double x) { return std::remainder(x, 2 * M_PI); };
+    const double half = wrap(through - from);
+    if (half > 0 && sweep < 0) sweep += 2 * M_PI;
+    if (half < 0 && sweep > 0) sweep -= 2 * M_PI;
+    const int n = std::max(8, int(std::abs(sweep) * radius / 1.5));  // about 1.5 pt per segment
+    std::vector<QPointF> pts;
+    for (int k = 0; k <= n; ++k) {
+        double t = from + sweep * k / n;
+        pts.push_back(c + QPointF(std::cos(t), std::sin(t)) * radius);
+    }
+    pts.front() = a.from, pts.back() = a.to;
+    return pts;
+}
 
 QPainterPath arrowPath(const Arrow& a) {
-    QPainterPath path(a.from);
-    if (a.bend) path.quadTo(control(a), a.to);
-    else path.lineTo(a.to);
+    const auto pts = arrowPoints(a);
+    QPainterPath path(pts[0]);
+    for (size_t k = 1; k < pts.size(); ++k) path.lineTo(pts[k]);
     return path;
+}
+
+// Drops `by` points' worth of length from the end of a polyline.
+static void trimEnd(std::vector<QPointF>& pts, double by) {
+    while (pts.size() > 2 && len(pts.back() - pts[pts.size() - 2]) <= by)
+        by -= len(pts.back() - pts[pts.size() - 2]), pts.pop_back();
+    pts.back() -= unit(pts.back() - pts[pts.size() - 2]) * std::min(by, len(pts.back() - pts[pts.size() - 2]) - 0.01);
 }
 
 // Filled head at `tip` pointing along `dir`; `sides` +1/-1 for a half head.
@@ -221,13 +252,16 @@ static void drawArrow(QPainter& p, const Arrow& a) {
         p.drawPolyline(QPolygonF{back + n * (kHeadWidth + kEquilibriumGap), a.to, back - n * (kHeadWidth + kEquilibriumGap)});
         return;
     }
-    // Stop the shaft inside the head so it doesn't poke through the tip.
-    QPointF endDir = a.bend ? a.to - control(a) : a.to - a.from;
-    QPointF startDir = a.bend ? a.from - control(a) : a.from - a.to;
-    Arrow shaft = a;
-    shaft.to -= unit(endDir) * kHeadLength * 0.7;
-    if (a.kind == ArrowKind::Resonance) shaft.from -= unit(startDir) * kHeadLength * 0.7;
-    p.drawPath(arrowPath(shaft));
+    // Heads follow the tangent at each end; the shaft stops inside them so it
+    // doesn't poke through the tip.
+    std::vector<QPointF> pts = arrowPoints(a);
+    const QPointF endDir = pts.back() - pts[pts.size() - 2], startDir = pts.front() - pts[1];
+    trimEnd(pts, kHeadLength * 0.7);
+    if (a.kind == ArrowKind::Resonance) {
+        std::reverse(pts.begin(), pts.end());
+        trimEnd(pts, kHeadLength * 0.7);
+    }
+    p.drawPolyline(pts.data(), int(pts.size()));
     // Fishhook: the barb sits on the outside of the curve.
     drawHead(p, a.to, endDir, a.kind == ArrowKind::Fishhook ? (a.bend >= 0 ? -1 : 1) : 0);
     if (a.kind == ArrowKind::Resonance) drawHead(p, a.from, startDir);
@@ -242,7 +276,7 @@ static bool subscripted(const QString& s, int i, bool prevSub) {
 // Text as outlines, formula-style subscripts, one line per '\n'. Laid out in
 // runs (not per letter) so kerning and spaces match ordinary text.
 QPainterPath textPath(const Text& t, const DrawingStyle& st) {
-    QFont f = labelFont(st), sub = labelFont(st, 0.7);
+    QFont f = labelFont(st, t.scale), sub = labelFont(st, 0.7 * t.scale);
     QFontMetricsF fm(f), sm(sub);
     const double tab = kTabSpaces * fm.horizontalAdvance(' ');
     QPainterPath path;

@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "Canvas.h"
 #include "Chem.h"
+#include "PubChem.h"
 
 #include <QActionGroup>
 #include <QApplication>
@@ -324,6 +325,22 @@ void MainWindow::importSmiles() {
     if (!ok || s.trimmed().isEmpty()) return;
     if (auto doc = chem::fromSmiles(s.trimmed().toStdString())) canvas_->insert(*doc, tr("Import SMILES"));
     else QMessageBox::warning(this, tr("Import SMILES"), tr("Not a valid SMILES string."));
+}
+
+void MainWindow::importName() {
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Import Name"),
+                                               tr("Compound name (looked up on PubChem, online):"),
+                                               QLineEdit::Normal, {}, &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+    QString error;
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const QString smiles = pubchem::fetch(pubchem::nameToSmilesUrl(name), "SMILES", &error);
+    QApplication::restoreOverrideCursor();
+    if (auto doc = chem::fromSmiles(smiles.toStdString()); doc && !smiles.isEmpty())
+        canvas_->insert(*doc, tr("Import %1").arg(name.trimmed()));
+    else
+        QMessageBox::warning(this, tr("Import Name"), tr("Could not look up “%1”: %2").arg(name.trimmed(), error));
 }
 
 void MainWindow::copy() {
@@ -757,6 +774,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("Save &As…"), QKeySequence::SaveAs, this, &MainWindow::saveAs);
     file->addSeparator();
     file->addAction(tr("Import &SMILES…"), QKeySequence(tr("Ctrl+Shift+I")), this, &MainWindow::importSmiles);
+    file->addAction(tr("Import &Name from PubChem…"), this, &MainWindow::importName);
     file->addAction(tr("&Export…"), QKeySequence(tr("Ctrl+E")), this, &MainWindow::exportImage);
     file->addSeparator();
     file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);

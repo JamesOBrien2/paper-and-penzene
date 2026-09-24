@@ -31,10 +31,10 @@ target_link_libraries(penzene_core PUBLIC
     RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler)
 
 if(PENZENE_APP)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Test)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network Test)
 # The app's widgets; tests link this too, so they exercise the same code.
-add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp)
-target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets)
+add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/PubChem.cpp)
+target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network)
 
 set(PENZENE_ICNS resources/penzene.icns)
 set_source_files_properties(${PENZENE_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)

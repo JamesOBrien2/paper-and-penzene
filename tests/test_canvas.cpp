@@ -675,6 +675,36 @@ static QAction* findAction(QMenu* menu, const QString& text) {
     return nullptr;
 }
 
+TEST_CASE("terminal bond deletion drops the end atom through each UI path") {
+    for (int path = 0; path < 3; ++path) {
+        Fixture f;
+        Document d;
+        d.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{2 * kBondLength, 0}}};
+        d.bonds = {{0, 1}, {1, 2}};
+        f.canvas.setDocumentSilently(d);
+        const QPointF mid(1.5 * kBondLength, 0);
+        if (path == 0) {
+            f.hover(mid);
+            QTest::keyClick(f.canvas.viewport(), Qt::Key_Delete);
+        } else if (path == 1) {
+            f.canvas.setTool(Canvas::Tool::Erase);
+            f.click(mid);
+        } else {
+            QMenu* menu = f.canvas.contextMenuAt(mid);
+            QAction* action = findAction(menu, "Delete Bond");
+            REQUIRE(action);
+            action->trigger();
+        }
+        REQUIRE(f.doc().atoms.size() == 2);
+        CHECK(f.doc().bonds.size() == 1);
+        CHECK(f.doc().atoms[1].pos == QPointF(kBondLength, 0));
+        if (path == 0)
+            if (auto out = qgetenv("PENZENE_DELETE_SHOT"); !out.isEmpty()) f.canvas.grab().save(out);
+        f.undo.undo();
+        CHECK(f.doc() == d);
+    }
+}
+
 TEST_CASE("right-click menus for atoms, bonds, selection and canvas (#89)") {
     Fixture f;
     Document d;

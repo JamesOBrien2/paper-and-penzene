@@ -20,7 +20,10 @@ RENAMES = {"libstdc++.so.6": "libstdc++-penzene.so.6", "libgcc_s.so.1": "libgcc_
 
 
 def run(*args):
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    r = subprocess.run(args, capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f"{' '.join(map(str, args))} failed:\n{r.stdout}{r.stderr}")
+    return r.stdout
 
 
 def is_elf(p):
@@ -54,6 +57,7 @@ with tempfile.TemporaryDirectory() as tmp:
     tag = f"manylinux_{newest[0]}_{newest[1]}_x86_64"
 
     packed = Path(tmp) / "packed"
+    packed.mkdir()
     run(sys.executable, "-m", "wheel", "pack", "-d", str(packed), str(root))
     built = next(packed.glob("*.whl"))
     run(sys.executable, "-m", "wheel", "tags", "--remove", "--platform-tag", tag, str(built))

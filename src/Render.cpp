@@ -15,20 +15,22 @@
 
 // Presets. Values come from the ChemDraw stationery (.cds) of the same name;
 // wedge width, hash spacing and label gap keep ACS's proportions to ours.
-// ponytail: bond length stays 14.4 pt for every preset (JDP's is 14.17, 1.6% off);
-// a per-style bond length needs the drawing tools to read it too.
-constexpr double kRsc = kBondLength / 12.2;
+// Model units per point for a style's native values (bond length / 14.4 undone).
+constexpr double kJdp = kBondLength / 14.17, kRsc = kBondLength / 12.2;
 
 const std::vector<DrawingStyle>& drawingStyles() {
+    // Wedge width and hash spacing keep ACS's proportion to the bold width and
+    // hash setting (4.5/2.0 and 2.2/2.5); label radius is half a glyph plus the margin.
     static const std::vector<DrawingStyle> styles{
-        {"ACS 1996", 0.6, 2.0, 4.5, 2.2, 0.18, 5.5, "Arial", QFont::Normal, 10},
-        // JDPReport.cds: line 0.879, bold 1.814, hash 1.814, margin 1.162, IBM Plex Sans Light 10 pt.
-        {"JDP", 0.879, 1.814, 4.5 * 1.814 / 2.0, 2.2 * 1.814 / 2.5, 0.18, 5.5 - 1.6 + 1.162, "IBM Plex Sans",
-         QFont::Light, 10},
+        {"ACS 1996", 14.4, 0.6, 2.0, 4.5, 2.2, 0.18, 5.5, "Arial", QFont::Normal, 10},
+        // JDPReport.cds: bond 14.17 (0.5 cm), line 0.879, bold 1.814, hash 1.814, margin 1.162,
+        // IBM Plex Sans Light 10 pt.
+        {"JDP", 14.17, 0.879 * kJdp, 1.814 * kJdp, 4.5 * 1.814 / 2.0 * kJdp, 2.2 * 1.814 / 2.5 * kJdp, 0.18,
+         (3.9 + 1.162) * kJdp, "IBM Plex Sans", QFont::Light, 10 * kJdp},
         // RSC (1 Column).cds (2 Column only differs in page size): bond 12.2, line 0.449, bold 1.602,
-        // hash 1.75, margin 1.25, spacing 20%, Helvetica 7 pt; scaled by 14.4/12.2 to our bond length.
-        {"RSC", 0.449 * kRsc, 1.602 * kRsc, 4.5 * 1.602 / 2.0, 2.2 * 1.75 / 2.5, 0.20, 3.9 * 0.826 + 1.25 * kRsc,
-         "Helvetica", QFont::Normal, 7 * kRsc},
+        // hash 1.75, margin 1.25, spacing 20%, Helvetica 7 pt.
+        {"RSC", 12.2, 0.449 * kRsc, 1.602 * kRsc, 4.5 * 1.602 / 2.0 * kRsc, 2.2 * 1.75 / 2.5 * kRsc, 0.20,
+         (3.9 * 0.7 + 1.25) * kRsc, "Helvetica", QFont::Normal, 7 * kRsc},
     };
     return styles;
 }
@@ -374,9 +376,11 @@ QRectF documentBounds(const Document& doc) {
     return QRectF(lo, hi);
 }
 
+double exportScale(const Document& doc) { return drawingStyle(doc.style).bondLength / kBondLength; }
+
 QImage renderImage(const Document& doc, double dpi) {
     QRectF r = documentBounds(doc);
-    double s = dpi / 72.0;  // scene units are points
+    double s = dpi / 72.0 * exportScale(doc);  // model units to pixels
     QImage img((r.size() * s).toSize().expandedTo({1, 1}), QImage::Format_ARGB32_Premultiplied);
     img.setDotsPerMeterX(int(dpi / 0.0254));
     img.setDotsPerMeterY(int(dpi / 0.0254));
@@ -390,14 +394,16 @@ QImage renderImage(const Document& doc, double dpi) {
 
 QByteArray renderSvg(const Document& doc) {
     QRectF r = documentBounds(doc);
+    const double s = exportScale(doc);
     QBuffer buf;
     QSvgGenerator gen;
     gen.setOutputDevice(&buf);
-    gen.setSize(r.size().toSize());
-    gen.setViewBox(QRectF(QPointF(), r.size()));
+    gen.setSize((r.size() * s).toSize());
+    gen.setViewBox(QRectF(QPointF(), r.size() * s));
     gen.setResolution(72);  // 1 unit == 1 pt
     gen.setTitle("Penzene");
     QPainter p(&gen);
+    p.scale(s, s);
     p.translate(-r.topLeft());
     paintDocument(p, doc);
     p.end();
@@ -416,10 +422,12 @@ bool exportDocument(const Document& doc, const QString& path) {
     if (ext == "pdf") {
         QPdfWriter pdf(path);
         pdf.setResolution(72);
-        pdf.setPageSize(QPageSize(r.size(), QPageSize::Point));
+        const double s = exportScale(doc);
+        pdf.setPageSize(QPageSize(r.size() * s, QPageSize::Point));
         pdf.setPageMargins({});
         pdf.setCreator("Penzene");
         QPainter p(&pdf);
+        p.scale(s, s);
         p.translate(-r.topLeft());
         paintDocument(p, doc);
         return true;

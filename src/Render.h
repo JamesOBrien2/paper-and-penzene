@@ -30,8 +30,11 @@ const std::vector<Theme>& themes();  // "System" first; "System" follows the OS 
 const Theme& theme(const QString& name);
 
 // A document style preset, like ChemDraw stationery. Lengths in points.
+// Geometry is always drawn with 14.4 pt bonds, so every length here is in
+// those model units; exports scale by bondLength / 14.4 to the style's size.
 struct DrawingStyle {
     QString name;
+    double bondLength;  // the style's own bond length, in points
     double lineWidth, boldWidth, wedgeWidth, hashSpacing;
     double bondSpacing;  // double-bond gap, as a fraction of the bond length
     double labelRadius;  // bonds stop this short of a label's centre
@@ -45,6 +48,7 @@ const DrawingStyle& drawingStyle(const QString& name);  // unknown or empty: ACS
 // Paints a document in its drawing style. Shared by the canvas and export.
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = {});
 QRectF documentBounds(const Document& doc);
+double exportScale(const Document& doc);  // points per model unit in exports
 // Writes .svg, .png or .pdf (by extension), cropped to the drawing.
 bool exportDocument(const Document& doc, const QString& path);
 QImage renderImage(const Document& doc, double dpi = 300);

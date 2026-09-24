@@ -211,6 +211,14 @@ bool MainWindow::saveTo(const QString& path, bool v3000) {
     QByteArray data;
     if (path.endsWith(".penz", Qt::CaseInsensitive)) {
         data = doc.toJson();
+    } else if (path.endsWith(".cdxml", Qt::CaseInsensitive)) {
+        data = chem::toCdxml(doc);
+    } else if (path.endsWith(".cdx", Qt::CaseInsensitive)) {
+        data = chem::toCdx(doc);
+        if (data.isEmpty()) {
+            QMessageBox::warning(this, tr("Save"), tr("This build can't write binary CDX; save as ChemDraw XML (.cdxml)."));
+            return false;
+        }
     } else if (path.endsWith(".rxn", Qt::CaseInsensitive)) {
         const auto r = chem::reactionOf(doc);
         if (!r) {
@@ -244,7 +252,8 @@ bool MainWindow::saveAs() {
     QString filter;
     QString path = QFileDialog::getSaveFileName(this, tr("Save As"), path_,
                                                 tr("Penzene document (*.penz);;MDL Molfile (*.mol);;") + v3000 +
-                                                    tr(";;MDL Rxnfile (*.rxn)"), &filter);
+                                                    tr(";;MDL Rxnfile (*.rxn);;ChemDraw XML (*.cdxml);;ChemDraw, molecules only (*.cdx)"),
+                                                &filter);
     return !path.isEmpty() && saveTo(path, filter == v3000);
 }
 
@@ -414,6 +423,9 @@ void MainWindow::copy() {
     mime->setImageData(renderImage(doc, exportOptions()));
     mime->setData("image/svg+xml", renderSvg(doc, exportOptions()));
     mime->setData(kPenzMime, doc.toJson());
+    // For pasting into ChemDraw (macOS maps this to its pasteboard type through ChemDrawPasteboard).
+    if (const QByteArray cdx = doc.atoms.empty() ? QByteArray() : chem::toCdx(doc); !cdx.isEmpty())
+        mime->setData("chemical/x-cdx", cdx);
     if (!doc.atoms.empty()) {
         std::string mol = chem::toMolBlock(doc), smi = chem::toSmiles(doc);
         mime->setData(kMolMime, QByteArray::fromStdString(mol));

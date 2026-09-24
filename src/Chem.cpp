@@ -10,6 +10,10 @@
 #include <GraphMol/Descriptors/MolSurf.h>
 #include <map>
 #include <GraphMol/inchi.h>
+#if __has_include(<GraphMol/chemdraw.h>)
+#include <GraphMol/chemdraw.h>
+#define PENZENE_CDX_WRITER 1
+#endif
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/MolOps.h>
@@ -25,8 +29,10 @@
 #include <QLineF>
 #include <QSet>
 #include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 #include <QStringList>
 #include <cmath>
+#include <numbers>
 #include <memory>
 
 namespace chem {
@@ -617,6 +623,134 @@ std::optional<Document> readFile(const QString& path) {
     if (ext == "png" || ext == "svg") return Document::fromEmbedded(data);
     if (ext == "cdxml" || ext == "cdx") return fromChemDraw(data);
     return fromMolBlock(data.toStdString());
+}
+
+// CDXML in our own coordinates (BondLength = ours, y down, as ChemDraw), so
+// ChemDraw and chemDrawGraphics read it back unscaled.
+// ponytail: abbreviations are written expanded, free-text labels as generic
+// nicknames; ChemDraw's own Fragment/Nickname nodes would keep "OMe" as a label.
+QByteArray toCdxml(const Document& in) {
+    const Document doc = expanded(in);
+    QByteArray out;
+    QXmlStreamWriter w(&out);
+    w.setAutoFormatting(true);
+    w.writeStartDocument();
+    w.writeDTD(R"(<!DOCTYPE CDXML SYSTEM "http://www.cambridgesoft.com/xml/cdxml.dtd">)");
+    int id = 1;
+    auto pt = [](QPointF p) { return QString("%1 %2").arg(p.x(), 0, 'f', 2).arg(p.y(), 0, 'f', 2); };
+    auto pt3 = [&](QPointF p) { return pt(p) + " 0"; };
+    w.writeStartElement("CDXML");
+    w.writeAttribute("BondLength", QString::number(kBondLength));
+    w.writeAttribute("CreationProgram", "Penzene");
+    w.writeStartElement("page");
+    w.writeAttribute("id", QString::number(id++));
+    if (!doc.atoms.empty()) {
+        w.writeStartElement("fragment");
+        w.writeAttribute("id", QString::number(id++));
+        const int base = id;
+        for (size_t i = 0; i < doc.atoms.size(); ++i) {
+            const Atom& a = doc.atoms[i];
+            // Expansion drops labels it can't draw out; free text (R, X, MgEt) is in the original.
+            const QString label = i < in.atoms.size() && a.z == 0 ? in.atoms[i].label : QString();
+            w.writeStartElement("n");
+            w.writeAttribute("id", QString::number(id++));
+            w.writeAttribute("p", pt(a.pos));
+            if (!label.isEmpty()) {
+                w.writeAttribute("NodeType", "GenericNickname");
+                w.writeAttribute("GenericNickname", label);
+                w.writeStartElement("t");
+                w.writeAttribute("p", pt(a.pos + QPointF(-3, 4)));
+                w.writeTextElement("s", label);
+                w.writeEndElement();
+            } else if (a.z != 6) {
+                w.writeAttribute("Element", QString::number(a.z));
+            }
+            if (a.charge) w.writeAttribute("Charge", QString::number(a.charge));
+            w.writeEndElement();
+        }
+        static const char* display[] = {nullptr, "WedgeBegin", "WedgedHashBegin", "Bold", "Dash", "Wavy"};
+        static const char* side[] = {nullptr, "Left", "Center", "Right"};
+        for (const Bond& b : doc.bonds) {
+            w.writeStartElement("b");
+            w.writeAttribute("id", QString::number(id++));
+            w.writeAttribute("B", QString::number(base + b.a));
+            w.writeAttribute("E", QString::number(base + b.b));
+            if (b.order > 1) w.writeAttribute("Order", QString::number(b.order));
+            if (display[int(b.stereo)]) w.writeAttribute("Display", display[int(b.stereo)]);
+            if (side[int(b.position)]) w.writeAttribute("DoublePosition", side[int(b.position)]);
+            w.writeEndElement();
+        }
+        w.writeEndElement();
+    }
+    for (const Text& t : doc.texts) {
+        w.writeStartElement("t");
+        w.writeAttribute("id", QString::number(id++));
+        w.writeAttribute("p", pt(t.pos));
+        w.writeStartElement("s");
+        w.writeAttribute("size", QString::number(10 * t.scale));  // 10 pt: the ACS label size
+        w.writeCharacters(QString(t.text).replace('\n', '\r'));
+        w.writeEndElement();
+        w.writeEndElement();
+    }
+    for (const Arrow& a : doc.arrows) {
+        w.writeStartElement("arrow");
+        w.writeAttribute("id", QString::number(id++));
+        w.writeAttribute("Head3D", pt3(a.to));
+        w.writeAttribute("Tail3D", pt3(a.from));
+        switch (a.kind) {
+        case ArrowKind::Reaction: w.writeAttribute("ArrowheadHead", "Full"); break;
+        case ArrowKind::Retro:
+            w.writeAttribute("ArrowheadHead", "Full");
+            w.writeAttribute("ArrowheadType", "Hollow");
+            break;
+        case ArrowKind::Resonance:
+            w.writeAttribute("ArrowheadHead", "Full");
+            w.writeAttribute("ArrowheadTail", "Full");
+            break;
+        case ArrowKind::Equilibrium:
+            w.writeAttribute("ArrowheadHead", "HalfLeft");
+            w.writeAttribute("ArrowheadTail", "HalfLeft");
+            w.writeAttribute("ArrowShaftSpacing", "4");
+            break;
+        case ArrowKind::Fishhook: w.writeAttribute("ArrowheadHead", "HalfLeft"); break;
+        }
+        if (a.kind != ArrowKind::Retro) w.writeAttribute("ArrowheadType", "Solid");
+        if (std::abs(a.bend) > 1e-6 && a.kind != ArrowKind::Equilibrium) {
+            // The circle through both ends and the arc's midpoint (bend off the chord, as read back).
+            const QPointF d = a.to - a.from, mid = (a.from + a.to) / 2;
+            const double c = std::hypot(d.x(), d.y()) / 2, s = std::abs(a.bend);
+            const QPointF n(-d.y() / (2 * c), d.x() / (2 * c)), arcMid = mid - a.bend * n;
+            const double r = (c * c + s * s) / (2 * s);
+            const QPointF centre = arcMid + (mid - arcMid) / s * r;
+            auto angle = [&](QPointF p) { return std::atan2(p.y() - centre.y(), p.x() - centre.x()) * 180 / std::numbers::pi; };
+            auto wrap = [](double x) { return std::fmod(std::fmod(x, 360) + 360, 360); };
+            double sweep = wrap(angle(a.to) - angle(a.from));
+            if (wrap(angle(arcMid) - angle(a.from)) > sweep) sweep -= 360;
+            w.writeAttribute("Center3D", pt3(centre));
+            w.writeAttribute("MajorAxisEnd3D", pt3(centre + QPointF(r, 0)));
+            w.writeAttribute("MinorAxisEnd3D", pt3(centre + QPointF(0, r)));
+            w.writeAttribute("AngularSize", QString::number(-sweep, 'f', 2));  // ChemDraw: head = tail turned by -AngularSize
+        }
+        w.writeEndElement();
+    }
+    w.writeEndDocument();
+    return out;
+}
+
+// Binary CDX, through RDKit: molecules only (no arrows or text). Empty where
+// RDKit has no ChemDraw writer.
+QByteArray toCdx(const Document& doc) {
+#ifndef PENZENE_CDX_WRITER
+    return {};
+#else
+    auto mol = toRDKit(doc);
+    perceive(*mol);
+    try {
+        return QByteArray::fromStdString(RDKit::v2::MolToChemDrawBlock(*mol, RDKit::v2::CDXFormat::CDX));
+    } catch (...) {
+        return {};
+    }
+#endif
 }
 
 std::string toMolBlock(const Document& doc, bool v3000) {

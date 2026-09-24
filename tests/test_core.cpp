@@ -463,3 +463,38 @@ TEST_CASE("reactions: reaction SMILES and RXN, both ways (#101)") {
     CHECK_FALSE(chem::fromReactionSmiles("CCO"));
     CHECK_FALSE(chem::fromRxn("not an rxn"));
 }
+
+TEST_CASE("CDXML export reads back: molecules, wedges, arrows and text (#29)") {
+    Document doc = *chem::fromSmiles("C[C@H](N)C(=O)O");  // L-alanine, wedged
+    const std::string smiles = chem::toSmiles(doc);
+    const QPointF right(60, 0);
+    doc.arrows.push_back({right, right + QPointF(40, 0)});
+    doc.arrows.push_back({right + QPointF(0, 30), right + QPointF(40, 30), ArrowKind::Reaction, 10});  // curved
+    doc.texts.push_back({{0, 40}, "L-alanine"});
+    const QByteArray cdxml = chem::toCdxml(doc);
+    CHECK(cdxml.contains("<CDXML"));
+    auto back = chem::fromChemDraw(cdxml);
+    REQUIRE(back);
+    CHECK(chem::toSmiles(*back) == smiles);  // stereo survives
+    REQUIRE(back->arrows.size() == 2);
+    CHECK(QLineF(back->arrows[0].from, doc.arrows[0].from).length() < 0.1);
+    CHECK(std::abs(back->arrows[1].bend - 10) < 0.1);  // the arc comes back on the same side
+    REQUIRE(back->texts.size() == 1);
+    CHECK(back->texts[0].text == "L-alanine");
+    for (size_t i = 0; i < doc.atoms.size(); ++i) CHECK(QLineF(back->atoms[i].pos, doc.atoms[i].pos).length() < 0.1);
+
+    Document r = *chem::fromSmiles("CC");
+    edit::applyLabel(r, 1, "R", true);
+    auto rb = chem::fromChemDraw(chem::toCdxml(r));
+    REQUIRE(rb);
+    CHECK(rb->atoms.size() == 2);
+    CHECK(rb->atoms[1].label == "R");
+
+    const QByteArray cdx = chem::toCdx(doc);
+    if (!cdx.isEmpty()) {  // where RDKit has ChemDraw support
+        CHECK(cdx.startsWith("VjCD0100"));
+        auto fromCdx = chem::fromChemDraw(cdx);
+        REQUIRE(fromCdx);
+        CHECK(chem::toSmiles(*fromCdx) == smiles);
+    }
+}

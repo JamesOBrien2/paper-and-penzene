@@ -117,6 +117,20 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
         atom->setFormalCharge(a.charge);
         // Not setAtomMapNum: it logs through rdErrorLog, which the Windows DLL doesn't export.
         if (a.map > 0) atom->setProp(RDKit::common_properties::molAtomMapNumber, a.map);
+        // Generic atoms (expansion drops their labels, so they come from `in`): R1…Rn as
+        // MDL R-groups (R# with RGP, [n*] in SMILES), any other text (X, Ar) as an MDL atom alias.
+        // ponytail: V3000 has no alias block, so there X/Ar become plain * atoms.
+        if (a.z == 0 && i < in.atoms.size() && !in.atoms[i].label.isEmpty()) {
+            static const QRegularExpression rgroup("^R(\\d+)$");
+            const QString label = in.atoms[i].label;
+            if (const auto m = rgroup.match(label); m.hasMatch()) {
+                const unsigned n = m.captured(1).toUInt();
+                atom->setProp(RDKit::common_properties::_MolFileRLabel, n);
+                atom->setIsotope(n);
+            } else {
+                atom->setProp(RDKit::common_properties::molFileAlias, label.toStdString());
+            }
+        }
         mol->addAtom(atom, true, true);
         conf->setAtomPos(i, {a.pos.x() / kScale, -a.pos.y() / kScale, 0});
     }
@@ -186,8 +200,15 @@ static Document fromRDKit(RWMol& mol, double scale = 0) {
     Document doc;
     for (const auto* a : mol.atoms()) {
         const auto& p = conf.getAtomPos(a->getIdx());
+        QString label;  // a generic atom's: its alias (X, Ar), or R-group number
+        unsigned r = 0;
+        std::string alias;
+        if (a->getAtomicNum() == 0 && a->getPropIfPresent(RDKit::common_properties::molFileAlias, alias) && !alias.empty())
+            label = QString::fromStdString(alias);
+        else if (a->getAtomicNum() == 0 && a->getPropIfPresent(RDKit::common_properties::_MolFileRLabel, r) && r)
+            label = QString("R%1").arg(r);
         doc.atoms.push_back({QPointF(p.x * scale, -p.y * scale), int(a->getAtomicNum()),
-                             a->getFormalCharge(), {}, {}, int(a->getAtomMapNum())});
+                             a->getFormalCharge(), label, {}, int(a->getAtomMapNum())});
     }
     for (const auto* b : mol.bonds()) {
         Bond out{int(b->getBeginAtomIdx()), int(b->getEndAtomIdx())};

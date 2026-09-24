@@ -1,7 +1,9 @@
 #include "Chem.h"
 #include "Edit.h"
+#include "Render.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <cmath>
 
 TEST_CASE("SMILES gives 2D coordinates") {
@@ -311,4 +313,42 @@ TEST_CASE("check structure finds valence, stereo, label and overlap problems (#9
     CHECK(has(chem::checkStructure(c5), "Valence error"));
 
     CHECK(chem::checkStructure(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O")).empty());  // aspirin is fine
+}
+
+TEST_CASE("aromatic circles preserve chemistry and survive save/load (#98)") {
+    auto benzene = chem::fromSmiles("c1ccccc1");
+    auto naphthalene = chem::fromSmiles("c1ccc2ccccc2c1");
+    auto pyridine = chem::fromSmiles("c1ccncc1");
+    auto cyclohexane = chem::fromSmiles("C1CCCCC1");
+    REQUIRE(benzene);
+    REQUIRE(naphthalene);
+    REQUIRE(pyridine);
+    REQUIRE(cyclohexane);
+    CHECK(chem::aromaticRings(*benzene).size() == 1);
+    CHECK(chem::aromaticRings(*naphthalene).size() == 2);
+    CHECK(chem::aromaticRings(*pyridine).size() == 1);
+    CHECK(chem::aromaticRings(*cyclohexane).empty());
+
+    const auto smiles = chem::toSmiles(*naphthalene);
+    naphthalene->aromaticCircles = true;
+    auto back = Document::fromJson(naphthalene->toJson());
+    REQUIRE(back);
+    CHECK(back->aromaticCircles);
+    CHECK(chem::toSmiles(*back) == smiles);
+
+    auto ring = chem::aromaticRings(*benzene).front();
+    std::sort(ring.begin(), ring.end());
+    benzene->aromaticCircleOverrides.push_back(ring);
+    Document pair = *benzene;
+    pair.append(*benzene, {100, 0});
+    REQUIRE(pair.aromaticCircleOverrides.size() == 2);
+    pair.removeAtoms({0, 1, 2, 3, 4, 5});
+    REQUIRE(pair.aromaticCircleOverrides.size() == 1);
+    CHECK(pair.aromaticCircleOverrides.front() == ring);
+
+    if (auto prefix = qgetenv("PENZENE_CIRCLE_SHOTS"); !prefix.isEmpty()) {
+        pyridine->aromaticCircles = true;
+        CHECK(exportDocument(*naphthalene, QString::fromUtf8(prefix) + "-naphthalene.png", 150, Qt::white));
+        CHECK(exportDocument(*pyridine, QString::fromUtf8(prefix) + "-pyridine.png", 150, Qt::white));
+    }
 }

@@ -28,6 +28,7 @@
 #include <QDir>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <algorithm>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QStyle>
@@ -828,6 +829,33 @@ void MainWindow::buildMenus() {
     connect(canvas_, &Canvas::documentChanged, stereo, [this, stereo] {
         QSignalBlocker quiet(stereo);
         stereo->setChecked(canvas_->document().showStereo);
+    });
+    auto* circles = view->addAction(tr("&Aromatic Circles"));
+    circles->setCheckable(true);
+    connect(circles, &QAction::toggled, this, [this](bool on) {
+        if (canvas_->document().aromaticCircles == on) return;
+        Document next = canvas_->document();
+        next.aromaticCircles = on;
+        next.aromaticCircleOverrides.clear();
+        canvas_->commit(next, on ? tr("Aromatic circles") : tr("Kekulé rings"));
+    });
+    connect(canvas_, &Canvas::documentChanged, circles, [this, circles] {
+        QSignalBlocker quiet(circles);
+        circles->setChecked(canvas_->document().aromaticCircles);
+    });
+    auto* selectedCircles = view->addAction(tr("Circles for Selected &Rings"));
+    selectedCircles->setStatusTip(tr("Select every atom in an aromatic ring"));
+    connect(selectedCircles, &QAction::triggered, this, [this] {
+        Document next = canvas_->document();
+        const auto& selected = canvas_->selection();
+        for (auto ring : chem::aromaticRings(next)) {
+            if (!std::all_of(ring.begin(), ring.end(), [&](int i) { return selected.contains(i); })) continue;
+            std::sort(ring.begin(), ring.end());
+            auto it = std::find(next.aromaticCircleOverrides.begin(), next.aromaticCircleOverrides.end(), ring);
+            if (it == next.aromaticCircleOverrides.end()) next.aromaticCircleOverrides.push_back(ring);
+            else next.aromaticCircleOverrides.erase(it);
+        }
+        if (!(next == canvas_->document())) canvas_->commit(next, tr("Toggle aromatic circles"));
     });
     view->addSeparator();
     auto* themeMenu = view->addMenu(tr("&Theme"));

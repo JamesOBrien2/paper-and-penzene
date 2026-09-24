@@ -944,3 +944,40 @@ TEST_CASE("Check Structure dialog selects the problem's atoms (#95)") {
     if (auto out = qgetenv("PENZENE_CHECK_SHOT"); !out.isEmpty()) dialog->grab().save(out);
     dialog->close();
 }
+
+TEST_CASE("selected aromatic rings can use circles independently (#98)") {
+    App app;
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    auto doc = chem::fromSmiles("c1ccc2ccccc2c1");
+    REQUIRE(doc);
+    const auto before = chem::toSmiles(*doc);
+    auto rings = chem::aromaticRings(*doc);
+    REQUIRE(rings.size() == 2);
+    canvas->setDocumentSilently(*doc);
+    QSet<int> selected(rings[0].begin(), rings[0].end());
+    canvas->setSelection(selected);
+    QAction* oneRing = nullptr;
+    QAction* allRings = nullptr;
+    for (auto* action : w.findChildren<QAction*>()) {
+        if (action->text() == "Circles for Selected &Rings") oneRing = action;
+        if (action->text() == "&Aromatic Circles") allRings = action;
+    }
+    REQUIRE(oneRing);
+    REQUIRE(allRings);
+    oneRing->trigger();
+    CHECK_FALSE(canvas->document().aromaticCircles);
+    CHECK(canvas->document().aromaticCircleOverrides.size() == 1);
+    CHECK(chem::toSmiles(canvas->document()) == before);
+    auto back = Document::fromJson(canvas->document().toJson());
+    REQUIRE(back);
+    CHECK(back->aromaticCircleOverrides == canvas->document().aromaticCircleOverrides);
+    if (auto out = qgetenv("PENZENE_ONE_CIRCLE_SHOT"); !out.isEmpty())
+        CHECK(exportDocument(canvas->document(), QString::fromUtf8(out), 150, Qt::white));
+    canvas->setSelection(selected);
+    oneRing->trigger();
+    CHECK(canvas->document().aromaticCircleOverrides.empty());
+    allRings->trigger();
+    CHECK(canvas->document().aromaticCircles);
+    CHECK(canvas->document().aromaticCircleOverrides.empty());
+}

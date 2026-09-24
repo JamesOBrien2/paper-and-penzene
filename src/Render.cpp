@@ -7,11 +7,13 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QPainter>
+#include <QSet>
 #include <QPainterPath>
 #include <QPdfWriter>
 #include <QSvgGenerator>
 #include <algorithm>
 #include <limits>
+#include <numbers>
 
 // Presets. Values come from the ChemDraw stationery (.cds) of the same name;
 // wedge width, hash spacing and label gap keep ACS's proportions to ours.
@@ -346,9 +348,37 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     p.setBrush(Qt::NoBrush);
     // A colour the user gave an item wins; otherwise the ink (the theme's on screen, black in exports).
     auto ink = [&](const QColor& own) { return own.isValid() ? own : style.ink; };
-    for (const auto& b : doc.bonds) {
+    // Aromatic circles: ring bonds drawn single, with a circle inside each ring.
+    std::vector<std::vector<int>> circles;
+    QSet<int> inCircle;  // bonds drawn single because of a circle
+    if (doc.aromaticCircles || !doc.aromaticCircleOverrides.empty()) {
+        for (const auto& ring : chem::aromaticRings(doc)) {
+            auto ids = ring;
+            std::sort(ids.begin(), ids.end());
+            const bool override = std::find(doc.aromaticCircleOverrides.begin(),
+                                            doc.aromaticCircleOverrides.end(), ids) != doc.aromaticCircleOverrides.end();
+            if (doc.aromaticCircles != override) circles.push_back(ring);
+        }
+        for (const auto& r : circles)
+            for (size_t k = 0; k < r.size(); ++k) inCircle.insert(doc.bondBetween(r[k], r[(k + 1) % r.size()]));
+    }
+    for (int bi = 0; bi < int(doc.bonds.size()); ++bi) {
+        const Bond& b = doc.bonds[bi];
         p.setPen(QPen(ink(b.color), lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        drawBond(p, doc, b, st, degree, labeled);
+        if (inCircle.contains(bi) && b.order == 2 && b.stereo == BondStereo::None) {
+            Bond single = b;
+            single.order = 1;
+            drawBond(p, doc, single, st, degree, labeled);
+        } else {
+            drawBond(p, doc, b, st, degree, labeled);
+        }
+    }
+    p.setPen(QPen(style.ink, lineWidth));
+    for (const auto& r : circles) {
+        QPointF c;
+        for (int i : r) c += doc.atoms[i].pos / double(r.size());
+        const double apothem = kBondLength / (2 * std::tan(std::numbers::pi / r.size()));
+        p.drawEllipse(c, 0.62 * apothem, 0.62 * apothem);
     }
 
     for (size_t i = 0; i < doc.atoms.size(); ++i) {

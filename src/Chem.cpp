@@ -623,6 +623,18 @@ std::vector<Problem> checkStructure(const Document& doc) {
     return out;
 }
 
+std::vector<std::vector<int>> aromaticRings(const Document& doc) {
+    std::vector<std::vector<int>> out;
+    const int n = int(doc.atoms.size());
+    if (!n) return out;
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return out;
+    for (const auto& r : mol->getRingInfo()->atomRings())
+        if (std::all_of(r.begin(), r.end(), [&](int i) { return i < n && mol->getAtomWithIdx(i)->getIsAromatic(); }))
+            out.push_back(r);
+    return out;
+}
+
 std::vector<std::vector<int>> rings(const Document& doc) {
     auto mol = toRDKit(doc);
     std::vector<std::vector<int>> out;

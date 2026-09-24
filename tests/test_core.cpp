@@ -498,3 +498,15 @@ TEST_CASE("CDXML export reads back: molecules, wedges, arrows and text (#29)") {
         CHECK(chem::toSmiles(*fromCdx) == smiles);
     }
 }
+
+TEST_CASE("SMILES of a ring with a charged boron or phosphorus reads back (fuzz)") {
+    for (int z : {5, 15})
+        for (int charge : {-2, 2}) {
+            Document ring = *chem::fromSmiles("C1=CC=CC=C1");
+            ring.atoms[0].z = z;
+            ring.atoms[0].charge = charge;
+            const std::string smiles = chem::toSmiles(ring);
+            INFO(z << " " << charge << " " << smiles);
+            if (!smiles.empty()) CHECK(chem::fromSmiles(smiles));
+        }
+}

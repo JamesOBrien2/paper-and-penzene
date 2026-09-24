@@ -141,9 +141,12 @@ static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
 
 // Best-effort sanitize + stereo from wedges. Drawings in progress are often
 // invalid (pentavalent carbon), so failure just leaves a partly perceived mol.
-static bool perceive(RWMol& mol) {
+static bool perceive(RWMol& mol, bool aromatic = true) {
     try {
-        RDKit::MolOps::sanitizeMol(mol);
+        unsigned failed = 0;
+        RDKit::MolOps::sanitizeMol(mol, failed,
+                                   aromatic ? RDKit::MolOps::SANITIZE_ALL
+                                            : RDKit::MolOps::SANITIZE_ALL ^ RDKit::MolOps::SANITIZE_SETAROMATICITY);
     } catch (...) {
         mol.updatePropertyCache(false);
         RDKit::MolOps::fastFindRings(mol);
@@ -763,7 +766,19 @@ std::string toMolBlock(const Document& doc, bool v3000) {
 std::string toSmiles(const Document& doc) {
     auto mol = toRDKit(doc);
     if (!perceive(*mol)) return "";
-    return RDKit::MolToSmiles(*mol);
+    std::string smiles = RDKit::MolToSmiles(*mol);
+    // RDKit can call a ring with an odd charged atom ([b-2]1ccccc1) aromatic yet not
+    // read that SMILES back; write it in Kekulé form then.
+    std::unique_ptr<RWMol> back;
+    try {
+        back.reset(RDKit::SmilesToMol(smiles));
+    } catch (...) {
+    }
+    if (!back) {  // as drawn, without aromaticity
+        mol = toRDKit(doc);
+        if (perceive(*mol, false)) smiles = RDKit::MolToSmiles(*mol);
+    }
+    return smiles;
 }
 
 std::optional<Properties> properties(const Document& doc) {

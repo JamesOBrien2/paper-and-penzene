@@ -558,3 +558,22 @@ TEST_CASE("picking from the periodic table switches to the atom tool") {
     REQUIRE(canvas->document().atoms.size() == 1);
     CHECK(canvas->document().atoms[0].z == 7);
 }
+
+TEST_CASE("Ac, Pr and Ts are groups, not actinium, praseodymium and tennessine (#125)") {
+    for (auto [label, formula] : {std::pair{"Ac", "C3H6O"}, {"Pr", "C4H10"}, {"Ts", "C8H10O2S"}}) {
+        Document d;
+        d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+        d.bonds = {{0, 1}};
+        REQUIRE(edit::applyLabel(d, 1, label));
+        CHECK(d.atoms[1].label == label);
+        CHECK(chem::properties(d)->formula == formula);
+    }
+    Fixture f;  // and the Shift+A hotkey
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    d.bonds = {{0, 1}};
+    f.canvas.setDocumentSilently(d);
+    f.hover(f.doc().atoms[1].pos);
+    f.key("A");
+    CHECK(f.doc().atoms[1].label == "Ac");
+}

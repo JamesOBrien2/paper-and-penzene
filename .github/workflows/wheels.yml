@@ -15,7 +15,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: ubuntu-22.04, name: linux-x86_64}
+          # 24.04: the wheel is manylinux_2_39 until libstdc++ is bundled (#122)
+          - {os: ubuntu-24.04, name: linux-x86_64}
           - {os: macos-14, name: macos-arm64}
           - {os: macos-15-intel, name: macos-x86_64}
           - {os: windows-2022, name: windows-x64}
@@ -39,7 +40,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           pixi run python -m pip install -q delocate
-          pixi run delocate-listdeps dist/*.whl | head -40
+          # The module and the Qt plugin find conda's libs via @rpath; show delocate where.
+          export DYLD_LIBRARY_PATH=$PWD/.pixi/envs/default/lib
           pixi run delocate-wheel -w wheelhouse -v dist/*.whl
       - name: Repair (Windows)
         if: runner.os == 'Windows'
@@ -57,7 +59,7 @@ jobs:
         run: |
           mv .pixi .pixi-hidden
           python -m venv venv
-          if [ "$RUNNER_OS" = Windows ]; then PY=venv/Scripts/python; else PY=venv/bin/python; fi
+          if [ "$RUNNER_OS" = Windows ]; then PY="$PWD/venv/Scripts/python.exe"; else PY="$PWD/venv/bin/python"; fi
           $PY -m pip install -q wheelhouse/*.whl
           cd "$RUNNER_TEMP"
           # A lone O has no bonds, so any path in its SVG is a glyph: fonts must work.

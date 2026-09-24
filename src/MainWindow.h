@@ -19,6 +19,7 @@ public:
     void autosave();  // writes unsaved changes to autosavePath() (every minute)
     static QString autosavePath();
     QStringList recentFiles() const;
+    void showPreferences();  // theme, default style, export resolution and background
 
 protected:
     void closeEvent(QCloseEvent* e) override;
@@ -43,5 +44,6 @@ private:
     Canvas* canvas_;
     QString path_;
     QLabel* info_;
+    class QActionGroup* themeGroup_ = nullptr;
     std::vector<std::pair<QAction*, std::function<QIcon()>>> icons_;
 };

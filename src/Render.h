@@ -50,9 +50,10 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = 
 QRectF documentBounds(const Document& doc);
 double exportScale(const Document& doc);  // points per model unit in exports
 // Writes .svg, .png or .pdf (by extension), cropped to the drawing.
-bool exportDocument(const Document& doc, const QString& path);
-QImage renderImage(const Document& doc, double dpi = 300);
-QByteArray renderSvg(const Document& doc);
+// background: Qt::transparent (clear) or a colour to fill behind the drawing.
+bool exportDocument(const Document& doc, const QString& path, double dpi = 300, QColor background = Qt::transparent);
+QImage renderImage(const Document& doc, double dpi = 300, QColor background = Qt::transparent);
+QByteArray renderSvg(const Document& doc, QColor background = Qt::transparent);
 QPainterPath arrowPath(const Arrow& a);
 QFont labelFont(const DrawingStyle& s, double scale = 1);
 constexpr int kTabSpaces = 8;  // text tab stops, in spaces: the canvas and the text dialog agree

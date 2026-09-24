@@ -383,13 +383,13 @@ QRectF documentBounds(const Document& doc) {
 
 double exportScale(const Document& doc) { return drawingStyle(doc.style).bondLength / kBondLength; }
 
-QImage renderImage(const Document& doc, double dpi) {
+QImage renderImage(const Document& doc, double dpi, QColor background) {
     QRectF r = documentBounds(doc);
     double s = dpi / 72.0 * exportScale(doc);  // model units to pixels
     QImage img((r.size() * s).toSize().expandedTo({1, 1}), QImage::Format_ARGB32_Premultiplied);
     img.setDotsPerMeterX(int(dpi / 0.0254));
     img.setDotsPerMeterY(int(dpi / 0.0254));
-    img.fill(Qt::transparent);
+    img.fill(background);
     QPainter p(&img);
     p.scale(s, s);
     p.translate(-r.topLeft());
@@ -397,7 +397,7 @@ QImage renderImage(const Document& doc, double dpi) {
     return img;
 }
 
-QByteArray renderSvg(const Document& doc) {
+QByteArray renderSvg(const Document& doc, QColor background) {
     QRectF r = documentBounds(doc);
     const double s = exportScale(doc);
     QBuffer buf;
@@ -410,19 +410,20 @@ QByteArray renderSvg(const Document& doc) {
     QPainter p(&gen);
     p.scale(s, s);
     p.translate(-r.topLeft());
+    if (background.alpha()) p.fillRect(r, background);
     paintDocument(p, doc);
     p.end();
     return buf.data();
 }
 
-bool exportDocument(const Document& doc, const QString& path) {
+bool exportDocument(const Document& doc, const QString& path, double dpi, QColor background) {
     QRectF r = documentBounds(doc);
     if (doc.empty()) return false;
     const QString ext = QFileInfo(path).suffix().toLower();
-    if (ext == "png") return renderImage(doc).save(path);
+    if (ext == "png") return renderImage(doc, dpi, background).save(path);
     if (ext == "svg") {
         QFile f(path);
-        return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc)) > 0;
+        return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc, background)) > 0;
     }
     if (ext == "pdf") {
         QPdfWriter pdf(path);
@@ -434,6 +435,7 @@ bool exportDocument(const Document& doc, const QString& path) {
         QPainter p(&pdf);
         p.scale(s, s);
         p.translate(-r.topLeft());
+        if (background.alpha()) p.fillRect(r, background);
         paintDocument(p, doc);
         return true;
     }

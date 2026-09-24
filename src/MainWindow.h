@@ -3,6 +3,18 @@
 #include <functional>
 #include <vector>
 
+#ifdef Q_OS_MACOS
+#include <QUtiMimeConverter>
+// ChemDraw's pasteboard type (binary CDX) as chemical/x-cdx.
+struct ChemDrawPasteboard : QUtiMimeConverter {
+    ChemDrawPasteboard();
+    QString mimeForUti(const QString& uti) const override;
+    QString utiForMime(const QString& mime) const override;
+    QVariant convertToMime(const QString&, const QList<QByteArray>& data, const QString&) const override;
+    QList<QByteArray> convertFromMime(const QString&, const QVariant& data, const QString&) const override;
+};
+#endif
+
 class Canvas;
 class QLabel;
 class QUndoStack;

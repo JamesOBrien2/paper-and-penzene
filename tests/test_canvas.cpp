@@ -1113,3 +1113,31 @@ TEST_CASE("exported SVG and PNG reopen as the editable drawing (#100)") {
         if (a->shortcut() == QKeySequence::Paste) a->trigger();
     CHECK(w.findChild<Canvas*>()->document().atoms.size() == doc.atoms.size());
 }
+
+TEST_CASE("paste from ChemDraw: CDX/CDXML clipboard formats (#104)") {
+    App app;
+    const QString path = QString(PENZENE_TEST_DATA) + "/scheme.cdxml";
+    QFile f(path);
+    REQUIRE(f.open(QIODevice::ReadOnly));
+    const QByteArray cdxml = f.readAll();
+    const auto expected = chem::readFile(path);
+    REQUIRE(expected);
+    // macOS (through ChemDrawPasteboard) and Windows name the format differently.
+    for (const char* type : {"chemical/x-cdx", "application/x-qt-windows-mime;value=\"ChemDraw Interchange Format\""}) {
+        INFO(type);
+        MainWindow w;
+        auto* mime = new QMimeData;
+        mime->setData(type, cdxml);
+        mime->setText("not a structure");  // ChemDraw also offers text; the CDX wins
+        QApplication::clipboard()->setMimeData(mime);
+        for (auto* a : w.findChildren<QAction*>())
+            if (a->shortcut() == QKeySequence::Paste) a->trigger();
+        CHECK(w.findChild<Canvas*>()->document().atoms.size() == expected->atoms.size());
+    }
+#ifdef Q_OS_MACOS
+    ChemDrawPasteboard uti;
+    CHECK(uti.mimeForUti("com.perkinelmer.chemdraw.cdx-clipboard") == "chemical/x-cdx");
+    CHECK(uti.mimeForUti("public.utf8-plain-text").isEmpty());
+    CHECK(uti.convertToMime("chemical/x-cdx", {cdxml}, {}).toByteArray() == cdxml);
+#endif
+}

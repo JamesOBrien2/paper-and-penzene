@@ -10,6 +10,10 @@ qt6-main = ">=6.8,<7"            # Widgets, Svg, PDF
 catch2 = ">=3.5,<4"
 cmake = ">=3.28"
 ninja = "*"
+python = ">=3.12,<3.14"          # Python module (abi3: one build serves 3.12+)
+nanobind = ">=2.4"
+scikit-build-core = ">=0.10"
+pip = "*"
 
 [target.linux-64.dependencies]
 cxx-compiler = "*"               # conda gcc: conda libs need a newer libstdc++ than older distros ship
@@ -18,9 +22,12 @@ cxx-compiler = "*"               # conda gcc: conda libs need a newer libstdc++ 
 vs2022_win-64 = "*"              # activates MSVC for Ninja
 
 [tasks]
-configure = "cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release"
+configure = "cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release -DPENZENE_PYTHON=ON"
 build = { cmd = "cmake --build build", depends-on = ["configure"] }
 test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], env = { QT_QPA_PLATFORM = "offscreen" } }
+
+# The Python wheel, built against this environment's RDKit and Qt (not yet self-contained, see #77).
+wheel = "python -m pip wheel . --no-build-isolation --no-deps -w dist"
 
 [target.unix.tasks]
 run = { cmd = "build/bin/penzene", depends-on = ["build"] }

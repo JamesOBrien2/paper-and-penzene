@@ -511,6 +511,129 @@ void Canvas::mouseDoubleClickEvent(QMouseEvent* e) {
     setSelection(seen);
 }
 
+namespace {
+
+// The selection (everything if nothing is selected) as separate objects: each
+// molecule, arrow and text is one, so they align and distribute as wholes.
+struct Piece {
+    QSet<int> atoms, arrows, texts;
+};
+
+std::vector<Piece> pieces(const Document& doc, QSet<int> atoms, QSet<int> arrows, QSet<int> texts) {
+    if (atoms.isEmpty() && arrows.isEmpty() && texts.isEmpty())
+        for (int i = 0; i < int(doc.atoms.size()); ++i) atoms.insert(i);
+    if (atoms.size() == int(doc.atoms.size()) && arrows.isEmpty() && texts.isEmpty()) {
+        for (int i = 0; i < int(doc.arrows.size()); ++i) arrows.insert(i);
+        for (int i = 0; i < int(doc.texts.size()); ++i) texts.insert(i);
+    }
+    std::vector<Piece> out;
+    QSet<int> seen;
+    for (int s : atoms) {
+        if (seen.contains(s)) continue;
+        Piece p;
+        std::vector<int> stack{s};
+        seen.insert(s);
+        while (!stack.empty()) {
+            int i = stack.back();
+            stack.pop_back();
+            p.atoms.insert(i);
+            for (int nb : doc.neighbors(i))
+                if (atoms.contains(nb) && !seen.contains(nb)) seen.insert(nb), stack.push_back(nb);
+        }
+        out.push_back(p);
+    }
+    for (int a : arrows) out.push_back({{}, {a}, {}});
+    for (int t : texts) out.push_back({{}, {}, {t}});
+    return out;
+}
+
+QRectF bounds(const Document& doc, const Piece& p) {
+    Document part;
+    for (int i : p.atoms) part.atoms.push_back(doc.atoms[i]);
+    for (int i : p.arrows) part.arrows.push_back(doc.arrows[i]);
+    for (int i : p.texts) part.texts.push_back(doc.texts[i]);
+    part.style = doc.style;
+    return documentBounds(part);
+}
+
+void shiftPiece(Document& doc, const Piece& p, QPointF by) {
+    for (int i : p.atoms) doc.atoms[i].pos += by;
+    for (int i : p.arrows) doc.arrows[i].from += by, doc.arrows[i].to += by;
+    for (int i : p.texts) doc.texts[i].pos += by;
+}
+
+}  // namespace
+
+void Canvas::flipSelection(bool horizontal) {
+    Piece all;
+    for (const Piece& p : pieces(doc_, selectedAtoms_, selectedArrows_, selectedTexts_))
+        all.atoms |= p.atoms, all.arrows |= p.arrows, all.texts |= p.texts;
+    if (all.atoms.isEmpty() && all.arrows.isEmpty() && all.texts.isEmpty()) return;
+    const QPointF c = bounds(doc_, all).center();
+    auto mirror = [&](QPointF q) {
+        return horizontal ? QPointF(2 * c.x() - q.x(), q.y()) : QPointF(q.x(), 2 * c.y() - q.y());
+    };
+    Document next = doc_;
+    for (int i : all.atoms) next.atoms[i].pos = mirror(doc_.atoms[i].pos);
+    for (auto& b : next.bonds)  // a mirror swaps which side a double bond's second line is on
+        if (all.atoms.contains(b.a) && all.atoms.contains(b.b))
+            b.position = b.position == BondPosition::Left    ? BondPosition::Right
+                         : b.position == BondPosition::Right ? BondPosition::Left
+                                                             : b.position;
+    for (int i : all.arrows) {
+        Arrow& a = next.arrows[i];
+        a.from = mirror(a.from), a.to = mirror(a.to), a.bend = -a.bend;
+    }
+    for (int i : all.texts) {  // text moves but reads the right way round
+        const QRectF box = textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect();
+        next.texts[i].pos += mirror(box.center()) - box.center();
+    }
+    commit(next, horizontal ? tr("Flip Horizontal") : tr("Flip Vertical"));
+}
+
+void Canvas::alignSelection(Align edge) {
+    const auto ps = pieces(doc_, selectedAtoms_, selectedArrows_, selectedTexts_);
+    if (ps.size() < 2) return;
+    QRectF all;
+    for (const Piece& p : ps) all |= bounds(doc_, p);
+    Document next = doc_;
+    for (const Piece& p : ps) {
+        const QRectF r = bounds(doc_, p);
+        QPointF by;
+        switch (edge) {
+        case Align::Left: by.setX(all.left() - r.left()); break;
+        case Align::HCentre: by.setX(all.center().x() - r.center().x()); break;
+        case Align::Right: by.setX(all.right() - r.right()); break;
+        case Align::Top: by.setY(all.top() - r.top()); break;
+        case Align::VCentre: by.setY(all.center().y() - r.center().y()); break;
+        case Align::Bottom: by.setY(all.bottom() - r.bottom()); break;
+        }
+        shiftPiece(next, p, by);
+    }
+    commit(next, tr("Align"));
+}
+
+// Equal gaps between neighbouring objects; the outermost two stay put.
+void Canvas::distributeSelection(bool horizontal) {
+    auto ps = pieces(doc_, selectedAtoms_, selectedArrows_, selectedTexts_);
+    if (ps.size() < 3) return;
+    auto lo = [&](const Piece& p) { QRectF r = bounds(doc_, p); return horizontal ? r.left() : r.top(); };
+    auto size = [&](const Piece& p) { QRectF r = bounds(doc_, p); return horizontal ? r.width() : r.height(); };
+    std::sort(ps.begin(), ps.end(), [&](const Piece& a, const Piece& b) { return lo(a) < lo(b); });
+    double used = 0;
+    for (const Piece& p : ps) used += size(p);
+    const double span = lo(ps.back()) + size(ps.back()) - lo(ps.front());
+    const double gap = (span - used) / double(ps.size() - 1);
+    Document next = doc_;
+    double at = lo(ps.front());
+    for (const Piece& p : ps) {
+        const double d = at - lo(p);
+        shiftPiece(next, p, horizontal ? QPointF(d, 0) : QPointF(0, d));
+        at += size(p) + gap;
+    }
+    commit(next, tr("Distribute"));
+}
+
 void Canvas::rotateSelection(double degrees) {
     Document next = doc_;
     std::vector<QPointF*> pts;

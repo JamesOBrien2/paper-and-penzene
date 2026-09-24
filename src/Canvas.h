@@ -33,6 +33,10 @@ public:
     void selectAll();
     void rotateSelection(double degrees);
     void duplicateSelection(QPointF dir);
+    void flipSelection(bool horizontal);  // mirror image, as ChemDraw's flip
+    enum class Align { Left, HCentre, Right, Top, VCentre, Bottom };
+    void alignSelection(Align edge);
+    void distributeSelection(bool horizontal);
     void moveHotspot(QPointF dir, bool jump);
     void editLabel(int atom);
     void expandAbbreviations();  // selection, else hotspot atom, else everything

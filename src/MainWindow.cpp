@@ -489,6 +489,20 @@ void MainWindow::buildMenus() {
     edit->addAction(tr("Select &All"), QKeySequence::SelectAll, canvas_, &Canvas::selectAll);
 
     auto* structure = menuBar()->addMenu(tr("&Structure"));
+    structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
+                         [this] { canvas_->flipSelection(true); });
+    structure->addAction(tr("Flip &Vertical"), QKeySequence(tr("Ctrl+Shift+V")), this,
+                         [this] { canvas_->flipSelection(false); });
+    auto* arrange = structure->addMenu(tr("&Align and Distribute"));
+    using A = Canvas::Align;
+    for (auto [label, edge] : {std::pair{tr("Align &Left"), A::Left}, {tr("Align &Centres"), A::HCentre},
+                               {tr("Align &Right"), A::Right}, {tr("Align &Top"), A::Top},
+                               {tr("Align &Middles"), A::VCentre}, {tr("Align &Bottom"), A::Bottom}})
+        arrange->addAction(label, this, [this, edge] { canvas_->alignSelection(edge); });
+    arrange->addSeparator();
+    arrange->addAction(tr("Distribute &Horizontally"), this, [this] { canvas_->distributeSelection(true); });
+    arrange->addAction(tr("Distribute &Vertically"), this, [this] { canvas_->distributeSelection(false); });
+    structure->addSeparator();
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         const auto& sel = canvas_->selection();  // selected molecules only, else everything
         canvas_->commit(chem::clean2D(canvas_->document(), {sel.begin(), sel.end()}), tr("Clean"));

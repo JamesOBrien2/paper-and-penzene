@@ -1,0 +1,67 @@
+name: Wheels
+
+# Self-contained Python wheels: built against the pixi env, then repaired so
+# RDKit and Qt ship inside, then tested in a clean venv with the env hidden.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['.github/workflows/wheels.yml', 'pyproject.toml', 'python/**', 'CMakeLists.txt']
+
+jobs:
+  wheel:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, name: linux-x86_64}
+          - {os: macos-14, name: macos-arm64}
+          - {os: macos-15-intel, name: macos-x86_64}
+          - {os: windows-2022, name: windows-x64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: pixi run wheel
+      - name: Repair (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          pixi run python -m pip install -q auditwheel patchelf
+          export LD_LIBRARY_PATH=$PWD/.pixi/envs/default/lib
+          pixi run auditwheel show dist/*.whl
+          pixi run auditwheel repair -w wheelhouse dist/*.whl
+      - name: Repair (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          pixi run python -m pip install -q delocate
+          pixi run delocate-listdeps dist/*.whl | head -40
+          pixi run delocate-wheel -w wheelhouse -v dist/*.whl
+      - name: Repair (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          pixi run python -m pip install -q delvewheel
+          # No mangling: the offscreen plugin must find the same Qt DLLs by name.
+          pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$PWD/.pixi/envs/default/Library/bin" dist/*.whl
+      - run: ls -la wheelhouse
+        shell: bash
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Test in a clean venv, without the build env
+        shell: bash
+        run: |
+          mv .pixi .pixi-hidden
+          python -m venv venv
+          if [ "$RUNNER_OS" = Windows ]; then PY=venv/Scripts/python; else PY=venv/bin/python; fi
+          $PY -m pip install -q wheelhouse/*.whl
+          cd "$RUNNER_TEMP"
+          # A lone O has no bonds, so any path in its SVG is a glyph: fonts must work.
+          $PY -c "import penzene as pz; d = pz.Document(); d.add_atom('O'); s = d.to_svg(); assert '<path' in s, s[:2000]; print('glyphs ok')"
+          PENZENE_TEST_DATA="$GITHUB_WORKSPACE/tests/data" $PY "$GITHUB_WORKSPACE/tests/test_python.py"
+      - uses: actions/upload-artifact@v4
+        with: {name: 'wheel-${{ matrix.name }}', path: wheelhouse/*.whl}

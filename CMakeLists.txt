@@ -73,7 +73,11 @@ if(PENZENE_PYTHON)
     target_link_libraries(_penzene PRIVATE penzene_core)
     target_compile_definitions(_penzene PRIVATE QT_NO_KEYWORDS)  # Qt's "slots" macro breaks Python.h
     if(SKBUILD)
+        # Keep the conda library paths in the module so auditwheel/delocate/delvewheel
+        # can find and bundle RDKit and Qt, plus Qt's offscreen platform plugin.
+        set_target_properties(_penzene PROPERTIES INSTALL_RPATH_USE_LINK_PATH ON)
         install(TARGETS _penzene LIBRARY DESTINATION penzene)
+        install(FILES $<TARGET_FILE:Qt6::QOffscreenIntegrationPlugin> DESTINATION penzene/plugins/platforms)
     else()
         # Importable from build/python during development and in ctest.
         set_target_properties(_penzene PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python/penzene)

@@ -466,7 +466,7 @@ TEST_CASE("drawing style presets: JDP from its ChemDraw stationery") {
     App app;
     const auto& jdp = drawingStyle("JDP");
     CHECK(jdp.name == "JDP");
-    CHECK(std::abs(jdp.lineWidth - 0.879) < 1e-9);
+    CHECK(std::abs(jdp.lineWidth * jdp.bondLength / kBondLength - 0.879) < 1e-9);  // native pt in exports
     CHECK(drawingStyle("").name == "ACS 1996");
     CHECK(drawingStyle("no such style").name == "ACS 1996");
 
@@ -475,7 +475,6 @@ TEST_CASE("drawing style presets: JDP from its ChemDraw stationery") {
     Document j = d;
     j.style = "JDP";
     CHECK(renderSvg(d) != renderSvg(j));
-    CHECK(renderSvg(j).contains("0.879"));  // JDP line width in the SVG strokes
 }
 
 TEST_CASE("themes: Catppuccin palettes; exports stay black") {
@@ -626,4 +625,18 @@ TEST_CASE("flip mirrors (enantiomer with wedges kept), align and distribute (#87
     CHECK(std::abs(gap1 - gap2) < 1e-6);
     CHECK(std::abs(f.doc().atoms[0].pos.x()) < 1e-9);  // outermost objects stay put
     CHECK(std::abs(f.doc().atoms[4].pos.x() - 100) < 1e-9);
+}
+
+TEST_CASE("exports come out at the drawing style's own bond length (#92)") {
+    App app;
+    auto d = chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    REQUIRE(d);
+    const QImage acs = renderImage(*d, 72);
+    d->style = "RSC";
+    const QImage rsc = renderImage(*d, 72);
+    CHECK(std::abs(exportScale(*d) - 12.2 / 14.4) < 1e-12);
+    // Same drawing, same model bounds (RSC's labels are smaller, so compare against its own bounds).
+    const QRectF model = documentBounds(*d);
+    CHECK(std::abs(rsc.width() - model.width() * 12.2 / 14.4) <= 1);
+    CHECK(rsc.width() < acs.width());
 }

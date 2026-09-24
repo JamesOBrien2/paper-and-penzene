@@ -12,6 +12,8 @@
 #include <QFileDialog>
 #include <QSpinBox>
 #include <QFormLayout>
+#include <QVBoxLayout>
+#include <QListWidget>
 #include <QDialogButtonBox>
 #include <QDialog>
 #include <QFileInfo>
@@ -214,6 +216,35 @@ void MainWindow::showPreferences() {
     settings.setValue("exportBackground", backgroundBox->currentIndex() ? "white" : "clear");
     applyTheme(themeBox->currentText());
     for (auto* a : themeGroup_->actions()) a->setChecked(a->text() == themeBox->currentText());
+}
+
+QWidget* MainWindow::checkStructure() {
+    auto* dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Check Structure"));
+    auto* layout = new QVBoxLayout(dialog);
+    auto* list = new QListWidget;
+    layout->addWidget(list);
+    const auto problems = chem::checkStructure(canvas_->document());
+    for (const auto& p : problems) {
+        auto* item = new QListWidgetItem(p.message, list);
+        QVariantList atoms;
+        for (int i : p.atoms) atoms << i;
+        item->setData(Qt::UserRole, atoms);
+    }
+    if (problems.empty()) list->addItem(tr("No problems found."));
+    connect(list, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* item) {
+        if (!item) return;
+        QSet<int> atoms;
+        for (const QVariant& v : item->data(Qt::UserRole).toList()) atoms.insert(v.toInt());
+        canvas_->setSelection(atoms);  // show where the problem is
+    });
+    auto* close = new QDialogButtonBox(QDialogButtonBox::Close);
+    connect(close, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+    layout->addWidget(close);
+    dialog->resize(460, 260);
+    dialog->show();
+    return dialog;
 }
 
 void MainWindow::exportImage() {
@@ -719,6 +750,7 @@ void MainWindow::buildMenus() {
     structure->addAction(tr("Remove Explicit Hydro&gens"), this, [this] {
         canvas_->commit(chem::removeHydrogens(canvas_->document()), tr("Remove hydrogens"));
     });
+    structure->addAction(tr("Chec&k Structure…"), QKeySequence(tr("Ctrl+Alt+K")), this, [this] { checkStructure(); });
     structure->addAction(tr("&Clean Structure"), QKeySequence(tr("Ctrl+Shift+K")), this, [this] {
         const auto& sel = canvas_->selection();  // selected molecules only, else everything
         canvas_->commit(chem::clean2D(canvas_->document(), {sel.begin(), sel.end()}), tr("Clean"));

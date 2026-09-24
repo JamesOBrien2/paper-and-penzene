@@ -1,0 +1,8 @@
+set(__QT_DEPLOY_TARGET_penzene_core_FILE /Users/user/PhD/Github/penzene-work/build-asan/libpenzene_core.a)
+set(__QT_DEPLOY_TARGET_penzene_core_TYPE STATIC_LIBRARY)
+set(__QT_DEPLOY_TARGET_penzene_ui_FILE /Users/user/PhD/Github/penzene-work/build-asan/libpenzene_ui.a)
+set(__QT_DEPLOY_TARGET_penzene_ui_TYPE STATIC_LIBRARY)
+set(__QT_DEPLOY_TARGET_penzene_FILE /Users/user/PhD/Github/penzene-work/build-asan/bin/penzene.app/Contents/MacOS/penzene)
+set(__QT_DEPLOY_TARGET_penzene_TYPE EXECUTABLE)
+set(__QT_DEPLOY_TARGET_penzene_tests_FILE /Users/user/PhD/Github/penzene-work/build-asan/bin/penzene_tests)
+set(__QT_DEPLOY_TARGET_penzene_tests_TYPE EXECUTABLE)

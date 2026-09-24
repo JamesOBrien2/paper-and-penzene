@@ -24,6 +24,17 @@ struct Record {
 std::vector<Record> readRecords(const QString& path);
 std::string toMolBlock(const Document& doc, bool v3000 = false);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
+
+// A drawn reaction: the molecules before, alongside and after its arrow.
+struct Reaction {
+    std::vector<Document> reactants, agents, products;
+};
+std::optional<Reaction> reactionOf(const Document& doc);  // nullopt without a reaction arrow
+std::string toReactionSmiles(const Reaction& r);           // reactants>agents>products
+std::string toRxn(const Reaction& r);                      // MDL Rxnfile (V2000)
+Document layoutReaction(const Reaction& r);
+std::optional<Document> fromReactionSmiles(const std::string& smiles);
+std::optional<Document> fromRxn(const std::string& text);
 // New layout, same atom order; each molecule keeps its centroid. With `only`,
 // just the molecules containing those atoms are touched.
 Document clean2D(const Document& doc, const std::vector<int>& only = {});

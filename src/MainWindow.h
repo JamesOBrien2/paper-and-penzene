@@ -66,6 +66,11 @@ private:
     QLabel* info_;
     class QActionGroup* themeGroup_ = nullptr;
     class QDockWidget* profileDock_;
+    class QDockWidget* templateDock_;
+    class QTreeWidget* templates_;
+    void fillTemplates();
+    void insertTemplate(class QTreeWidgetItem* item);
+    void saveTemplate();
     QLabel* profile_;
     QString profileText_;  // plain-text copy of the panel, for the Copy button
     std::vector<std::pair<QAction*, std::function<QIcon()>>> icons_;

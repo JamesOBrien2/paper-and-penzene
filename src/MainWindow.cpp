@@ -380,9 +380,31 @@ void MainWindow::buildTools() {
     };
     keys["j"] = add(docIcon(ringDoc(6, true)), tr("Benzene — j: click empty space for a ring, an atom to attach one, or a bond to fuse one"), ring(6, true));
     for (int n = 3; n <= 8; ++n) add(docIcon(ringDoc(n, false)), tr("%1-membered ring: click empty space, an atom (spiro/attached) or a bond (fused)").arg(n), ring(n, false));
-    Document filled = ringDoc(6, false);
-    filled.fills.push_back({{0, 1, 2, 3, 4, 5}, QColor(120, 170, 255)});
-    add(docIcon(filled), tr("Ring fill (click inside a ring; again to clear) — colour in Structure menu"), tool(T::Fill));
+    // Ring fill: the icon shows the current fill colour; the arrow picks it.
+    auto fill = std::make_shared<QColor>(canvas_->fillColor());
+    const IconMaker fillIcon = [fill] {
+        Document filled = ringDoc(6, false);
+        filled.fills.push_back({{0, 1, 2, 3, 4, 5}, *fill});
+        return docIcon(filled)();
+    };
+    auto* fillTool = add(fillIcon, tr("Ring fill: click inside a ring to shade it (again to clear); pick the colour from the arrow"),
+                         tool(T::Fill));
+    for (auto* b : palette->findChildren<QToolButton*>())
+        if (b->defaultAction() == fillTool) {
+            b->setPopupMode(QToolButton::MenuButtonPopup);
+            // Light tints, so bonds and labels stay readable on top.
+            b->setMenu(colourMenu(b,
+                                  {QColor(207, 227, 255), QColor(255, 214, 214), QColor(212, 240, 210), QColor(255, 236, 196),
+                                   QColor(232, 218, 250), QColor(255, 222, 240), QColor(220, 220, 220), QColor(255, 250, 200)},
+                                  [this] { return canvas_->fillColor(); },
+                                  [=, this](QColor c) {
+                                      *fill = c;
+                                      canvas_->setFillColor(c);
+                                      canvas_->setTool(T::Fill);
+                                      fillTool->setChecked(true);
+                                      fillTool->setIcon(fillIcon());
+                                  }));
+        }
     section();
 
     // Element: the button shows the current element and draws it; its arrow

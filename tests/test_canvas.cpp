@@ -798,3 +798,23 @@ TEST_CASE("drag the ring tool to size a ring (#127)") {
     CHECK(f.doc().atoms.size() == 5);  // 2 shared + 3 new
     CHECK(f.doc().bonds.size() == 5);
 }
+
+TEST_CASE("ring fill colour is picked from the fill button (#126)") {
+    App app;
+    MainWindow w;
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    QToolButton* fillButton = nullptr;
+    for (auto* b : w.findChildren<QToolButton*>())
+        if (b->defaultAction() && b->defaultAction()->toolTip().startsWith("Ring fill")) fillButton = b;
+    REQUIRE(fillButton);
+    REQUIRE(fillButton->menu());
+    QToolButton* pink = nullptr;  // a swatch in the drop-down
+    for (auto* wa : fillButton->menu()->findChildren<QWidgetAction*>())
+        for (auto* b : wa->defaultWidget()->findChildren<QToolButton*>())
+            if (b->toolTip() == QColor(255, 214, 214).name()) pink = b;
+    REQUIRE(pink);
+    pink->click();
+    CHECK(canvas->fillColor() == QColor(255, 214, 214));
+    CHECK(fillButton->defaultAction()->isChecked());  // and the fill tool is chosen
+}

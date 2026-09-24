@@ -558,3 +558,35 @@ TEST_CASE("Clean keeps partial doubles partial (#169)") {
     for (const auto& b : chem::clean2D(ts).bonds) partial += b.stereo == BondStereo::Partial && b.order == 2;
     CHECK(partial == 2);
 }
+
+TEST_CASE("R-groups and generic atoms export and read back (#34)") {
+    Document doc = *chem::fromSmiles("CC(=O)CC");  // R1 and R2 on either side of a ketone
+    REQUIRE(edit::applyLabel(doc, 0, "R1", true));
+    REQUIRE(edit::applyLabel(doc, 4, "R2", true));
+    doc.append(*chem::fromSmiles("c1ccccc1C"), {60, 0});  // and a halobenzene: X on the ring
+    REQUIRE(edit::applyLabel(doc, 11, "X", true));
+    const std::string smiles = chem::toSmiles(doc);
+    INFO(smiles);
+    CHECK(smiles.find("[1*]") != std::string::npos);
+    CHECK(smiles.find("[2*]") != std::string::npos);
+    for (bool v3000 : {false, true}) {
+        const std::string mol = chem::toMolBlock(doc, v3000);
+        INFO(mol);
+        CHECK(mol.find("R#") != std::string::npos);
+        if (v3000) CHECK(mol.find("RGROUPS") != std::string::npos);
+        else CHECK(mol.find("M  RGP") != std::string::npos);
+        auto back = chem::fromMolBlock(mol);
+        REQUIRE(back);
+        QStringList labels;
+        for (const auto& a : back->atoms)
+            if (!a.label.isEmpty()) labels << a.label;
+        labels.sort();
+        CHECK(labels.join(",").toStdString() == (v3000 ? "R1,R2" : "R1,R2,X"));  // V3000 has no alias block
+    }
+    Document ar = *chem::fromSmiles("CC");
+    REQUIRE(edit::applyLabel(ar, 1, "Ar", true));
+    CHECK(ar.atoms[1].z == 0);  // aryl, not argon
+    CHECK(ar.atoms[1].label == "Ar");
+    REQUIRE(edit::applyLabel(ar, 1, "Ar"));
+    CHECK(ar.atoms[1].z == 18);  // the strict (Python) path: the element
+}

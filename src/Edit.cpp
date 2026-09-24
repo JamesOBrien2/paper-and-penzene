@@ -359,6 +359,11 @@ bool applyLabel(Document& doc, int at, const QString& label, bool anyText) {
         a.z = head->z, a.charge = head->charge, a.label = label;
         return true;
     }
+    // In a drawing "Ar" is an aryl group, not argon (the strict API keeps the element).
+    if (anyText && label.trimmed() == "Ar") {
+        a.z = 0, a.charge = 0, a.label = "Ar";
+        return true;
+    }
     // "OH", "NH2": the element; hydrogens are implicit.
     static const QRegularExpression hydride("^([A-Z][a-z]?)H\\d*$");
     QString element = hydride.match(label).hasMatch() ? hydride.match(label).captured(1) : label;

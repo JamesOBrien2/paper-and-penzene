@@ -344,12 +344,14 @@ QString labelHotkey(const QString& key) {
         {"h", "H"},   {"d", "H"},    {"B", "B"},     {"S", "Si"},   {"L", "Li"},  {"m", "Me"},
         {"e", "Et"},  {"A", "Ac"},   {"P", "Ph"},    {"F", "CF3"},  {"N", "NO2"}, {"O", "OMe"},
         {"E", "CO2Me"}, {"Z", "N3"}, {"M", "MgBr"},  {"Q", "Fmoc"}, {"H", "Cbz"}, {"Y", "Boc"},
+        {"x", "X"},   {"r", "R"},
     };
     return k.value(key);
 }
 
-// Element symbol, abbreviation (drawn as its label) or SMILES (drawn out).
-bool applyLabel(Document& doc, int at, const QString& label) {
+// Element symbol, abbreviation (drawn as its label) or SMILES (drawn out); with
+// anyText, other text (R, X, MgEt) too: shown as written, its chemistry unspecified (z 0).
+bool applyLabel(Document& doc, int at, const QString& label, bool anyText) {
     Atom& a = doc.atoms[at];
     // Abbreviations first: in a drawing, Ac, Pr and Ts mean acetyl, propyl and
     // tosyl, not actinium, praseodymium and tennessine (#125).
@@ -364,7 +366,10 @@ bool applyLabel(Document& doc, int at, const QString& label) {
         a.z = z, a.label.clear();
         return true;
     }
-    return chem::attach(doc, at, label.toStdString());
+    if (chem::attach(doc, at, label.toStdString())) return true;
+    if (!anyText || label.trimmed().isEmpty()) return false;
+    a.z = 0, a.charge = 0, a.label = label.trimmed();
+    return true;
 }
 
 
@@ -384,7 +389,7 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
         int hot = sproutHotkey(doc, at, t);
         if (hot == kUnhandled) {
             QString label = labelHotkey(t);
-            if (label.isEmpty() || !applyLabel(doc, at, label)) return {};
+            if (label.isEmpty() || !applyLabel(doc, at, label, true)) return {};
             hot = at;
         }
         return {hot, -1};

@@ -1024,3 +1024,28 @@ TEST_CASE("PubChem structure lookup: POSTed SMILES and the IUPAC name (#27)") {
     CHECK(pubchem::property(R"({"PropertyTable": {"Properties": [{"CID": 2244, "IUPACName": "2-acetyloxybenzoic acid"}]}})",
                             "IUPACName") == "2-acetyloxybenzoic acid");
 }
+
+TEST_CASE("x and r label an atom X and R; free-text labels keep unspecified chemistry (#156)") {
+    Document d = *chem::fromSmiles("CCO");
+    CHECK(edit::hotkey(d, {0, -1}, "x").atom == 0);
+    CHECK(edit::hotkey(d, {2, -1}, "r").atom == 2);
+    CHECK(d.atoms[0].label == "X");
+    CHECK(d.atoms[2].label == "R");
+    CHECK(d.atoms[0].z == 0);
+    CHECK(d.atoms.size() == 3);  // nothing invented
+    CHECK(chem::toSmiles(d) == "*C*");
+
+    CHECK_FALSE(edit::applyLabel(d, 1, "MgEt"));  // strict unless asked (the Python API)
+    REQUIRE(edit::applyLabel(d, 1, "MgEt", true));
+    CHECK(d.atoms[1].label == "MgEt");
+    auto back = Document::fromJson(d.toJson());
+    REQUIRE(back);
+    CHECK(back->atoms[1].label == "MgEt");
+    CHECK(edit::applyLabel(d, 1, "OMe", true));  // real groups still win
+    CHECK(d.atoms[1].z == 8);
+
+    // With no hotspot, x is still the bond tool; on a bond, r still places the double bond.
+    Document e = *chem::fromSmiles("C=C");
+    CHECK(edit::hotkey(e, {-1, 0}, "r").valid());
+    CHECK(e.atoms[0].label.isEmpty());
+}

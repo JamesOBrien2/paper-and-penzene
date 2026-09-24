@@ -10,6 +10,8 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QListWidget>
+
+#include <QLabel>
 #include <QTest>
 
 #include <QComboBox>
@@ -980,4 +982,26 @@ TEST_CASE("selected aromatic rings can use circles independently (#98)") {
     allRings->trigger();
     CHECK(canvas->document().aromaticCircles);
     CHECK(canvas->document().aromaticCircleOverrides.empty());
+}
+
+TEST_CASE("properties panel shows descriptors for the selection (#96)") {
+    App app;
+    MainWindow w;
+    w.resize(1100, 700);
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    canvas->setDocumentSilently(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O"));
+    QAction* toggle = nullptr;
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->text() == "&Properties Panel") toggle = a;
+    REQUIRE(toggle);
+    toggle->trigger();
+    QApplication::processEvents();
+    QLabel* panel = nullptr;
+    for (auto* l : w.findChildren<QLabel*>())
+        if (l->text().contains("cLogP")) panel = l;
+    REQUIRE(panel);
+    CHECK(panel->text().contains("C<sub>9</sub>H<sub>8</sub>O<sub>4</sub>"));
+    CHECK(panel->text().contains("63.6"));
+    if (auto out = qgetenv("PENZENE_PANEL_SHOT"); !out.isEmpty()) w.grab().save(out);
 }

@@ -24,6 +24,16 @@ struct Properties {
     double mw = 0, exactMass = 0;
 };
 std::optional<Properties> properties(const Document& doc);  // nullopt if empty or invalid
+// The properties panel: everything an SI table or a med-chem glance needs.
+struct Profile {
+    Properties basic;
+    double logP = 0, tpsa = 0;
+    int hbd = 0, hba = 0, rotatable = 0, heavyAtoms = 0;
+    std::vector<std::pair<std::string, double>> elemental;  // symbol, mass %, in Hill order
+    int lipinskiViolations = 0;  // Ro5: MW > 500, logP > 5, HBD > 5, HBA > 10
+    bool veber = true;           // rotatable bonds <= 10 and TPSA <= 140
+};
+std::optional<Profile> profile(const Document& doc);  // nullopt if empty or invalid
 std::string toInchi(const Document& doc);                   // "" if invalid
 std::string toInchiKey(const Document& doc);
 

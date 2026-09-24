@@ -4,7 +4,11 @@
 #include <GraphMol/Chirality.h>
 #include <GraphMol/FileParsers/CDXMLParser.h>
 #include <GraphMol/Depictor/RDDepictor.h>
+#include <GraphMol/Descriptors/Crippen.h>
+#include <GraphMol/Descriptors/Lipinski.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
+#include <GraphMol/Descriptors/MolSurf.h>
+#include <map>
 #include <GraphMol/inchi.h>
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
@@ -436,6 +440,38 @@ std::optional<Properties> properties(const Document& doc) {
     if (!perceive(*mol)) return std::nullopt;
     return Properties{RDKit::Descriptors::calcMolFormula(*mol), RDKit::Descriptors::calcAMW(*mol),
                       RDKit::Descriptors::calcExactMW(*mol)};
+}
+
+std::optional<Profile> profile(const Document& doc) {
+    auto basic = properties(doc);
+    if (!basic) return std::nullopt;
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return std::nullopt;
+    Profile p{*basic};
+    double mr = 0;
+    RDKit::Descriptors::calcCrippenDescriptors(*mol, p.logP, mr);
+    p.tpsa = RDKit::Descriptors::calcTPSA(*mol);
+    p.hbd = int(RDKit::Descriptors::calcNumHBD(*mol));
+    p.hba = int(RDKit::Descriptors::calcNumHBA(*mol));
+    p.rotatable = int(RDKit::Descriptors::calcNumRotatableBonds(*mol));
+    p.heavyAtoms = int(RDKit::Descriptors::calcNumHeavyAtoms(*mol));
+    // Mass fractions per element, hydrogens included; masses via Atom (PeriodicTable's
+    // inline methods don't link on Windows).
+    RDKit::RWMol withH(*mol);
+    RDKit::MolOps::addHs(withH);
+    std::map<std::string, double> mass;
+    for (const auto* a : withH.atoms()) mass[a->getSymbol()] += a->getMass();
+    double total = 0;
+    for (const auto& [s, m] : mass) total += m;
+    std::vector<std::string> order;  // Hill: C, H, then alphabetical
+    for (const char* s : {"C", "H"})
+        if (mass.count(s)) order.push_back(s);
+    for (const auto& [s, m] : mass)
+        if (s != "C" && s != "H") order.push_back(s);
+    for (const auto& s : order) p.elemental.push_back({s, 100 * mass[s] / total});
+    p.lipinskiViolations = (p.basic.mw > 500) + (p.logP > 5) + (p.hbd > 5) + (p.hba > 10);
+    p.veber = p.rotatable <= 10 && p.tpsa <= 140;
+    return p;
 }
 
 std::string toInchi(const Document& doc) {

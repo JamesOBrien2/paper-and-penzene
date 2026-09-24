@@ -518,6 +518,45 @@ Document clean2D(const Document& doc, const std::vector<int>& only) {
     return out;
 }
 
+Document addHydrogens(const Document& doc) {
+    Document out = doc;
+    const int n = int(doc.atoms.size());
+    if (!n) return out;
+    auto mol = toRDKit(doc);
+    perceive(*mol);
+    const int before = int(mol->getNumAtoms());
+    try {
+        RDKit::MolOps::addHs(*mol, false, true);  // with 2D coordinates
+    } catch (...) {
+        return out;
+    }
+    const auto& conf = mol->getConformer();
+    for (int i = before; i < int(mol->getNumAtoms()); ++i) {
+        const auto* h = mol->getAtomWithIdx(i);
+        const int heavy = int((*mol->getAtomNeighbors(h).first));
+        if (heavy >= n || !doc.atoms[heavy].label.isEmpty()) continue;  // not onto abbreviations
+        const auto& p = conf.getAtomPos(i);
+        const int j = out.addAtom({p.x * kScale, -p.y * kScale}, 1);
+        out.bonds.push_back({heavy, j});
+    }
+    return out;
+}
+
+Document removeHydrogens(const Document& doc) {
+    Document out = doc;
+    std::vector<int> drop;
+    for (int i = 0; i < int(doc.atoms.size()); ++i) {
+        const Atom& a = doc.atoms[i];
+        if (a.z != 1 || a.charge || !a.label.isEmpty() || doc.neighbors(i).size() != 1) continue;
+        const Bond& b = doc.bonds[doc.bondBetween(i, doc.neighbors(i)[0])];
+        if (b.stereo == BondStereo::Wedge || b.stereo == BondStereo::Hash) continue;  // stereo H stays
+        if (doc.atoms[doc.neighbors(i)[0]].z == 1) continue;  // H2 stays
+        drop.push_back(i);
+    }
+    out.removeAtoms(drop);
+    return out;
+}
+
 std::vector<std::vector<int>> rings(const Document& doc) {
     auto mol = toRDKit(doc);
     std::vector<std::vector<int>> out;

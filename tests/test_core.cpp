@@ -211,3 +211,29 @@ TEST_CASE("CDXML label nodes: reagent labels become text, R groups stay labelled
     REQUIRE(back);
     CHECK(*back == *doc);
 }
+
+TEST_CASE("explicit hydrogens and carbon/H display options (#97)") {
+    auto eth = chem::fromSmiles("CCO");
+    REQUIRE(eth);
+    Document withH = chem::addHydrogens(*eth);
+    CHECK(withH.atoms.size() == 9);  // C2H6O: 3 heavy + 6 H
+    CHECK(chem::properties(withH)->formula == "C2H6O");  // chemistry unchanged
+    for (const auto& b : withH.bonds) {  // placed at a bond's length, not piled up
+        QPointF v = withH.atoms[b.a].pos - withH.atoms[b.b].pos;
+        CHECK(std::hypot(v.x(), v.y()) > 0.4 * kBondLength);
+    }
+    Document without = chem::removeHydrogens(withH);
+    CHECK(without.atoms.size() == 3);
+
+    Document wedgedH = withH;  // a wedged H carries stereo, so it stays
+    for (auto& b : wedgedH.bonds)
+        if (wedgedH.atoms[b.b].z == 1) { b.stereo = BondStereo::Wedge; break; }
+    CHECK(chem::removeHydrogens(wedgedH).atoms.size() == 4);
+
+    eth->carbonLabels = Document::CarbonLabels::Terminal;
+    eth->hideImplicitH = true;
+    auto back = Document::fromJson(eth->toJson());
+    REQUIRE(back);
+    CHECK(back->carbonLabels == Document::CarbonLabels::Terminal);
+    CHECK(back->hideImplicitH);
+}

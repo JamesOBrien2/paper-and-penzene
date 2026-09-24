@@ -328,15 +328,17 @@ QString labelHotkey(const QString& key) {
 // Element symbol, abbreviation (drawn as its label) or SMILES (drawn out).
 bool applyLabel(Document& doc, int at, const QString& label) {
     Atom& a = doc.atoms[at];
+    // Abbreviations first: in a drawing, Ac, Pr and Ts mean acetyl, propyl and
+    // tosyl, not actinium, praseodymium and tennessine (#125).
+    if (auto head = chem::abbreviationHead(label)) {
+        a.z = head->z, a.charge = head->charge, a.label = label;
+        return true;
+    }
     // "OH", "NH2": the element; hydrogens are implicit.
     static const QRegularExpression hydride("^([A-Z][a-z]?)H\\d*$");
     QString element = hydride.match(label).hasMatch() ? hydride.match(label).captured(1) : label;
     if (int z = chem::atomicNumber(element.toStdString()); z > 0) {
         a.z = z, a.label.clear();
-        return true;
-    }
-    if (auto head = chem::abbreviationHead(label)) {
-        a.z = head->z, a.charge = head->charge, a.label = label;
         return true;
     }
     return chem::attach(doc, at, label.toStdString());

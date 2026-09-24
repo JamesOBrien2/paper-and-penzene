@@ -48,6 +48,8 @@ struct Problem {
     std::vector<int> atoms;
 };
 std::vector<Problem> checkStructure(const Document& doc);
+// Rings RDKit perceives as aromatic (every atom aromatic), in ring order.
+std::vector<std::vector<int>> aromaticRings(const Document& doc);
 
 struct AtomInfo {
     int hydrogens = 0;

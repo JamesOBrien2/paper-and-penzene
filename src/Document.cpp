@@ -55,6 +55,14 @@ QByteArray Document::toJson() const {
     if (carbonLabels != CarbonLabels::None) root["carbonLabels"] = carbonLabels == CarbonLabels::All ? "all" : "terminal";
     if (hideImplicitH) root["hideImplicitH"] = true;
     if (showStereo) root["showStereo"] = true;
+    if (aromaticCircles) root["aromaticCircles"] = true;
+    QJsonArray circleOverrides;
+    for (const auto& ring : aromaticCircleOverrides) {
+        QJsonArray ids;
+        for (int i : ring) ids.append(i);
+        circleOverrides.append(ids);
+    }
+    if (!circleOverrides.isEmpty()) root["aromaticCircleOverrides"] = circleOverrides;
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -70,6 +78,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
                                                : Document::CarbonLabels::None;
     doc.hideImplicitH = root["hideImplicitH"].toBool();
     doc.showStereo = root["showStereo"].toBool();
+    doc.aromaticCircles = root["aromaticCircles"].toBool();
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),
@@ -122,6 +131,14 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
             return std::nullopt;
         doc.fills.push_back(f);
     }
+    for (const auto& v : root["aromaticCircleOverrides"].toArray()) {
+        std::vector<int> ring;
+        for (const auto& i : v.toArray()) ring.push_back(i.toInt(-1));
+        std::sort(ring.begin(), ring.end());
+        if (ring.size() < 3 || ring.front() < 0 || ring.back() >= n ||
+            std::adjacent_find(ring.begin(), ring.end()) != ring.end()) return std::nullopt;
+        doc.aromaticCircleOverrides.push_back(std::move(ring));
+    }
     return doc;
 }
 
@@ -134,6 +151,10 @@ void Document::append(const Document& o, QPointF shift) {
     for (auto f : o.fills) {
         for (int& i : f.atoms) i += base;
         fills.push_back(f);
+    }
+    for (auto ring : o.aromaticCircleOverrides) {
+        for (int& i : ring) i += base;
+        aromaticCircleOverrides.push_back(std::move(ring));
     }
 }
 
@@ -182,6 +203,11 @@ void Document::removeAtoms(const std::vector<int>& drop) {
     });
     for (auto& f : fills)
         for (int& i : f.atoms) i = remap[i];
+    std::erase_if(aromaticCircleOverrides, [&](const auto& ring) {
+        return std::any_of(ring.begin(), ring.end(), [&](int i) { return remap[i] < 0; });
+    });
+    for (auto& ring : aromaticCircleOverrides)
+        for (int& i : ring) i = remap[i];
 }
 
 // Direction pointing away from all of the atom's bonds: the bisector of the

@@ -69,6 +69,8 @@ struct Document {
     enum class CarbonLabels { None, Terminal, All } carbonLabels = CarbonLabels::None;  // skeletal by default
     bool hideImplicitH = false;  // labels without their implicit H (NH2 drawn as N)
     bool showStereo = false;  // draw CIP (R)/(S) and (E)/(Z) labels
+    bool aromaticCircles = false;  // default for every aromatic ring
+    std::vector<std::vector<int>> aromaticCircleOverrides;  // sorted ring atom IDs with the opposite display
     bool operator==(const Document&) const = default;
     bool empty() const { return atoms.empty() && arrows.empty() && texts.empty(); }
     void append(const Document& other, QPointF shift = {});  // atom indices renumbered

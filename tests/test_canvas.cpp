@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QListWidget>
 #include <QTest>
 
 #include <QComboBox>
@@ -897,4 +898,19 @@ TEST_CASE("preferences: default style for new documents, export resolution and b
     QSettings().remove("defaultStyle");
     QSettings().remove("exportBackground");
     QSettings().remove("exportDpi");
+}
+
+TEST_CASE("Check Structure dialog selects the problem's atoms (#95)") {
+    App app;
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    canvas->setDocumentSilently(*chem::fromSmiles("CCC(C)O"));
+    QWidget* dialog = w.checkStructure();
+    auto* list = dialog->findChild<QListWidget*>();
+    REQUIRE(list);
+    REQUIRE(list->count() == 1);
+    list->setCurrentRow(0);
+    CHECK(canvas->selection() == QSet<int>{2});  // the unassigned stereocentre
+    if (auto out = qgetenv("PENZENE_CHECK_SHOT"); !out.isEmpty()) dialog->grab().save(out);
+    dialog->close();
 }

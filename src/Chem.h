@@ -40,6 +40,14 @@ struct StereoLabel {
     QString text;
 };
 std::vector<StereoLabel> stereoLabels(const Document& doc);
+// Things a chemist would want fixed before publishing: valence errors,
+// stereocentres without a wedge, wedges on non-stereocentres, unknown labels,
+// overlapping atoms. Each names the atoms involved, to select them.
+struct Problem {
+    QString message;
+    std::vector<int> atoms;
+};
+std::vector<Problem> checkStructure(const Document& doc);
 
 struct AtomInfo {
     int hydrogens = 0;

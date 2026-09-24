@@ -15,6 +15,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QObject>
+#include <QLineF>
 #include <QSet>
 #include <QXmlStreamReader>
 #include <QStringList>
@@ -578,6 +580,45 @@ std::vector<StereoLabel> stereoLabels(const Document& doc) {
         const int i = int(b->getBeginAtomIdx()), j = int(b->getEndAtomIdx());
         if (i < n && j < n && b->getPropIfPresent(RDKit::common_properties::_CIPCode, code))
             out.push_back({-1, doc.bondBetween(i, j), QString::fromStdString(code)});
+    }
+    return out;
+}
+
+std::vector<Problem> checkStructure(const Document& doc) {
+    std::vector<Problem> out;
+    const int n = int(doc.atoms.size());
+    auto name = [&](int i) {
+        const Atom& a = doc.atoms[i];
+        return a.label.isEmpty() ? QString::fromStdString(symbol(a.z)) : a.label;
+    };
+    const auto info = atomInfo(doc);
+    for (int i = 0; i < n; ++i)
+        if (info[i].valenceError)
+            out.push_back({QObject::tr("Valence error: %1 has too many bonds").arg(name(i)), {i}});
+    for (int i = 0; i < n; ++i)
+        if (!doc.atoms[i].label.isEmpty() && !abbreviationHead(doc.atoms[i].label))
+            out.push_back({QObject::tr("Unknown label \"%1\": drawn, but treated as an unknown group")
+                               .arg(doc.atoms[i].label),
+                           {i}});
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            if (QLineF(doc.atoms[i].pos, doc.atoms[j].pos).length() < 0.3 * kBondLength)
+                out.push_back({QObject::tr("Overlapping atoms: %1 and %2").arg(name(i), name(j)), {i, j}});
+
+    auto mol = toRDKit(doc);
+    if (n && perceive(*mol)) {
+        QSet<int> centres;
+        for (const auto& s : RDKit::Chirality::findPotentialStereo(*mol)) {
+            if (s.type != RDKit::Chirality::StereoType::Atom_Tetrahedral || int(s.centeredOn) >= n) continue;
+            centres.insert(int(s.centeredOn));
+            if (s.specified == RDKit::Chirality::StereoSpecified::Unspecified)
+                out.push_back({QObject::tr("Stereocentre %1 has no wedge or hash").arg(name(int(s.centeredOn))),
+                               {int(s.centeredOn)}});
+        }
+        for (const Bond& b : doc.bonds)
+            if ((b.stereo == BondStereo::Wedge || b.stereo == BondStereo::Hash) && !centres.contains(b.a))
+                out.push_back({QObject::tr("Wedge or hash starts at %1, which is not a stereocentre").arg(name(b.a)),
+                               {b.a, b.b}});
     }
     return out;
 }

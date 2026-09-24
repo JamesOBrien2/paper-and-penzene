@@ -264,3 +264,29 @@ TEST_CASE("CIP stereo labels, and E/Z read from the drawing (#94)") {
     REQUIRE(back);
     CHECK(back->showStereo);
 }
+
+TEST_CASE("check structure finds valence, stereo, label and overlap problems (#95)") {
+    auto has = [](const std::vector<chem::Problem>& ps, const QString& text) {
+        return std::any_of(ps.begin(), ps.end(), [&](const auto& p) { return p.message.contains(text); });
+    };
+    auto butanol = chem::fromSmiles("CCC(C)O");  // a stereocentre drawn without a wedge
+    REQUIRE(butanol);
+    auto ps = chem::checkStructure(*butanol);
+    CHECK(has(ps, "no wedge"));
+
+    Document d;  // ethane with a wedge (not a stereocentre), a bad label, overlapping atoms
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}, {{40, 0}}, {{40.5, 0}}};
+    d.bonds = {{0, 1, 1, BondStereo::Wedge}};
+    d.atoms[2].label = "Xyz";
+    ps = chem::checkStructure(d);
+    CHECK(has(ps, "not a stereocentre"));
+    CHECK(has(ps, "Unknown label"));
+    CHECK(has(ps, "Overlapping"));
+
+    auto pentavalent = chem::fromSmiles("C");
+    Document c5 = *pentavalent;
+    for (int k = 0; k < 5; ++k) edit::link(c5, 0, c5.addAtom({10.0 * k, 10}));
+    CHECK(has(chem::checkStructure(c5), "Valence error"));
+
+    CHECK(chem::checkStructure(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O")).empty());  // aspirin is fine
+}

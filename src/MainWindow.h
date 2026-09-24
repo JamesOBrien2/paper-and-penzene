@@ -20,6 +20,7 @@ public:
     static QString autosavePath();
     QStringList recentFiles() const;
     void showPreferences();  // theme, default style, export resolution and background
+    QWidget* checkStructure();  // lists problems; clicking one selects its atoms
 
 protected:
     void closeEvent(QCloseEvent* e) override;

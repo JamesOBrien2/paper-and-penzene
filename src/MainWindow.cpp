@@ -673,6 +673,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>
 <tr><td><b>x X j e t Space</b></td><td>bond, chain, benzene, arrow, text, select tool</td></tr>
 <tr><th colspan="2" align="left">Selection</th></tr>
+<tr><td><b>Drag onto an atom</b></td><td>merge (Select tool) &nbsp;•&nbsp; <b>Shift+drag</b> move straight; draw a bond at any angle</td></tr>
 <tr><td><b>Ctrl+←↑→↓</b></td><td>duplicate across the next arrow that way (or alongside)</td></tr>
 <tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment, or edit text</td></tr>
 </table>)"));

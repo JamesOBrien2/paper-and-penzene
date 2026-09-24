@@ -1,5 +1,8 @@
 name: Wheels
 
+permissions:
+  contents: write
+
 # Self-contained Python wheels: built against the pixi env, then repaired so
 # RDKit and Qt ship inside, then tested in a clean venv with the env hidden.
 on:
@@ -67,3 +70,18 @@ jobs:
           PENZENE_TEST_DATA="$GITHUB_WORKSPACE/tests/data" $PY "$GITHUB_WORKSPACE/tests/test_python.py"
       - uses: actions/upload-artifact@v4
         with: {name: 'wheel-${{ matrix.name }}', path: wheelhouse/*.whl}
+
+  # Tagged releases carry the wheels (pip install <url>) until PyPI publishing is set up (#78).
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'wheel-*', merge-multiple: true, path: wheelhouse}
+      - run: |
+          # Both workflows get here on a tag; whichever is second finds the release made.
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes 2>/dev/null ||
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber wheelhouse/*.whl
+        env: {GH_TOKEN: '${{ github.token }}'}

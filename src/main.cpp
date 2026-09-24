@@ -102,7 +102,7 @@ int render(const QStringList& args) {
 int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i)
         if (!std::strcmp(argv[i], "--version")) {
-            std::printf("penzene %s\n", PENZENE_VERSION);
+            std::printf("penzene %s\n", PENZENE_BUILD);
             return 0;
         } else if (!std::strcmp(argv[i], "--help") || !std::strcmp(argv[i], "-h")) {
             std::printf("usage: penzene [FILE]\n"

@@ -35,6 +35,19 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network Test)
 # The app's widgets; tests link this too, so they exercise the same code.
 add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/PubChem.cpp)
 target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network)
+# The build shown in the title bar: git describe tells builds between releases
+# apart (0.5.0-12-gabc1234); a tagged or git-less build is just the version.
+set(PENZENE_BUILD ${PROJECT_VERSION})
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS ${CMAKE_SOURCE_DIR}/.git)
+    execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --dirty --match "v*"
+                    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE described
+                    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE failed)
+    if(NOT failed)
+        string(REGEX REPLACE "^v" "" PENZENE_BUILD "${described}")
+    endif()
+endif()
+target_compile_definitions(penzene_ui PUBLIC PENZENE_BUILD="${PENZENE_BUILD}")
 
 set(PENZENE_ICNS resources/penzene.icns)
 set_source_files_properties(${PENZENE_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)

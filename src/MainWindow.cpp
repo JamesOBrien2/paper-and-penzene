@@ -69,6 +69,10 @@ void MainWindow::updateInfo() {
                        .arg(p->exactMass, 0, 'f', 4));
 }
 
+// The undo stack is a child, deleted after this destructor has run; clearing
+// itself emits cleanChanged, which must not reach a half-destroyed window.
+MainWindow::~MainWindow() { undo_->disconnect(this); }
+
 void MainWindow::updateTitle() {
     QString name = path_.isEmpty() ? tr("Untitled") : QFileInfo(path_).fileName();
     setWindowTitle(name + "[*] — Penzene");

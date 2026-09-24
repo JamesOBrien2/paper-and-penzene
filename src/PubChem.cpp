@@ -33,7 +33,7 @@ QString fetch(const QUrl& url, const QString& key, QString* error, const QByteAr
     QNetworkReply* reply = form.isEmpty() ? net.get(request) : net.post(request, form);
     QEventLoop wait;
     QObject::connect(reply, &QNetworkReply::finished, &wait, &QEventLoop::quit);
-    wait.exec();
+    wait.exec(QEventLoop::ExcludeUserInputEvents);  // no closing the window mid-request
     const QByteArray body = reply->readAll();
     const QString value = property(body, key);
     if (value.isEmpty())

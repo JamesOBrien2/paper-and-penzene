@@ -330,13 +330,16 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         p.drawPolygon(poly);
     }
     p.setBrush(Qt::NoBrush);
-    QPen pen(style.ink, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-    p.setPen(pen);
-    for (const auto& b : doc.bonds) drawBond(p, doc, b, st, degree, labeled);
+    // A colour the user gave an item wins; otherwise the ink (the theme's on screen, black in exports).
+    auto ink = [&](const QColor& own) { return own.isValid() ? own : style.ink; };
+    for (const auto& b : doc.bonds) {
+        p.setPen(QPen(ink(b.color), lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        drawBond(p, doc, b, st, degree, labeled);
+    }
 
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
         const auto& a = doc.atoms[i];
-        p.setPen(QPen(info[i].valenceError ? style.error : style.ink, lineWidth));
+        p.setPen(QPen(info[i].valenceError ? style.error : ink(a.color), lineWidth));
         if (labeled[i]) {
             // H goes on the side away from the bonds.
             double dx = 0;
@@ -350,9 +353,11 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         }
         if (info[i].valenceError && !labeled[i]) p.drawEllipse(a.pos, 3, 3);
     }
-    p.setPen(QPen(style.ink, lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
-    for (const auto& a : doc.arrows) drawArrow(p, a);
-    for (const auto& t : doc.texts) p.fillPath(textPath(t, st), style.ink);
+    for (const auto& a : doc.arrows) {
+        p.setPen(QPen(ink(a.color), lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin));
+        drawArrow(p, a);
+    }
+    for (const auto& t : doc.texts) p.fillPath(textPath(t, st), ink(t.color));
     p.restore();
 }
 

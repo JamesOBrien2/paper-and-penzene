@@ -19,6 +19,7 @@ struct Atom {
     int z = 6;       // atomic number
     int charge = 0;
     QString label;  // abbreviation such as "Boc"; z/charge are then its attaching atom's
+    QColor color;   // invalid: the ink (theme on screen, black in exports); also colours its label
 };
 
 struct Bond {
@@ -26,6 +27,7 @@ struct Bond {
     int order = 1;     // 1..3
     BondStereo stereo = BondStereo::None;
     BondPosition position = BondPosition::Auto;
+    QColor color;
 };
 
 enum class ArrowKind { Reaction, Equilibrium, Resonance, Retro, Fishhook };
@@ -36,6 +38,7 @@ struct Arrow {
     QPointF from, to;
     ArrowKind kind = ArrowKind::Reaction;
     double bend = 0;
+    QColor color;
     bool operator==(const Arrow&) const = default;
 };
 
@@ -45,6 +48,7 @@ struct Text {
     QPointF pos;
     QString text;
     double scale = 1;  // relative to the drawing style's label size
+    QColor color;
     bool operator==(const Text&) const = default;
 };
 
@@ -78,9 +82,9 @@ struct Document {
 };
 
 inline bool operator==(const Atom& x, const Atom& y) {
-    return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label;
+    return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label && x.color == y.color;
 }
 inline bool operator==(const Bond& x, const Bond& y) {
     return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo &&
-           x.position == y.position;
+           x.position == y.position && x.color == y.color;
 }

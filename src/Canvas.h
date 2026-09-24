@@ -15,7 +15,7 @@ class QUndoStack;
 class Canvas : public QGraphicsView {
     Q_OBJECT
 public:
-    enum class Tool { Select, Atom, Bond, Wedge, Hash, Chain, Ring, ChargePlus, ChargeMinus, Erase, Arrow, Text, Fill };
+    enum class Tool { Select, Atom, Bond, Wedge, Hash, Chain, Ring, ChargePlus, ChargeMinus, Erase, Arrow, Text, Fill, Colour };
 
     explicit Canvas(QUndoStack* undo, QWidget* parent = nullptr);
 
@@ -58,6 +58,9 @@ public:
     void setTheme(const Theme& t) { theme_ = t, refresh(); }
     void setFillColor(QColor c) { fillColor_ = c; }
     QColor fillColor() const { return fillColor_; }
+    void setColour(QColor c) { colour_ = c; }
+    QColor colour() const { return colour_; }
+    void colourSelection();  // the current colour on the selected atoms, bonds, arrows and text
 
 signals:
     void documentChanged();
@@ -95,6 +98,7 @@ private:
     ArrowKind arrowKind_ = ArrowKind::Reaction;
     bool arrowCurved_ = false;
     QColor fillColor_ = QColor(207, 227, 255);
+    QColor colour_ = QColor(214, 39, 40);
 
     QSet<int> selectedAtoms_, selectedArrows_, selectedTexts_;
     int hoverAtom_ = -1, hoverBond_ = -1;

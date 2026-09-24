@@ -687,3 +687,40 @@ TEST_CASE("right-click menus for atoms, bonds, selection and canvas (#89)") {
     f.canvas.setSelection({});
     CHECK(findAction(f.canvas.contextMenuAt({200, 200}), "Select All"));
 }
+
+TEST_CASE("colour atoms, bonds, arrows and text; exports keep the colour (#82)") {
+    Fixture f;
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}, 8}};
+    d.bonds = {{0, 1}};
+    d.arrows = {{{40, 0}, {80, 0}}};
+    d.texts = {{{40, -10}, "heat"}};
+    f.canvas.setDocumentSilently(d);
+    const QColor red(214, 39, 40);
+    f.canvas.setColour(red);
+    f.canvas.setTool(Canvas::Tool::Colour);
+    f.click(f.doc().atoms[1].pos);
+    CHECK(f.doc().atoms[1].color == red);
+    f.click(f.doc().atoms[1].pos);  // same colour again: cleared
+    CHECK_FALSE(f.doc().atoms[1].color.isValid());
+
+    f.canvas.selectAll();
+    f.canvas.colourSelection();
+    CHECK(f.doc().bonds[0].color == red);
+    CHECK(f.doc().arrows[0].color == red);
+    CHECK(f.doc().texts[0].color == red);
+    auto back = Document::fromJson(f.doc().toJson());
+    REQUIRE(back);
+    CHECK(*back == f.doc());
+
+    Document bond;  // a red bond exports red (colours are the user's, unlike theme ink)
+    bond.atoms = {{{0, 0}}, {{kBondLength * 3, 0}}};
+    bond.bonds = {{0, 1}};
+    bond.bonds[0].color = red;
+    const QImage img = renderImage(bond, 150);
+    bool sawRed = false;
+    for (int y = 0; y < img.height(); ++y)
+        for (int x = 0; x < img.width(); ++x)
+            if (QColor c = img.pixelColor(x, y); c.alpha() > 200 && c.red() > 150 && c.green() < 90) sawRed = true;
+    CHECK(sawRed);
+}

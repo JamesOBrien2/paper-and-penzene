@@ -21,6 +21,9 @@ QByteArray Document::toJson() const {
         if (!a.label.isEmpty()) o["label"] = a.label;
         if (a.color.isValid()) o["color"] = a.color.name();
         if (a.map) o["map"] = a.map;
+        if (a.lonePairs) o["lonePairs"] = a.lonePairs;
+        if (a.radicals) o["radicals"] = a.radicals;
+        if (a.partial) o["partial"] = a.partial;
         as.append(o);
     }
     for (const auto& b : bonds) {
@@ -54,6 +57,16 @@ QByteArray Document::toJson() const {
         fs.append(QJsonObject{{"atoms", ids}, {"color", f.color.name()}});
     }
     if (!fs.isEmpty()) root["fills"] = fs;
+    QJsonArray bs2;
+    for (const auto& b : brackets) {
+        QJsonArray ids;
+        for (int i : b.atoms) ids.append(i);
+        QJsonObject o{{"atoms", ids}};
+        if (!b.square) o["round"] = true;
+        if (!b.label.isEmpty()) o["label"] = b.label;
+        bs2.append(o);
+    }
+    if (!bs2.isEmpty()) root["brackets"] = bs2;
     if (!style.isEmpty()) root["style"] = style;
     if (carbonLabels != CarbonLabels::None) root["carbonLabels"] = carbonLabels == CarbonLabels::All ? "all" : "terminal";
     if (hideImplicitH) root["hideImplicitH"] = true;
@@ -100,7 +113,9 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),
                              o["z"].toInt(6), o["charge"].toInt(), o["label"].toString(),
-                             QColor(o["color"].toString()), std::max(0, o["map"].toInt())});
+                             QColor(o["color"].toString()), std::max(0, o["map"].toInt()),
+                             std::clamp(o["lonePairs"].toInt(), 0, 4), std::clamp(o["radicals"].toInt(), 0, 2),
+                             std::clamp(o["partial"].toInt(), -1, 1)});
     }
     const int n = int(doc.atoms.size());
     for (const auto& v : root["bonds"].toArray()) {
@@ -148,6 +163,14 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
             return std::nullopt;
         doc.fills.push_back(f);
     }
+    for (const auto& v : root["brackets"].toArray()) {
+        auto o = v.toObject();
+        Bracket b{{}, !o["round"].toBool(), o["label"].toString()};
+        for (const auto& i : o["atoms"].toArray()) b.atoms.push_back(i.toInt(-1));
+        if (b.atoms.empty() || std::any_of(b.atoms.begin(), b.atoms.end(), [n](int i) { return i < 0 || i >= n; }))
+            return std::nullopt;
+        doc.brackets.push_back(b);
+    }
     for (const auto& v : root["aromaticCircleOverrides"].toArray()) {
         std::vector<int> ring;
         for (const auto& i : v.toArray()) ring.push_back(i.toInt(-1));
@@ -168,6 +191,10 @@ void Document::append(const Document& o, QPointF shift) {
     for (auto f : o.fills) {
         for (int& i : f.atoms) i += base;
         fills.push_back(f);
+    }
+    for (auto b : o.brackets) {
+        for (int& i : b.atoms) i += base;
+        brackets.push_back(b);
     }
     for (auto ring : o.aromaticCircleOverrides) {
         for (int& i : ring) i += base;
@@ -220,6 +247,11 @@ void Document::removeAtoms(const std::vector<int>& drop) {
     });
     for (auto& f : fills)
         for (int& i : f.atoms) i = remap[i];
+    for (auto& b : brackets) {  // a bracket keeps around what's left of its atoms
+        std::erase_if(b.atoms, [&](int i) { return remap[i] < 0; });
+        for (int& i : b.atoms) i = remap[i];
+    }
+    std::erase_if(brackets, [](const Bracket& b) { return b.atoms.empty(); });
     std::erase_if(aromaticCircleOverrides, [&](const auto& ring) {
         return std::any_of(ring.begin(), ring.end(), [&](int i) { return remap[i] < 0; });
     });

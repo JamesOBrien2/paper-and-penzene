@@ -390,21 +390,23 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         p.drawEllipse(c, 0.62 * apothem, 0.62 * apothem);
     }
 
+    // H goes on the side away from the bonds; if bonds leave from both
+    // left and right, above or below, whichever is clear.
+    auto hSide = [&](int i) {
+        double dx = 0;
+        bool left = false, right = false, up = false;
+        for (int nb : doc.neighbors(i)) {
+            const QPointF d = doc.atoms[nb].pos - doc.atoms[i].pos;
+            dx += d.x();
+            left |= d.x() < -0.3 * kBondLength, right |= d.x() > 0.3 * kBondLength, up |= d.y() < -0.3 * kBondLength;
+        }
+        return left && right ? (up ? HSide::Below : HSide::Above) : dx > 0.1 ? HSide::Left : HSide::Right;
+    };
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
         const auto& a = doc.atoms[i];
         p.setPen(QPen(info[i].valenceError ? style.error : ink(a.color), lineWidth));
         if (labeled[i]) {
-            // H goes on the side away from the bonds; if bonds leave from both
-            // left and right, above or below, whichever is clear.
-            double dx = 0;
-            bool left = false, right = false, up = false;
-            for (int nb : doc.neighbors(int(i))) {
-                const QPointF d = doc.atoms[nb].pos - a.pos;
-                dx += d.x();
-                left |= d.x() < -0.3 * kBondLength, right |= d.x() > 0.3 * kBondLength, up |= d.y() < -0.3 * kBondLength;
-            }
-            const HSide side = left && right ? (up ? HSide::Below : HSide::Above) : dx > 0.1 ? HSide::Left : HSide::Right;
-            drawLabel(p, doc, int(i), doc.hideImplicitH ? 0 : info[i].hydrogens, side, st);
+            drawLabel(p, doc, int(i), doc.hideImplicitH ? 0 : info[i].hydrogens, hSide(int(i)), st);
         } else if (a.charge) {
             QFont sub = labelFont(st, 0.7);
             QString c = QString(a.charge > 0 ? "+" : "−");
@@ -439,6 +441,76 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         }
         return best;
     };
+    // Electron marks and δ±, each in the widest gap left by the bonds, the H and the charge.
+    for (size_t i = 0; i < doc.atoms.size(); ++i) {
+        const Atom& a = doc.atoms[i];
+        const int marks = a.lonePairs + a.radicals + (a.partial ? 1 : 0);
+        if (!marks) continue;
+        std::vector<double> taken;
+        for (int nb : doc.neighbors(int(i)))
+            taken.push_back(std::atan2(doc.atoms[nb].pos.y() - a.pos.y(), doc.atoms[nb].pos.x() - a.pos.x()));
+        if (labeled[i] && info[i].hydrogens && !doc.hideImplicitH) {
+            const HSide s = hSide(int(i));
+            taken.push_back(s == HSide::Right ? 0 : s == HSide::Left ? std::numbers::pi : s == HSide::Below ? std::numbers::pi / 2 : -std::numbers::pi / 2);
+        }
+        if (a.charge) taken.push_back(-std::numbers::pi / 4);  // up and to the right
+        std::vector<QPointF> dirs;
+        if (taken.empty()) dirs.push_back({0, -1}), taken.push_back(-std::numbers::pi / 2);  // a lone atom: on top first
+        std::vector<std::pair<double, double>> gaps;  // (start, width)
+        std::sort(taken.begin(), taken.end());
+        for (size_t k = 0; k < taken.size(); ++k) {
+            const double next = k + 1 < taken.size() ? taken[k + 1] : taken[0] + 2 * std::numbers::pi;
+            gaps.push_back({taken[k], next - taken[k]});
+        }
+        while (int(dirs.size()) < marks) {
+            auto widest = std::max_element(gaps.begin(), gaps.end(), [](auto x, auto y) { return x.second < y.second; });
+            const auto [start, width] = *widest;
+            const double mid = start + width / 2;
+            dirs.push_back({std::cos(mid), std::sin(mid)});
+            *widest = {start, mid - start};
+            gaps.push_back({mid, start + width - mid});
+        }
+        const double r = (labeled[i] ? 0.66 : 0.3) * kBondLength, dot = 0.9 * lineWidth + 0.4;
+        p.setPen(Qt::NoPen);
+        p.setBrush(ink(a.color));
+        size_t k = 0;
+        for (int n = 0; n < a.radicals; ++n, ++k) p.drawEllipse(a.pos + dirs[k] * r, dot, dot);
+        for (int n = 0; n < a.lonePairs; ++n, ++k)
+            for (double side : {-1.0, 1.0}) p.drawEllipse(a.pos + dirs[k] * r + perp(dirs[k]) * side * 1.6, dot, dot);
+        p.setBrush(Qt::NoBrush);
+        if (a.partial) {
+            const QFont f = labelFont(st, 0.7);
+            const QString s = a.partial > 0 ? "δ+" : "δ−";
+            QFontMetricsF fm(f);
+            const QPointF at = a.pos + dirs[k] * (r + 2.5);
+            p.setPen(QPen(ink(a.color), lineWidth));
+            drawText(p, s, at - QPointF(fm.horizontalAdvance(s) / 2, -fm.capHeight() / 2), f);
+        }
+    }
+    // Brackets: a pair of [ ] or ( ) just outside their atoms, the label at the bottom right.
+    for (const Bracket& b : doc.brackets) {
+        QPolygonF pts;
+        for (int i : b.atoms) pts << doc.atoms[i].pos;
+        const QRectF box = pts.boundingRect().adjusted(-0.55 * kBondLength, -0.6 * kBondLength, 0.55 * kBondLength, 0.6 * kBondLength);
+        const double lip = 0.2 * kBondLength;
+        p.setPen(QPen(style.ink, lineWidth));
+        p.setBrush(Qt::NoBrush);
+        for (double side : {-1.0, 1.0}) {
+            const double x = side < 0 ? box.left() : box.right();
+            QPainterPath path;
+            if (b.square) {
+                path.moveTo(x - side * lip, box.top());
+                path.lineTo(x, box.top());
+                path.lineTo(x, box.bottom());
+                path.lineTo(x - side * lip, box.bottom());
+            } else {
+                path.moveTo(x - side * lip, box.top());
+                path.quadTo(QPointF(x + side * lip * 0.6, box.center().y()), QPointF(x - side * lip, box.bottom()));
+            }
+            p.drawPath(path);
+        }
+        if (!b.label.isEmpty()) drawText(p, b.label, QPointF(box.right() + 1.5, box.bottom() + 1), labelFont(st, 0.7));
+    }
     for (size_t i = 0; i < doc.atoms.size(); ++i) {
         const Atom& a = doc.atoms[i];
         QStringList parts;
@@ -495,6 +567,11 @@ QRectF documentBounds(const Document& doc) {
         grow(QRectF(a.pos, a.pos).adjusted(-w, -h, w, h));
     }
     for (const auto& a : doc.arrows) grow(arrowPath(a).boundingRect().adjusted(-4, -4, 4, 4));
+    for (const auto& b : doc.brackets) {  // the brackets and their label
+        QPolygonF pts;
+        for (int i : b.atoms) pts << doc.atoms[i].pos;
+        grow(pts.boundingRect().adjusted(-0.7 * kBondLength, -0.7 * kBondLength, 1.2 * kBondLength, 0.9 * kBondLength));
+    }
     for (const auto& t : doc.texts) grow(textPath(t, st).boundingRect().adjusted(-2, -2, 2, 2));
     return QRectF(lo, hi);
 }

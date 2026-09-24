@@ -940,6 +940,16 @@ void MainWindow::buildMenus() {
     auto* structure = menuBar()->addMenu(tr("&Structure"));
     structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
                          [this] { canvas_->flipSelection(true); });
+    auto* brackets = structure->addMenu(tr("&Brackets"));
+    for (bool square : {true, false})
+        brackets->addAction(square ? tr("&Square Brackets Around Selection…") : tr("&Round Brackets Around Selection…"), this,
+                            [this, square] {
+                                bool ok = false;
+                                const QString label = QInputDialog::getText(this, tr("Brackets"), tr("Subscript (e.g. n; may be empty):"),
+                                                                            QLineEdit::Normal, "n", &ok);
+                                if (ok) canvas_->bracketSelection(square, label.trimmed());
+                            });
+    brackets->addAction(tr("Remove &Brackets"), this, [this] { canvas_->removeBrackets(); });
     structure->addAction(tr("&Transform…"), this, [this] {
         QDialog dialog(this);
         dialog.setWindowTitle(tr("Transform"));
@@ -1200,6 +1210,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>d b y</b></td><td>dashed, bold, wavy</td></tr>
 <tr><td><b>D</b> / <b>B</b></td><td>dashed double / bold double</td></tr>
 <tr><td><b>i</b></td><td>interaction: H-bond or contact, dotted, not a bond</td></tr>
+<tr><td><b>:</b> / <b>*</b> (atom)</td><td>lone pairs (0–3) / radical dot</td></tr>
 <tr><td><b>p</b> / <b>P</b></td><td>partial bond forming or breaking / partial double (transition states)</td></tr>
 <tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>

@@ -25,6 +25,10 @@ struct Atom {
     QString label;  // abbreviation such as "Boc"; z/charge are then its attaching atom's
     QColor color;   // invalid: the ink (theme on screen, black in exports); also colours its label
     int map = 0;    // reaction atom-map number (SMILES :n); 0 = none
+    // Mechanism marks, drawn in the atom's free space: lone pairs and δ± are for
+    // show; radical electrons are chemistry (one fewer H each).
+    int lonePairs = 0, radicals = 0;
+    int partial = 0;  // +1 δ+, −1 δ−
 };
 
 struct Bond {
@@ -64,6 +68,15 @@ struct Text {
 };
 
 // A shaded ring interior (ChemDraw ring fill); atoms in ring order.
+// Brackets around some atoms (a repeat unit, a complex), sized to them as they
+// move; `label` is the subscript at the bottom right, e.g. "n".
+struct Bracket {
+    std::vector<int> atoms;
+    bool square = true;
+    QString label;
+    bool operator==(const Bracket&) const = default;
+};
+
 struct Fill {
     std::vector<int> atoms;
     QColor color;
@@ -76,6 +89,7 @@ struct Document {
     std::vector<Arrow> arrows;
     std::vector<Text> texts;
     std::vector<Fill> fills;
+    std::vector<Bracket> brackets;
     QString style;  // drawing style preset name; empty means ACS 1996
     enum class CarbonLabels { None, Terminal, All } carbonLabels = CarbonLabels::None;  // skeletal by default
     bool hideImplicitH = false;  // labels without their implicit H (NH2 drawn as N)
@@ -105,7 +119,7 @@ struct Document {
 
 inline bool operator==(const Atom& x, const Atom& y) {
     return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label && x.color == y.color &&
-           x.map == y.map;
+           x.map == y.map && x.lonePairs == y.lonePairs && x.radicals == y.radicals && x.partial == y.partial;
 }
 inline bool operator==(const Bond& x, const Bond& y) {
     return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo &&

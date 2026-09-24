@@ -17,12 +17,14 @@ QByteArray Document::toJson() const {
         QJsonObject o{{"x", a.pos.x()}, {"y", a.pos.y()}, {"z", a.z}};
         if (a.charge) o["charge"] = a.charge;
         if (!a.label.isEmpty()) o["label"] = a.label;
+        if (a.color.isValid()) o["color"] = a.color.name();
         as.append(o);
     }
     for (const auto& b : bonds) {
         QJsonObject o{{"a", b.a}, {"b", b.b}, {"order", b.order}};
         if (b.stereo != BondStereo::None) o["stereo"] = kStereo[int(b.stereo)];
         if (b.position != BondPosition::Auto) o["position"] = kPosition[int(b.position)];
+        if (b.color.isValid()) o["color"] = b.color.name();
         bs.append(o);
     }
     QJsonObject root{{"format", "penzene"}, {"version", 1}, {"atoms", as}, {"bonds", bs}};
@@ -31,11 +33,13 @@ QByteArray Document::toJson() const {
         QJsonObject o{{"x1", a.from.x()}, {"y1", a.from.y()}, {"x2", a.to.x()}, {"y2", a.to.y()},
                       {"kind", kArrow[int(a.kind)]}};
         if (a.bend) o["bend"] = a.bend;
+        if (a.color.isValid()) o["color"] = a.color.name();
         ar.append(o);
     }
     for (const auto& t : texts) {
         QJsonObject o{{"x", t.pos.x()}, {"y", t.pos.y()}, {"text", t.text}};
         if (t.scale != 1) o["scale"] = t.scale;
+        if (t.color.isValid()) o["color"] = t.color.name();
         ts.append(o);
     }
     if (!ar.isEmpty()) root["arrows"] = ar;
@@ -60,7 +64,8 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
     for (const auto& v : root["atoms"].toArray()) {
         auto o = v.toObject();
         doc.atoms.push_back({QPointF(o["x"].toDouble(), o["y"].toDouble()),
-                             o["z"].toInt(6), o["charge"].toInt(), o["label"].toString()});
+                             o["z"].toInt(6), o["charge"].toInt(), o["label"].toString(),
+                             QColor(o["color"].toString())});
     }
     const int n = int(doc.atoms.size());
     for (const auto& v : root["bonds"].toArray()) {
@@ -75,6 +80,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         };
         b.stereo = BondStereo(index(kStereo, o["stereo"].toString()));
         b.position = BondPosition(index(kPosition, o["position"].toString()));
+        b.color = QColor(o["color"].toString());
         doc.bonds.push_back(b);
     }
     auto finite = [](std::initializer_list<double> v) {
@@ -88,11 +94,13 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
         if (k == std::end(kArrow) || !finite({a.from.x(), a.from.y(), a.to.x(), a.to.y(), a.bend}))
             return std::nullopt;
         a.kind = ArrowKind(k - std::begin(kArrow));
+        a.color = QColor(o["color"].toString());
         doc.arrows.push_back(a);
     }
     for (const auto& v : root["texts"].toArray()) {
         auto o = v.toObject();
-        Text t{{o["x"].toDouble(), o["y"].toDouble()}, o["text"].toString(), o["scale"].toDouble(1)};
+        Text t{{o["x"].toDouble(), o["y"].toDouble()}, o["text"].toString(), o["scale"].toDouble(1),
+               QColor(o["color"].toString())};
         if (!finite({t.pos.x(), t.pos.y(), t.scale}) || t.scale <= 0) return std::nullopt;
         doc.texts.push_back(t);
     }

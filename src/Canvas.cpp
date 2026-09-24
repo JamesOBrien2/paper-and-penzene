@@ -461,6 +461,16 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             break;
         case Tool::Text:
             return editText(textAt(pressPos_), pressPos_);
+        case Tool::Colour: {
+            // Paint what was clicked; clicking it again in the same colour clears it.
+            auto paint = [&](QColor& c) { c = c == colour_ ? QColor() : colour_; };
+            if (pressAtom_ >= 0) paint(next.atoms[pressAtom_].color);
+            else if (bond >= 0) paint(next.bonds[bond].color);
+            else if (int a = arrowAt(pressPos_); a >= 0) paint(next.arrows[a].color);
+            else if (int t = textAt(pressPos_); t >= 0) paint(next.texts[t].color);
+            what = tr("Colour");
+            break;
+        }
         case Tool::Fill: {
             // Smallest ring around the click; clicking a ring in the same colour clears it.
             std::vector<int> best;
@@ -735,6 +745,16 @@ void Canvas::duplicateSelection(QPointF dir) {
     setSelection(range(int(doc_.atoms.size() - copy.atoms.size()), int(doc_.atoms.size())),
                  range(int(doc_.arrows.size() - copy.arrows.size()), int(doc_.arrows.size())),
                  range(int(doc_.texts.size() - copy.texts.size()), int(doc_.texts.size())));
+}
+
+void Canvas::colourSelection() {
+    Document next = doc_;
+    for (int i : selectedAtoms_) next.atoms[i].color = colour_;
+    for (auto& b : next.bonds)
+        if (selectedAtoms_.contains(b.a) && selectedAtoms_.contains(b.b)) b.color = colour_;
+    for (int i : selectedArrows_) next.arrows[i].color = colour_;
+    for (int i : selectedTexts_) next.texts[i].color = colour_;
+    if (!(next == doc_)) commit(next, tr("Colour"));
 }
 
 void Canvas::editText(int i, QPointF pos) {

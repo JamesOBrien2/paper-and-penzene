@@ -227,6 +227,40 @@ static Document textDoc(const QString& s) {
 
 // Periodic table: main block by group and period, lanthanides and actinides
 // underneath. Organic elements are bold, since they're the ones drawn most.
+// A drop-down of colour swatches plus "Custom…", for the colour and ring fill tools.
+static QMenu* colourMenu(QWidget* parent, const QList<QColor>& presets, std::function<QColor()> current,
+                         std::function<void(QColor)> picked) {
+    auto* menu = new QMenu(parent);
+    auto* w = new QWidget;
+    auto* grid = new QGridLayout(w);
+    grid->setSpacing(3);
+    grid->setContentsMargins(6, 6, 6, 6);
+    for (int i = 0; i < presets.size(); ++i) {
+        auto* b = new QToolButton;
+        b->setFixedSize(24, 24);
+        b->setAutoRaise(true);
+        b->setToolTip(presets[i].name());
+        QPixmap swatch(16, 16);
+        swatch.fill(presets[i]);
+        b->setIcon(QIcon(swatch));
+        QObject::connect(b, &QToolButton::clicked, menu, [=] { picked(presets[i]), menu->close(); });
+        grid->addWidget(b, i / 4, i % 4);
+    }
+    auto* custom = new QToolButton;
+    custom->setText(QObject::tr("Custom…"));
+    custom->setAutoRaise(true);
+    QObject::connect(custom, &QToolButton::clicked, menu, [=] {
+        menu->close();
+        QColor c = QColorDialog::getColor(current(), parent);
+        if (c.isValid()) picked(c);
+    });
+    grid->addWidget(custom, (presets.size() + 3) / 4, 0, 1, 4);
+    auto* action = new QWidgetAction(menu);
+    action->setDefaultWidget(w);
+    menu->addAction(action);
+    return menu;
+}
+
 static QWidget* periodicTable(const std::function<void(int)>& picked) {
     auto* w = new QWidget;
     auto* grid = new QGridLayout(w);
@@ -404,6 +438,31 @@ void MainWindow::buildTools() {
     };
     add(charge(true), tr("Positive charge"), tool(T::ChargePlus));
     add(charge(false), tr("Negative charge"), tool(T::ChargeMinus));
+    // Colour tool: paints atoms, bonds, arrows and text; the arrow picks the colour.
+    auto colour = std::make_shared<QColor>(canvas_->colour());
+    const IconMaker colourIcon = paintedIcon([colour](QPainter& p, QColor ink) {
+        p.setPen(QPen(ink, 1));
+        p.setBrush(*colour);
+        p.drawRoundedRect(QRectF(5, 5, 14, 14), 3, 3);
+    });
+    auto* colourTool = add(colourIcon, tr("Colour: click an atom, bond, arrow or text to paint it (again to clear); "
+                                          "pick the colour from the arrow"),
+                           tool(T::Colour));
+    for (auto* b : palette->findChildren<QToolButton*>())
+        if (b->defaultAction() == colourTool) {
+            b->setPopupMode(QToolButton::MenuButtonPopup);
+            b->setMenu(colourMenu(b,
+                                  {QColor(214, 39, 40), QColor(255, 127, 14), QColor(44, 160, 44), QColor(31, 119, 180),
+                                   QColor(148, 103, 189), QColor(227, 119, 194), QColor(127, 127, 127), Qt::black},
+                                  [this] { return canvas_->colour(); },
+                                  [=, this](QColor c) {
+                                      *colour = c;
+                                      canvas_->setColour(c);
+                                      canvas_->setTool(T::Colour);
+                                      colourTool->setChecked(true);
+                                      colourTool->setIcon(colourIcon());
+                                  }));
+        }
     section();
     auto arrow = [this](ArrowKind k, bool curved) {
         return [this, k, curved] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved); };
@@ -541,6 +600,7 @@ void MainWindow::buildMenus() {
     };
     connect(canvas_, &Canvas::documentChanged, this, syncStyle);
     syncStyle();
+    structure->addAction(tr("C&olour Selection"), this, [this] { canvas_->colourSelection(); });
     structure->addAction(tr("Ring &Fill Colour…"), this, [this] {
         QColor c = QColorDialog::getColor(canvas_->fillColor(), this, tr("Ring fill colour"));
         if (c.isValid()) canvas_->setFillColor(c);

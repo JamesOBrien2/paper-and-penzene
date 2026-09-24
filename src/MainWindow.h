@@ -28,7 +28,7 @@ protected:
 private:
     void buildTools();
     void buildMenus();
-    bool saveTo(const QString& path);
+    bool saveTo(const QString& path, bool v3000 = false);
     bool save();
     bool saveAs();
     bool maybeSave();

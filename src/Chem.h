@@ -8,12 +8,21 @@
 namespace chem {
 std::optional<Document> fromSmiles(const std::string& smiles);
 std::optional<Document> fromMolBlock(const std::string& block);
+std::optional<Document> fromInchi(const std::string& inchi);
 // ChemDraw .cdxml (molecules, arrows, text) or binary .cdx (molecules only,
 // where RDKit was built with ChemDraw support).
 std::optional<Document> fromChemDraw(const QByteArray& data);
-// .penz, .cdxml/.cdx, or MOL/SDF, by extension.
+// .penz, .cdxml/.cdx, a Penzene SVG/PNG, MOL, or every record of an SDF,
+// .smi or .inchi file laid out as a grid, by extension.
 std::optional<Document> readFile(const QString& path);
-std::string toMolBlock(const Document& doc);
+// Each record of a multi-record file (SDF, .smi "SMILES name" lines, .inchi
+// lines), named by the file (its title or name column) or as base-N.
+struct Record {
+    QString name;
+    std::optional<Document> doc;
+};
+std::vector<Record> readRecords(const QString& path);
+std::string toMolBlock(const Document& doc, bool v3000 = false);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
 // New layout, same atom order; each molecule keeps its centroid. With `only`,
 // just the molecules containing those atoms are touched.

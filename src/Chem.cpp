@@ -20,6 +20,8 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QObject>
+#include <QPolygonF>
+#include <QRegularExpression>
 #include <QLineF>
 #include <QSet>
 #include <QXmlStreamReader>
@@ -194,6 +196,20 @@ std::optional<Document> fromSmiles(const std::string& smiles) {
     std::unique_ptr<RWMol> mol;
     try {
         mol.reset(RDKit::SmilesToMol(smiles));
+    } catch (...) {
+        return std::nullopt;
+    }
+    if (!mol) return std::nullopt;
+    layout(*mol);
+    RDKit::Chirality::wedgeMolBonds(*mol, &mol->getConformer());
+    return fromRDKit(*mol);
+}
+
+std::optional<Document> fromInchi(const std::string& inchi) {
+    RDKit::ExtraInchiReturnValues rv;
+    std::unique_ptr<RWMol> mol;
+    try {
+        mol.reset(RDKit::InchiToMol(inchi, rv));
     } catch (...) {
         return std::nullopt;
     }
@@ -413,22 +429,71 @@ std::optional<Document> fromChemDraw(const QByteArray& data) {
     return doc;
 }
 
+std::vector<Record> readRecords(const QString& path) {
+    const QFileInfo info(path);
+    const QString base = info.completeBaseName(), ext = info.suffix().toLower();
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    std::vector<Record> out;
+    const QString text = QString::fromUtf8(f.readAll()).remove('\r');
+    const QStringList parts = ext == "sdf" ? text.split("$$$$") : text.split('\n');
+    for (const QString& raw : parts) {
+        const QString part = ext == "sdf" ? raw : raw.trimmed();
+        if (part.trimmed().isEmpty() || part.startsWith('#')) continue;
+        const QString n = QString("%1-%2").arg(base).arg(out.size() + 1);
+        if (ext == "sdf") {
+            const QString block = part.startsWith('\n') ? part.mid(1) : part;  // after "$$$$\n"
+            const QString title = block.section('\n', 0, 0).trimmed();  // the molfile's name line
+            out.push_back({title.isEmpty() ? n : title, fromMolBlock(block.toStdString())});
+        } else {
+            const QStringList cols = part.split(QRegularExpression("\\s+"));
+            const std::string first = cols[0].toStdString();
+            out.push_back({cols.size() > 1 ? cols[1] : n, ext == "inchi" ? fromInchi(first) : fromSmiles(first)});
+        }
+    }
+    return out;
+}
+
+// Records side by side, row by row, each centred in a cell as big as the largest.
+static std::optional<Document> grid(const std::vector<Record>& records) {
+    std::vector<Document> docs;
+    for (const auto& r : records)
+        if (r.doc && !r.doc->empty()) docs.push_back(*r.doc);
+    if (docs.size() <= 1) return docs.empty() ? std::nullopt : std::optional(docs[0]);
+    auto box = [](const Document& d) {
+        QPolygonF pts;
+        for (const auto& a : d.atoms) pts << a.pos;
+        return pts.boundingRect();
+    };
+    QSizeF cell;
+    for (const auto& d : docs) cell = cell.expandedTo(box(d).size());
+    cell += QSizeF(2 * kBondLength, 2 * kBondLength);
+    const int cols = int(std::ceil(std::sqrt(double(docs.size()))));
+    Document out;
+    for (size_t k = 0; k < docs.size(); ++k) {
+        const QPointF centre((k % cols) * cell.width(), (k / cols) * cell.height());
+        out.append(docs[k], centre - box(docs[k]).center());
+    }
+    return out;
+}
+
 std::optional<Document> readFile(const QString& path) {
+    const QString ext = QFileInfo(path).suffix().toLower();
+    if (ext == "sdf" || ext == "smi" || ext == "inchi") return grid(readRecords(path));
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly)) return std::nullopt;
     const QByteArray data = f.readAll();
-    const QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "penz") return Document::fromJson(data);
     if (ext == "png" || ext == "svg") return Document::fromEmbedded(data);
     if (ext == "cdxml" || ext == "cdx") return fromChemDraw(data);
     return fromMolBlock(data.toStdString());
 }
 
-std::string toMolBlock(const Document& doc) {
+std::string toMolBlock(const Document& doc, bool v3000) {
     auto mol = toRDKit(doc);
     perceive(*mol);
     RDKit::Chirality::reapplyMolBlockWedging(*mol);  // keep the user's wedges
-    return RDKit::MolToMolBlock(*mol, true, -1, false);
+    return RDKit::MolToMolBlock(*mol, true, -1, false, v3000);
 }
 
 std::string toSmiles(const Document& doc) {

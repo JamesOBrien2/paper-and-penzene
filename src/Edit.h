@@ -17,6 +17,8 @@ int atomNear(const Document& doc, QPointF p, double r, int skip = -1);
 int atomAtOrNew(Document& doc, QPointF p, int z = 6);
 void link(Document& doc, int a, int b, int order = 1, BondStereo stereo = BondStereo::None);
 std::vector<int> addRing(Document& doc, const std::vector<QPointF>& verts, bool aromatic);
+std::vector<QPointF> polygon(QPointF centre, QPointF firstVertex, int n);
+double circumradius(int n);  // of a ring with standard bonds
 void ringAt(Document& doc, QPointF centre, int n, bool aromatic);
 std::vector<int> ringOnAtom(Document& doc, int atom, int n, bool aromatic);
 void ringOnBond(Document& doc, int bond, int n, bool aromatic);

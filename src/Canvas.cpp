@@ -211,6 +211,17 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
         Document preview;
         preview.arrows.push_back(draggedArrow());
         paintDocument(*p, preview, {line});
+    } else if (drag_ == Drag::Ring && len(curPos_ - pressPos_) >= 3 / transform().m11()) {
+        Document ring = doc_;
+        addDraggedRing(ring);
+        p->setPen(QPen(line, 0.8));
+        for (const auto& b : ring.bonds)
+            if (doc_.bondBetween(b.a, b.b) < 0 || b.a >= int(doc_.atoms.size()) || b.b >= int(doc_.atoms.size()))
+                p->drawLine(ring.atoms[b.a].pos, ring.atoms[b.b].pos);
+        QFont f = font();
+        f.setPixelSize(8);
+        p->setFont(f);
+        p->drawText(curPos_ + QPointF(6, -6), QString::number(draggedRingSize()));  // the size, by the cursor
     }
 }
 
@@ -227,6 +238,21 @@ int Canvas::textAt(QPointF p) const {
     for (int i = int(doc_.texts.size()) - 1; i >= 0; --i)
         if (textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
     return -1;
+}
+
+// A dragged ring grows by one atom per half bond length of drag, from 3 to 12.
+int Canvas::draggedRingSize() const {
+    return std::clamp(3 + int(len(curPos_ - pressPos_) / (0.5 * kBondLength)), 3, 12);
+}
+
+// Fused onto the bond or attached to the atom where the drag began; on empty
+// space the ring hangs off the press point in the drag direction. Shift: aromatic.
+void Canvas::addDraggedRing(Document& doc) const {
+    const int n = draggedRingSize();
+    const bool aromatic = shift_;
+    if (pressAtom_ >= 0) ringOnAtom(doc, pressAtom_, n, aromatic);
+    else if (int bond = bondAt(pressPos_); bond >= 0) ringOnBond(doc, bond, n, aromatic);
+    else addRing(doc, polygon(pressPos_ + unit(curPos_ - pressPos_) * circumradius(n), pressPos_, n), aromatic);
 }
 
 // The arrow being dragged out: straight ones snap to 15°, curved ones bow left.
@@ -318,6 +344,9 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
         break;
     case Tool::Arrow:
         drag_ = Drag::Arrow;
+        break;
+    case Tool::Ring:  // a click adds the chosen ring; a drag sizes one
+        drag_ = Drag::Ring;
         break;
     default:
         drag_ = Drag::None;  // click tools act on release
@@ -455,6 +484,9 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
             prev = cur;
         }
         what = drag == Drag::Bond ? tr("Add bond") : tr("Add chain");
+    } else if (drag == Drag::Ring && !click) {
+        addDraggedRing(next);
+        what = tr("Add ring");
     } else if (click) {
         switch (tool_) {
         case Tool::Atom:

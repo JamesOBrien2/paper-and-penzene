@@ -492,24 +492,36 @@ QRectF documentBounds(const Document& doc) {
 
 double exportScale(const Document& doc) { return drawingStyle(doc.style).bondLength / kBondLength; }
 
-QImage renderImage(const Document& doc, double dpi, QColor background) {
-    QRectF r = documentBounds(doc);
-    double s = dpi / 72.0 * exportScale(doc);  // model units to pixels
-    QImage img((r.size() * s).toSize().expandedTo({1, 1}), QImage::Format_ARGB32_Premultiplied);
-    img.setDotsPerMeterX(int(dpi / 0.0254));
-    img.setDotsPerMeterY(int(dpi / 0.0254));
-    img.fill(background);
-    QPainter p(&img);
-    p.scale(s, s);
+// The exported area (model units) and the points per model unit.
+static std::pair<QRectF, double> exportFrame(const Document& doc, const ExportOptions& o) {
+    const double s = exportScale(doc) * o.scale, m = o.margin / s;
+    return {documentBounds(doc).adjusted(-m, -m, m, m), s};
+}
+
+// Paints the frame at `s` output units per point, background first.
+static void paintFrame(QPainter& p, const Document& doc, const ExportOptions& o, double perPoint) {
+    const auto [r, s] = exportFrame(doc, o);
+    p.scale(s * perPoint, s * perPoint);
     p.translate(-r.topLeft());
+    if (o.background.alpha()) p.fillRect(r, o.background);
     paintDocument(p, doc);
+}
+
+QImage renderImage(const Document& doc, const ExportOptions& o) {
+    const auto [r, s] = exportFrame(doc, o);
+    QImage img((r.size() * s * o.dpi / 72.0).toSize().expandedTo({1, 1}), QImage::Format_ARGB32_Premultiplied);
+    img.setDotsPerMeterX(int(o.dpi / 0.0254));
+    img.setDotsPerMeterY(int(o.dpi / 0.0254));
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    paintFrame(p, doc, o, o.dpi / 72.0);
+    p.end();
     img.setText("penzene", QString::fromUtf8(doc.toJson()));  // reopens as an editable drawing
     return img;
 }
 
-QByteArray renderSvg(const Document& doc, QColor background) {
-    QRectF r = documentBounds(doc);
-    const double s = exportScale(doc);
+QByteArray renderSvg(const Document& doc, const ExportOptions& o) {
+    const auto [r, s] = exportFrame(doc, o);
     QBuffer buf;
     QSvgGenerator gen;
     gen.setOutputDevice(&buf);
@@ -518,10 +530,7 @@ QByteArray renderSvg(const Document& doc, QColor background) {
     gen.setResolution(72);  // 1 unit == 1 pt
     gen.setTitle("Penzene");
     QPainter p(&gen);
-    p.scale(s, s);
-    p.translate(-r.topLeft());
-    if (background.alpha()) p.fillRect(r, background);
-    paintDocument(p, doc);
+    paintFrame(p, doc, o, 1);
     p.end();
     // The editable drawing rides along (base64: nothing in it can break the XML).
     QByteArray svg = buf.data();
@@ -530,27 +539,23 @@ QByteArray renderSvg(const Document& doc, QColor background) {
     return svg;
 }
 
-bool exportDocument(const Document& doc, const QString& path, double dpi, QColor background) {
-    QRectF r = documentBounds(doc);
+bool exportDocument(const Document& doc, const QString& path, const ExportOptions& o) {
     if (doc.empty()) return false;
     const QString ext = QFileInfo(path).suffix().toLower();
-    if (ext == "png") return renderImage(doc, dpi, background).save(path);
+    if (ext == "png") return renderImage(doc, o).save(path);
     if (ext == "svg") {
         QFile f(path);
-        return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc, background)) > 0;
+        return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc, o)) > 0;
     }
     if (ext == "pdf") {
+        const auto [r, s] = exportFrame(doc, o);
         QPdfWriter pdf(path);
         pdf.setResolution(72);
-        const double s = exportScale(doc);
         pdf.setPageSize(QPageSize(r.size() * s, QPageSize::Point));
         pdf.setPageMargins({});
         pdf.setCreator("Penzene");
         QPainter p(&pdf);
-        p.scale(s, s);
-        p.translate(-r.topLeft());
-        if (background.alpha()) p.fillRect(r, background);
-        paintDocument(p, doc);
+        paintFrame(p, doc, o, 1);
         return true;
     }
     return false;

@@ -351,8 +351,8 @@ TEST_CASE("aromatic circles preserve chemistry and survive save/load (#98)") {
 
     if (auto prefix = qgetenv("PENZENE_CIRCLE_SHOTS"); !prefix.isEmpty()) {
         pyridine->aromaticCircles = true;
-        CHECK(exportDocument(*naphthalene, QString::fromUtf8(prefix) + "-naphthalene.png", 150, Qt::white));
-        CHECK(exportDocument(*pyridine, QString::fromUtf8(prefix) + "-pyridine.png", 150, Qt::white));
+        CHECK(exportDocument(*naphthalene, QString::fromUtf8(prefix) + "-naphthalene.png", {150, Qt::white}));
+        CHECK(exportDocument(*pyridine, QString::fromUtf8(prefix) + "-pyridine.png", {150, Qt::white}));
     }
 }
 

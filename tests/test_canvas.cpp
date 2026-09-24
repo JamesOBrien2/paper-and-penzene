@@ -511,7 +511,7 @@ TEST_CASE("themes: Catppuccin palettes; exports stay black") {
     f.canvas.setTheme(theme("Catppuccin Mocha"));
     auto doc = chem::fromSmiles("CO");
     REQUIRE(doc);
-    QImage img = renderImage(*doc, 72);
+    QImage img = renderImage(*doc, {72});
     bool dark = false;
     for (int y = 0; y < img.height(); ++y)
         for (int x = 0; x < img.width(); ++x)
@@ -665,9 +665,9 @@ TEST_CASE("exports come out at the drawing style's own bond length (#92)") {
     App app;
     auto d = chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
     REQUIRE(d);
-    const QImage acs = renderImage(*d, 72);
+    const QImage acs = renderImage(*d, {72});
     d->style = "RSC";
-    const QImage rsc = renderImage(*d, 72);
+    const QImage rsc = renderImage(*d, {72});
     CHECK(std::abs(exportScale(*d) - 12.2 / 14.4) < 1e-12);
     // Same drawing, same model bounds (RSC's labels are smaller, so compare against its own bounds).
     const QRectF model = documentBounds(*d);
@@ -770,7 +770,7 @@ TEST_CASE("colour atoms, bonds, arrows and text; exports keep the colour (#82)")
     bond.atoms = {{{0, 0}}, {{kBondLength * 3, 0}}};
     bond.bonds = {{0, 1}};
     bond.bonds[0].color = red;
-    const QImage img = renderImage(bond, 150);
+    const QImage img = renderImage(bond, {150});
     bool sawRed = false;
     for (int y = 0; y < img.height(); ++y)
         for (int x = 0; x < img.width(); ++x)
@@ -930,7 +930,7 @@ TEST_CASE("preferences: default style for new documents, export resolution and b
     // White background: the corner pixel of an export is opaque white, not clear.
     QTemporaryDir dir;
     auto doc = chem::fromSmiles("CCO");
-    REQUIRE(exportDocument(*doc, dir.filePath("x.png"), 150, Qt::white));
+    REQUIRE(exportDocument(*doc, dir.filePath("x.png"), {150, Qt::white}));
     QImage img(dir.filePath("x.png"));
     CHECK(img.pixelColor(0, 0) == QColor(Qt::white));
     REQUIRE(exportDocument(*doc, dir.filePath("y.png")));
@@ -983,7 +983,7 @@ TEST_CASE("selected aromatic rings can use circles independently (#98)") {
     REQUIRE(back);
     CHECK(back->aromaticCircleOverrides == canvas->document().aromaticCircleOverrides);
     if (auto out = qgetenv("PENZENE_ONE_CIRCLE_SHOT"); !out.isEmpty())
-        CHECK(exportDocument(canvas->document(), QString::fromUtf8(out), 150, Qt::white));
+        CHECK(exportDocument(canvas->document(), QString::fromUtf8(out), {150, Qt::white}));
     canvas->setSelection(selected);
     oneRing->trigger();
     CHECK(canvas->document().aromaticCircleOverrides.empty());
@@ -1140,4 +1140,19 @@ TEST_CASE("paste from ChemDraw: CDX/CDXML clipboard formats (#104)") {
     CHECK(uti.mimeForUti("public.utf8-plain-text").isEmpty());
     CHECK(uti.convertToMime("chemical/x-cdx", {cdxml}, {}).toByteArray() == cdxml);
 #endif
+}
+
+TEST_CASE("export scale and margin (#103)") {
+    App app;
+    const Document doc = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    const QImage full = renderImage(doc, {72});
+    const QImage half = renderImage(doc, {72, Qt::transparent, 0.5});
+    const QImage padded = renderImage(doc, {72, Qt::white, 1, 10});
+    CHECK(std::abs(half.width() - full.width() / 2) <= 1);
+    CHECK(std::abs(half.height() - full.height() / 2) <= 1);
+    CHECK(std::abs(padded.width() - (full.width() + 20)) <= 1);  // 10 pt a side at 72 dpi
+    CHECK(padded.pixelColor(2, 2) == QColor(Qt::white));        // the margin takes the background
+    const QByteArray svg = renderSvg(doc, {300, Qt::transparent, 0.85});
+    CHECK(svg.contains("<svg"));
+    CHECK(svg.size() > 100);
 }

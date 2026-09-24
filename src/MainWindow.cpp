@@ -2,8 +2,11 @@
 #include "Canvas.h"
 #include "Chem.h"
 #include "PubChem.h"
+#include "Templates.h"
 
 #include <QActionGroup>
+#include <QHash>
+#include <QTreeWidget>
 #include <QPainter>
 #include <QPrintDialog>
 #include <QPrinter>
@@ -62,6 +65,31 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     setCentralWidget(canvas_);
     setWindowTitle("Penzene " PENZENE_BUILD);
     resize(1100, 750);
+    // Template library (built before the menus too); filled the first time it's shown.
+    templateDock_ = new QDockWidget(tr("Templates"), this);
+    templateDock_->setObjectName("templates");
+    templates_ = new QTreeWidget;
+    templates_->setHeaderHidden(true);
+    templates_->setIconSize({56, 40});
+    templates_->setContextMenuPolicy(Qt::CustomContextMenu);
+    templateDock_->setWidget(templates_);
+    addDockWidget(Qt::RightDockWidgetArea, templateDock_);
+    templateDock_->hide();
+    connect(templateDock_, &QDockWidget::visibilityChanged, this, [this](bool shown) {
+        if (shown && !templates_->topLevelItemCount()) fillTemplates();
+    });
+    connect(templates_, &QTreeWidget::itemActivated, this, &MainWindow::insertTemplate);
+    connect(templates_, &QTreeWidget::itemClicked, this, &MainWindow::insertTemplate);
+    connect(templates_, &QTreeWidget::customContextMenuRequested, this, [this](QPoint at) {
+        QTreeWidgetItem* item = templates_->itemAt(at);
+        if (!item || !item->data(0, Qt::UserRole + 1).toBool()) return;  // only the user's own
+        QMenu menu;
+        menu.addAction(tr("Delete Template"), this, [this, item] {
+            removeUserTemplate(item->text(0));
+            fillTemplates();
+        });
+        menu.exec(templates_->viewport()->mapToGlobal(at));
+    });
     // Properties panel (built before the menus, which offer its toggle): descriptors for the selection or everything.
     profileDock_ = new QDockWidget(tr("Properties"), this);
     profileDock_->setObjectName("properties");
@@ -375,6 +403,59 @@ bool printDocument(QPrinter& printer, const Document& doc) {
     p.translate(-r.center());
     paintDocument(p, doc);
     return p.end();
+}
+
+static QIcon templateIcon(const Document& doc) {
+    QImage img = renderImage(doc, {40});
+    return QIcon(QPixmap::fromImage(img.scaled(56, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+}
+
+void MainWindow::fillTemplates() {
+    templates_->clear();
+    QHash<QString, QTreeWidgetItem*> groups;
+    auto group = [&](const QString& name) {
+        if (!groups.contains(name)) groups[name] = new QTreeWidgetItem(templates_, {name});
+        return groups[name];
+    };
+    const auto mine = userTemplates();
+    if (!mine.empty()) {
+        for (const auto& [name, doc] : mine) {
+            auto* item = new QTreeWidgetItem(group(tr("My templates")), {name});
+            item->setIcon(0, templateIcon(doc));
+            item->setData(0, Qt::UserRole, doc.toJson());
+            item->setData(0, Qt::UserRole + 1, true);
+        }
+    }
+    for (const auto& t : builtinTemplates()) {
+        auto doc = chem::fromSmiles(t.smiles.toStdString());
+        if (!doc) continue;
+        auto* item = new QTreeWidgetItem(group(t.category), {t.name});
+        item->setIcon(0, templateIcon(*doc));
+        item->setData(0, Qt::UserRole, doc->toJson());
+    }
+    if (!mine.empty()) groups[tr("My templates")]->setExpanded(true);
+}
+
+void MainWindow::insertTemplate(QTreeWidgetItem* item) {
+    if (!item || item->data(0, Qt::UserRole).isNull()) return;  // a category
+    if (auto doc = Document::fromJson(item->data(0, Qt::UserRole).toByteArray())) {
+        doc->style = canvas_->document().style;
+        canvas_->insert(*doc, tr("Insert %1").arg(item->text(0)));
+    }
+}
+
+void MainWindow::saveTemplate() {
+    const Document doc = canvas_->selectedSubset();
+    if (doc.empty()) return;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Save as Template"), tr("Template name:"), QLineEdit::Normal, {}, &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+    if (!saveUserTemplate(name, doc)) {
+        QMessageBox::warning(this, tr("Save as Template"), tr("Could not save the template."));
+        return;
+    }
+    fillTemplates();
+    templateDock_->show();
 }
 
 void MainWindow::print() {
@@ -960,6 +1041,7 @@ void MainWindow::buildMenus() {
                                 if (ok) canvas_->bracketSelection(square, label.trimmed());
                             });
     brackets->addAction(tr("Remove &Brackets"), this, [this] { canvas_->removeBrackets(); });
+    structure->addAction(tr("Save Selection as T&emplate…"), this, &MainWindow::saveTemplate);
     structure->addAction(tr("&Transform…"), this, [this] {
         QDialog dialog(this);
         dialog.setWindowTitle(tr("Transform"));
@@ -1138,6 +1220,10 @@ void MainWindow::buildMenus() {
         if (!(next == canvas_->document())) canvas_->commit(next, tr("Toggle aromatic circles"));
     });
     view->addSeparator();
+    auto* templatesToggle = templateDock_->toggleViewAction();
+    templatesToggle->setText(tr("&Templates"));
+    templatesToggle->setShortcut(QKeySequence(tr("Ctrl+Shift+T")));
+    view->addAction(templatesToggle);
     auto* panelToggle = profileDock_->toggleViewAction();
     panelToggle->setText(tr("&Properties Panel"));
     panelToggle->setShortcut(QKeySequence(tr("Ctrl+I")));

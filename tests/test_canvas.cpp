@@ -3,6 +3,7 @@
 #include "Edit.h"
 #include "MainWindow.h"
 #include "PubChem.h"
+#include "Templates.h"
 #include "Render.h"
 
 #include <QApplication>
@@ -25,6 +26,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QTreeWidget>
 #include <QFileInfo>
 #include <QPrinter>
 #include <QClipboard>
@@ -1256,4 +1258,37 @@ TEST_CASE("lone pairs, radicals and brackets from the keyboard and menu (#106)")
     CHECK(moved.brackets[0].atoms == std::vector<int>{0});
     f.canvas.removeBrackets();
     CHECK(f.doc().brackets.empty());
+}
+
+TEST_CASE("template library: built-ins insert, selections save as templates (#32)") {
+    App app;
+    REQUIRE(builtinTemplates().size() >= 50);
+    for (const auto& t : builtinTemplates()) {
+        INFO(t.name.toStdString());
+        CHECK(chem::fromSmiles(t.smiles.toStdString()));
+    }
+    MainWindow w;
+    w.resize(1000, 700);
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    canvas->setDocumentSilently(Document{});
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->text() == "&Templates") a->trigger();
+    QApplication::processEvents();
+    auto* tree = w.findChild<QTreeWidget*>();
+    REQUIRE(tree);
+    auto found = tree->findItems("L-Alanine", Qt::MatchExactly | Qt::MatchRecursive);
+    REQUIRE(found.size() == 1);
+    emit tree->itemClicked(found[0], 0);
+    CHECK(chem::toSmiles(canvas->document()) == chem::toSmiles(*chem::fromSmiles("C[C@@H](C(=O)O)N")));
+
+    REQUIRE(saveUserTemplate("My alanine", canvas->document()));
+    const auto mine = userTemplates();
+    CHECK(std::any_of(mine.begin(), mine.end(), [](const auto& t) { return t.first == "My alanine"; }));
+    CHECK(removeUserTemplate("My alanine"));
+    if (auto out = qgetenv("PENZENE_TEMPLATES_SHOT"); !out.isEmpty()) {
+        tree->findItems("Sugars", Qt::MatchExactly)[0]->setExpanded(true);
+        QApplication::processEvents();
+        w.grab().save(out);
+    }
 }

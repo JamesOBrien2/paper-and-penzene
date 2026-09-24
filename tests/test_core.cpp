@@ -373,3 +373,23 @@ TEST_CASE("properties panel profile for aspirin (#96)") {
     CHECK(p->veber);
     CHECK_FALSE(chem::profile(Document{}));
 }
+
+TEST_CASE("atom-map numbers survive SMILES, .penz and the ' hotkey (#99)") {
+    auto doc = chem::fromSmiles("[CH3:1][OH:2]");
+    REQUIRE(doc);
+    CHECK(doc->atoms[0].map + doc->atoms[1].map == 3);
+    CHECK(chem::toSmiles(*doc) == "[CH3:1][OH:2]");
+    doc->showAtomNumbers = true;
+    auto back = Document::fromJson(doc->toJson());
+    REQUIRE(back);
+    CHECK(*back == *doc);
+
+    auto ethanol = *chem::fromSmiles("CCO");
+    CHECK(edit::hotkey(ethanol, {2, -1}, "'").atom == 2);
+    CHECK(edit::hotkey(ethanol, {0, -1}, "'").valid());
+    CHECK(ethanol.atoms[2].map == 1);
+    CHECK(ethanol.atoms[0].map == 2);
+    edit::hotkey(ethanol, {2, -1}, "'");
+    CHECK(ethanol.atoms[2].map == 0);
+    CHECK(chem::toSmiles(ethanol).find("[CH3:2]") != std::string::npos);
+}

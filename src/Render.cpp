@@ -409,6 +409,40 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         drawArrow(p, a);
     }
     for (const auto& t : doc.texts) p.fillPath(textPath(t, st), ink(t.color));
+    // Atom-map numbers (:n) and, when shown, indices from 1: small, in the atom's widest gap,
+    // ties (a ring atom's equal gaps) going to the side facing out of the drawing.
+    QPointF middle;
+    for (const auto& a : doc.atoms) middle += a.pos / double(doc.atoms.size());
+    auto numberDirection = [&](int i) {
+        const QPointF p = doc.atoms[i].pos;
+        std::vector<double> ang;
+        for (int nb : doc.neighbors(i)) ang.push_back(std::atan2(doc.atoms[nb].pos.y() - p.y(), doc.atoms[nb].pos.x() - p.x()));
+        if (ang.size() < 2) return doc.awayDirection(i);
+        std::sort(ang.begin(), ang.end());
+        QPointF best;
+        double bestGap = -1, bestOut = 0;
+        for (size_t k = 0; k < ang.size(); ++k) {
+            const double next = k + 1 < ang.size() ? ang[k + 1] : ang[0] + 2 * std::numbers::pi, mid = (ang[k] + next) / 2;
+            const QPointF d(std::cos(mid), std::sin(mid));
+            const double out = QPointF::dotProduct(d, p - middle);
+            if (next - ang[k] > bestGap + 0.1 || (next - ang[k] > bestGap - 0.1 && out > bestOut))
+                best = d, bestGap = std::max(bestGap, next - ang[k]), bestOut = out;
+        }
+        return best;
+    };
+    for (size_t i = 0; i < doc.atoms.size(); ++i) {
+        const Atom& a = doc.atoms[i];
+        QStringList parts;
+        if (doc.showAtomNumbers) parts << QString::number(i + 1);
+        if (a.map) parts << ":" + QString::number(a.map);
+        if (parts.isEmpty()) continue;
+        const QFont f = labelFont(st, 0.6);
+        const QString s = parts.join(' ');
+        QFontMetricsF fm(f);
+        const QPointF at = a.pos + numberDirection(int(i)) * ((labeled[i] ? 0.8 : 0.4) * kBondLength);
+        p.setPen(QPen(ink(a.color), lineWidth));
+        drawText(p, s, at - QPointF(fm.horizontalAdvance(s) / 2, -fm.capHeight() / 2), f);
+    }
     if (doc.showStereo) {  // small italic (R)/(E), clear of the atom's bonds or the double bond's second line
         QFont f = labelFont(st, 0.7);
         f.setItalic(true);

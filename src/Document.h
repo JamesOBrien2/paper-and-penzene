@@ -20,6 +20,7 @@ struct Atom {
     int charge = 0;
     QString label;  // abbreviation such as "Boc"; z/charge are then its attaching atom's
     QColor color;   // invalid: the ink (theme on screen, black in exports); also colours its label
+    int map = 0;    // reaction atom-map number (SMILES :n); 0 = none
 };
 
 struct Bond {
@@ -69,6 +70,7 @@ struct Document {
     enum class CarbonLabels { None, Terminal, All } carbonLabels = CarbonLabels::None;  // skeletal by default
     bool hideImplicitH = false;  // labels without their implicit H (NH2 drawn as N)
     bool showStereo = false;  // draw CIP (R)/(S) and (E)/(Z) labels
+    bool showAtomNumbers = false;  // draw each atom's index (from 1)
     bool aromaticCircles = false;  // default for every aromatic ring
     std::vector<std::vector<int>> aromaticCircleOverrides;  // sorted ring atom IDs with the opposite display
     bool operator==(const Document&) const = default;
@@ -88,7 +90,8 @@ struct Document {
 };
 
 inline bool operator==(const Atom& x, const Atom& y) {
-    return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label && x.color == y.color;
+    return x.pos == y.pos && x.z == y.z && x.charge == y.charge && x.label == y.label && x.color == y.color &&
+           x.map == y.map;
 }
 inline bool operator==(const Bond& x, const Bond& y) {
     return x.a == y.a && x.b == y.b && x.order == y.order && x.stereo == y.stereo &&

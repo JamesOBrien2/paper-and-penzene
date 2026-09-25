@@ -115,7 +115,7 @@ private:
     ArrowKind arrowKind_ = ArrowKind::Reaction;
     bool arrowCurved_ = false, arrowDashed_ = false;
     QColor fillColor_ = QColor(207, 227, 255);
-    QColor colour_ = QColor(214, 39, 40);
+    QColor colour_ = QColor(0xFF, 0x0D, 0x0D);  // CPK oxygen
 
     QSet<int> selectedAtoms_, selectedArrows_, selectedTexts_;
     int hoverAtom_ = -1, hoverBond_ = -1;

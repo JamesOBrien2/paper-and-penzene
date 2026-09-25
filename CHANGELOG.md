@@ -11,6 +11,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->
 - The What's New window highlights main additions with icons and lists smaller changes below.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
+- The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.
 
 ## 0.8.0 (2026-09-25)
 

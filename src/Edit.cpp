@@ -385,6 +385,23 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
             doc.atoms[at].charge += t == "+" ? 1 : -1;
             return h;
         }
+        if (t == ".") {  // attachment point: a wavy bond to a bare point (* in SMILES)
+            sprout(doc, at, freeDirection(doc, at), 1, 0, BondStereo::Wavy);
+            return h;
+        }
+        if (t == "j" || t == "J") {  // η5-cyclopentadienyl / η6-benzene, bonded through the ring's centre
+            // ponytail: η-bonds have no SMILES or MOL form; the centroid is a bare dummy (*) there.
+            const int n = t == "j" ? 5 : 6, first = int(doc.atoms.size());
+            const QPointF centre = doc.atoms[at].pos + doc.awayDirection(at) * (1.6 * kBondLength);
+            ringAt(doc, centre, n, n == 6);
+            if (n == 5) {  // Cp⁻: two double bonds and the charge
+                doc.bonds[doc.bondBetween(first, first + 1)].order = 2;
+                doc.bonds[doc.bondBetween(first + 2, first + 3)].order = 2;
+                doc.atoms[first + 4].charge = -1;
+            }
+            link(doc, at, doc.addAtom(centre, 0));
+            return h;
+        }
         if (t == ":") {  // lone pairs: none, 1, 2, 3, none
             doc.atoms[at].lonePairs = (doc.atoms[at].lonePairs + 1) % 4;
             return h;
@@ -432,6 +449,11 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
                                                        {"B", BondStereo::Bold}};
         b.stereo = styles[t];
         b.order = t == "D" || t == "B" ? 2 : 1;
+    } else if (t == "f") {  // bring to front: drawn last, over bonds it crosses
+        const Bond front = b;
+        doc.bonds.erase(doc.bonds.begin() + h.bond);
+        doc.bonds.push_back(front);
+        return {-1, int(doc.bonds.size()) - 1};
     } else if (t == "i" || t == "p" || t == "P") {  // interaction; partial (forming/breaking) single or double
         b.stereo = t == "i" ? BondStereo::Interaction : BondStereo::Partial;
         b.order = t == "P" ? 2 : 1;

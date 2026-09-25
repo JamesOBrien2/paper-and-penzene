@@ -44,6 +44,7 @@ const DrawingStyle& drawingStyle(const QString& name) {
 }
 // Carbons are skeletal unless alone or the document asks for their labels.
 static bool hasLabel(const Document& doc, int i, const std::vector<int>& degree) {
+    if (doc.atoms[i].z == 0 && doc.atoms[i].label.isEmpty()) return false;  // attachment point, η centroid: a bare point
     if (doc.atoms[i].z != 6 || degree[i] == 0 || !doc.atoms[i].label.isEmpty()) return true;
     return doc.carbonLabels == Document::CarbonLabels::All ||
            (doc.carbonLabels == Document::CarbonLabels::Terminal && degree[i] == 1);
@@ -125,7 +126,7 @@ static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, HS
 }
 
 static void drawBond(QPainter& p, const Document& doc, const Bond& b, const DrawingStyle& st, const std::vector<int>& degree,
-                     const std::vector<bool>& labeled) {
+                     const std::vector<bool>& labeled, const std::vector<QPointF>& gaps = {}) {
     QPointF pa = doc.atoms[b.a].pos, pb = doc.atoms[b.b].pos;
     QPointF d = unit(pb - pa), n = perp(d);
     const double gap = st.bondSpacing * kBondLength;  // double-bond spacing
@@ -179,7 +180,18 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
         const bool dashed = b.stereo == BondStereo::Dashed || b.stereo == BondStereo::Partial;
         if (dashed && (!main || b.order == 1)) q.setDashPattern({2.5, 2.5});
         p.setPen(q);
-        p.drawLine(x, y);
+        // A bond drawn later (in front) crossing this one leaves a gap in it.
+        std::vector<double> cuts;  // along x→y, 0..1
+        const double length = len(y - x), half = 0.18 * kBondLength;
+        for (QPointF g : gaps) cuts.push_back(QPointF::dotProduct(g - x, y - x) / (length * length));
+        std::sort(cuts.begin(), cuts.end());
+        double from = 0;
+        for (double c : cuts) {
+            const double to = c - half / length;
+            if (to > from) p.drawLine(x + (y - x) * from, x + (y - x) * to);
+            from = std::max(from, c + half / length);
+        }
+        if (from < 1) p.drawLine(x + (y - x) * from, y);
         p.setPen(pen);
     };
 
@@ -388,15 +400,27 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         for (const auto& r : circles)
             for (size_t k = 0; k < r.size(); ++k) inCircle.insert(doc.bondBetween(r[k], r[(k + 1) % r.size()]));
     }
+    // Crossings: where a later bond (in front; Bring to Front moves one last) crosses an
+    // earlier one that shares no atom with it, the earlier one gets a gap.
+    std::vector<std::vector<QPointF>> gaps(doc.bonds.size());
+    for (size_t i = 0; i < doc.bonds.size(); ++i)
+        for (size_t j = i + 1; j < doc.bonds.size(); ++j) {
+            const Bond &x = doc.bonds[i], &y = doc.bonds[j];
+            if (x.a == y.a || x.a == y.b || x.b == y.a || x.b == y.b) continue;
+            QPointF at;
+            if (QLineF(doc.atoms[x.a].pos, doc.atoms[x.b].pos).intersects(QLineF(doc.atoms[y.a].pos, doc.atoms[y.b].pos), &at) ==
+                QLineF::BoundedIntersection)
+                gaps[i].push_back(at);
+        }
     for (int bi = 0; bi < int(doc.bonds.size()); ++bi) {
         const Bond& b = doc.bonds[bi];
         p.setPen(QPen(ink(b.color), lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         if (inCircle.contains(bi) && b.order == 2 && b.stereo == BondStereo::None) {
             Bond single = b;
             single.order = 1;
-            drawBond(p, doc, single, st, degree, labeled);
+            drawBond(p, doc, single, st, degree, labeled, gaps[bi]);
         } else {
-            drawBond(p, doc, b, st, degree, labeled);
+            drawBond(p, doc, b, st, degree, labeled, gaps[bi]);
         }
     }
     p.setPen(QPen(style.ink, lineWidth));

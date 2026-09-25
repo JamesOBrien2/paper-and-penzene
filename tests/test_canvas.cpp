@@ -1376,3 +1376,44 @@ TEST_CASE("3D rotation from the mouse and keyboard keeps stereo (#173)") {
         exportDocument(f.doc(), QString::fromUtf8(out), {150, Qt::white});
     }
 }
+
+TEST_CASE("attachment points, π-ligands, bring to front and atom properties (#60)") {
+    Fixture f;
+    Document d = *chem::fromSmiles("CC");
+    edit::hotkey(d, {1, -1}, ".");
+    CHECK(chem::toSmiles(d) == "*CC");
+    Document fe = *chem::fromSmiles("[Fe]");
+    edit::hotkey(fe, {0, -1}, "j");
+    edit::hotkey(fe, {0, -1}, "J");
+    INFO(chem::properties(fe)->formula << " " << chem::toSmiles(fe));
+    CHECK(chem::properties(fe)->formula.find("C11H11") != std::string::npos);  // Cp⁻ (C5H5) + benzene (C6H6)
+
+    // Two crossing bonds: the earlier one gets a gap where the later one crosses; f swaps which.
+    Document cross;
+    cross.atoms = {{{-20, 0}}, {{20, 0}}, {{0, -20}}, {{0, 20}}};
+    cross.bonds = {{0, 1}, {2, 3}};
+    auto inked = [](const Document& doc, QPointF at) {
+        const QImage img = renderImage(doc, {300, Qt::white});
+        const QRectF r = documentBounds(doc);
+        const QPoint px = ((at - r.topLeft()) * exportScale(doc) * 300 / 72).toPoint();
+        return img.pixelColor(px).lightness() < 160;
+    };
+    const QPointF onHorizontal(1.6, 0);  // just beside the crossing, on the horizontal bond
+    CHECK_FALSE(inked(cross, onHorizontal));  // the horizontal bond (earlier) has the gap
+    REQUIRE(edit::hotkey(cross, {-1, 0}, "f").bond == 1);
+    CHECK(inked(cross, onHorizontal));  // now in front, drawn through
+
+    f.canvas.setDocumentSilently(*chem::fromSmiles("CO"));
+    QTimer::singleShot(0, [] {
+        for (auto* w : QApplication::topLevelWidgets())
+            if (auto* dialog = qobject_cast<QDialog*>(w); dialog && dialog->isVisible()) {
+                dialog->findChildren<QSpinBox*>()[0]->setValue(-1);  // charge
+                dialog->findChildren<QSpinBox*>()[2]->setValue(2);   // lone pairs
+                dialog->accept();
+            }
+    });
+    f.canvas.editAtomProperties(1);
+    CHECK(f.doc().atoms[1].charge == -1);
+    CHECK(f.doc().atoms[1].lonePairs == 2);
+    CHECK(chem::toSmiles(f.doc()) == "C[O-]");
+}

@@ -52,6 +52,7 @@ public:
     QMenu* contextMenuAt(QPointF scenePos);
     void moveHotspot(QPointF dir, bool jump);
     void editLabel(int atom);
+    void editAtomProperties(int atom);  // label, charge, map number, lone pairs, radicals, δ
     void expandAbbreviations();  // selection, else hotspot atom, else everything
     void editText(int text, QPointF pos = {});  // text < 0: new text at pos
     int hotspotAtom() const { return hoverAtom_; }

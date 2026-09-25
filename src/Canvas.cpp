@@ -10,6 +10,12 @@
 #include <QContextMenuEvent>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QSpinBox>
+#include <QFormLayout>
+#include <QDialogButtonBox>
+#include <QDialog>
 #include <array>
 #include <QMouseEvent>
 #include <QPainter>
@@ -1005,6 +1011,44 @@ void Canvas::editLabel(int at) {
     if (ok && !label.isEmpty() && applyLabel(next, at, label, true)) commit(next, tr("Edit label"));
 }
 
+void Canvas::editAtomProperties(int at) {
+    const Atom& a = doc_.atoms[at];
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Atom Properties"));
+    auto* form = new QFormLayout(&dialog);
+    auto* label = new QLineEdit(a.label.isEmpty() ? QString::fromStdString(chem::symbol(a.z)) : a.label);
+    auto spin = [&](int lo, int hi, int value) {
+        auto* s = new QSpinBox;
+        s->setRange(lo, hi), s->setValue(value);
+        return s;
+    };
+    auto* charge = spin(-8, 8, a.charge);
+    auto* map = spin(0, 999, a.map);
+    auto* pairs = spin(0, 3, a.lonePairs);
+    auto* radicals = spin(0, 2, a.radicals);
+    auto* partial = new QComboBox;
+    partial->addItems({tr("none"), "δ+", "δ−"});
+    partial->setCurrentIndex(a.partial > 0 ? 1 : a.partial < 0 ? 2 : 0);
+    form->addRow(tr("Element or label:"), label);
+    form->addRow(tr("Charge:"), charge);
+    form->addRow(tr("Atom-map number (0 = none):"), map);
+    form->addRow(tr("Lone pairs:"), pairs);
+    form->addRow(tr("Radical electrons:"), radicals);
+    form->addRow(tr("Partial charge:"), partial);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    form->addRow(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    if (dialog.exec() != QDialog::Accepted) return;
+    Document next = doc_;
+    const QString was = a.label.isEmpty() ? QString::fromStdString(chem::symbol(a.z)) : a.label;
+    if (label->text().trimmed() != was && !applyLabel(next, at, label->text().trimmed(), true)) return;
+    Atom& out = next.atoms[at];
+    out.charge = charge->value(), out.map = map->value(), out.lonePairs = pairs->value(), out.radicals = radicals->value();
+    out.partial = partial->currentIndex() == 1 ? 1 : partial->currentIndex() == 2 ? -1 : 0;
+    if (!(next == doc_)) commit(next, tr("Atom properties"));
+}
+
 void Canvas::expandAbbreviations() {
     Document next = doc_;
     for (int i = 0; i < int(doc_.atoms.size()); ++i) {
@@ -1113,6 +1157,7 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
     const QString t = e->text();
     Document next = doc_;
 
+    if (hoverAtom_ >= 0 && t == "/") return editAtomProperties(hoverAtom_);
     if (hoverAtom_ >= 0 && (key == Qt::Key_Return || key == Qt::Key_Enter || t == "=" || t == "t"))
         return editLabel(hoverAtom_);
     if (hoverAtom_ < 0 && hoverBond_ < 0) {  // no hotspot: tool keys
@@ -1173,6 +1218,7 @@ QMenu* Canvas::contextMenuAt(QPointF at) {
                        "Boc", "Cbz", "Fmoc", "Ts", "TBS", "Bpin"})
             groups->addAction(g, this, label(atom, g));
         menu->addAction(tr("Edit Label…"), this, [this, atom] { editLabel(atom); });
+        menu->addAction(tr("Atom Properties… — /"), this, [this, atom] { editAtomProperties(atom); });
         if (!doc_.atoms[atom].label.isEmpty())
             menu->addAction(tr("Expand Abbreviation"), this, [this, atom] {
                 Document next = doc_;

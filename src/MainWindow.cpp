@@ -1311,6 +1311,9 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>i</b></td><td>interaction: H-bond or contact, dotted, not a bond</td></tr>
 <tr><td><b>:</b> / <b>*</b> (atom)</td><td>lone pairs (0–3) / radical dot</td></tr>
 <tr><td><b>Shift+Alt+← → ↑ ↓</b></td><td>rotate 15° out of the page (3D), keeping stereo; Shift+Alt+drag rotates freely</td></tr>
+<tr><td><b>.</b> / <b>j</b> / <b>J</b> (atom)</td><td>attachment point / η⁵-cyclopentadienyl / η⁶-benzene</td></tr>
+<tr><td><b>/</b> (atom)</td><td>atom properties</td></tr>
+<tr><td><b>f</b> (bond)</td><td>bring to front: bonds it crosses get a gap</td></tr>
 <tr><td><b>p</b> / <b>P</b></td><td>partial bond forming or breaking / partial double (transition states)</td></tr>
 <tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>

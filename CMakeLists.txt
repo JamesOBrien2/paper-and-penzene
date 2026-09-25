@@ -27,6 +27,10 @@ target_include_directories(penzene_core PUBLIC src)
 target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSION}")
 # Revvity's ChemDraw file library (BSD-3, third_party/chemdraw): binary CDX in and out on
 # every platform. Private and static, so it can't clash with RDKit's own copy.
+# The active conda/pixi environment's expat, not an older system one (Linux runners have both).
+if(DEFINED ENV{CONDA_PREFIX})
+    list(PREPEND CMAKE_PREFIX_PATH "$ENV{CONDA_PREFIX}")
+endif()
 find_package(EXPAT REQUIRED)
 find_package(Boost CONFIG REQUIRED)
 file(GLOB chemdraw_sources third_party/chemdraw/chemdraw/*.cpp)
@@ -36,11 +40,15 @@ target_include_directories(penzene_chemdraw PUBLIC third_party/chemdraw)
 target_compile_definitions(penzene_chemdraw PUBLIC CHEMDRAW_STATIC_LINK PLATFORM_LITTLEENDIAN UTF8_STD_STRING=1)
 target_link_libraries(penzene_chemdraw PUBLIC EXPAT::EXPAT Boost::headers)
 set_target_properties(penzene_chemdraw PROPERTIES CXX_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON AUTOMOC OFF)
+# Its platform switches, set here for every file that includes its headers: Apple's own
+# TargetConditionals.h isn't reliably included first, and nothing else sets the others.
 if(APPLE)
+    target_compile_definitions(penzene_chemdraw PUBLIC TARGET_OS_MAC=1)
     target_link_libraries(penzene_chemdraw PRIVATE "-framework CoreFoundation")
 elseif(WIN32)
     target_compile_definitions(penzene_chemdraw PUBLIC TARGET_OS_WIN32=1 TARGET_API_LIB _WINDOWS)
 else()  # Linux converts text encodings with Boost.Locale
+    target_compile_definitions(penzene_chemdraw PUBLIC TARGET_OS_LINUX=1)
     find_package(Boost CONFIG REQUIRED COMPONENTS locale)
     target_link_libraries(penzene_chemdraw PRIVATE Boost::locale)
 endif()

@@ -2,6 +2,7 @@
 #include "Edit.h"
 #include "Render.h"
 
+#include <QDir>
 #include <QFile>
 #include <QImage>
 #include <QPainter>
@@ -746,4 +747,20 @@ TEST_CASE("arrow heads: even on a tight curve, and a half head has no sliver (#2
     // A fishhook's single barb is on one side; the other side stays clear of the head.
     const Arrow hook{{0, 0}, {40, 0}, ArrowKind::Fishhook, 12};
     CHECK(std::min(inkBeside(hook, 1), inkBeside(hook, -1)) == 0);
+}
+
+TEST_CASE(".penz files from every release still open, and save back the same (#117)") {
+    const QStringList files = QDir(QString(PENZENE_TEST_DATA) + "/penz").entryList({"v*.penz"});
+    CHECK(files.size() >= 8);  // v0.1.0 to v0.8.0, plus one per later release
+    for (const QString& name : files) {
+        INFO(name.toStdString());
+        QFile f(QString(PENZENE_TEST_DATA) + "/penz/" + name);
+        REQUIRE(f.open(QIODevice::ReadOnly));
+        auto doc = Document::fromJson(f.readAll());
+        REQUIRE(doc);
+        CHECK(doc->atoms.size() == 13);  // aspirin
+        auto again = Document::fromJson(doc->toJson());
+        REQUIRE(again);
+        CHECK(again->toJson() == doc->toJson());
+    }
 }

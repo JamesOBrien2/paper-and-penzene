@@ -352,7 +352,8 @@ struct LabelNode {
 // Arrows, free text and label nodes from the CDXML itself; RDKit only reads the
 // molecules. Returns the label nodes and how many bonds each node id has.
 // ponytail: plain lines, brackets, shapes and binary .cdx graphics are skipped.
-static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& doc, QHash<int, int>& bondCount) {
+static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& doc, QHash<int, int>& bondCount,
+                                               std::vector<QPointF>& lonePairs) {
     QXmlStreamReader r(xml);
     double scale = kBondLength / 30;  // CDXML's default BondLength
     struct Open { QString tag; int label = -1; };  // label: index into `labels` for label <n>s
@@ -415,11 +416,17 @@ static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& 
             doc.texts.push_back({p, {}});
             text = &doc.texts.back();
         } else if (tag == "graphic") {
-            // Plain lines, boxes and ellipses (not filled ones, orbitals, symbols or old-style arrows).
+            // Plain lines, boxes and ellipses (not filled ones or orbitals). A graphic ChemDraw
+            // marks SupersededBy is the old copy of an <arrow> read above: skip it.
             const auto type = at.value("GraphicType");
-            if (!at.value("ArrowType").isEmpty() || at.value("OvalType").contains(u"Filled")) continue;
+            if (at.hasAttribute("SupersededBy") || !at.value("ArrowType").isEmpty() || at.value("OvalType").contains(u"Filled"))
+                continue;
             auto box = at.value("BoundingBox").split(' ');
             if (box.size() != 4) continue;
+            if (type == u"Symbol") {  // charges and radical dots are the atoms' own; lone pairs are marks
+                if (at.value("SymbolType") == u"LonePair") lonePairs.push_back(QPointF(box[0].toDouble(), box[1].toDouble()) * scale);
+                continue;
+            }
             Arrow a{QPointF(box[0].toDouble(), box[1].toDouble()) * scale, QPointF(box[2].toDouble(), box[3].toDouble()) * scale};
             a.dashed = at.value("LineType").contains(u"Dash");
             if (type == u"Line") {
@@ -550,7 +557,15 @@ std::optional<Document> fromChemDraw(const QByteArray& data) {
     if (data.trimmed().startsWith('<')) {
         Document graphics;
         QHash<int, int> bondCount;
-        placeLabels(doc, nodeOf, chemDrawGraphics(data, graphics, bondCount), bondCount);
+        std::vector<QPointF> lonePairs;
+        placeLabels(doc, nodeOf, chemDrawGraphics(data, graphics, bondCount, lonePairs), bondCount);
+        for (QPointF lp : lonePairs) {  // onto the nearest atom
+            int best = -1;
+            double bestDist = 1.4 * kBondLength;
+            for (int i = 0; i < int(doc.atoms.size()); ++i)
+                if (const double d = QLineF(doc.atoms[i].pos, lp).length(); d < bestDist) best = i, bestDist = d;
+            if (best >= 0) doc.atoms[best].lonePairs = std::min(3, doc.atoms[best].lonePairs + 1);
+        }
         doc.arrows = graphics.arrows;
         doc.texts.insert(doc.texts.end(), graphics.texts.begin(), graphics.texts.end());
     }

@@ -661,3 +661,20 @@ TEST_CASE("3D rotation keeps stereo: (R)-alanine turned over (#173)") {
     const Document tilted = chem::project3D(ala, *pose, 35, 20);
     CHECK(chem::toSmiles(tilted) == smiles);
 }
+
+TEST_CASE("CDXML: superseded graphics aren't doubled; lone-pair symbols land on atoms (#193)") {
+    const QByteArray cdxml = R"(<?xml version="1.0" encoding="UTF-8" ?>
+<CDXML BondLength="14.4"><page id="1">
+<fragment id="2"><n id="3" p="0 0"/><n id="4" p="14.4 0" Element="8"/><b id="5" B="3" E="4"/></fragment>
+<arrow id="6" Head3D="40 0 0" Tail3D="80 0 0"/>
+<graphic id="7" SupersededBy="6" BoundingBox="40 0 80 0" GraphicType="Line"/>
+<graphic id="8" BoundingBox="18 -6 21 -6" GraphicType="Symbol" SymbolType="LonePair"/>
+</page></CDXML>)";
+    auto doc = chem::fromChemDraw(cdxml);
+    REQUIRE(doc);
+    CHECK(doc->arrows.size() == 1);  // the line once, not twice
+    CHECK(doc->arrows[0].kind == ArrowKind::Line);
+    int pairs = 0;
+    for (const auto& a : doc->atoms) pairs += a.z == 8 ? a.lonePairs : 0;
+    CHECK(pairs == 1);
+}

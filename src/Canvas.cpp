@@ -125,6 +125,20 @@ static void applyTransform(Document& d, const QSet<int>& atoms, const QSet<int>&
     for (int i : texts) d.texts[i].pos = t.map(d.texts[i].pos);
 }
 
+// How far a structure is turned from the way it's drawn (bonds on the 30° grid), in degrees,
+// -15 to 15: the circular mean of its bond (and arrow) angles, modulo 30°. 0 if it has none.
+static double orientation(const Document& d, const QSet<int>& atoms, const QSet<int>& arrows) {
+    double s = 0, c = 0;
+    auto add = [&](QPointF v) {
+        const double a = 12 * std::atan2(v.y(), v.x());  // 30° is a whole turn here
+        s += std::sin(a), c += std::cos(a);
+    };
+    for (const Bond& b : d.bonds)
+        if (atoms.contains(b.a) && atoms.contains(b.b)) add(d.atoms[b.b].pos - d.atoms[b.a].pos);
+    for (int i : arrows) add(d.arrows[i].to - d.arrows[i].from);
+    return std::hypot(s, c) < 1e-9 ? 0 : qRadiansToDegrees(std::atan2(s, c)) / 12;
+}
+
 static std::array<QPointF, 8> handlePoints(const QRectF& r) {
     const QPointF c = r.center();
     return {r.topLeft(), {c.x(), r.top()}, r.topRight(), {r.right(), c.y()},
@@ -488,9 +502,13 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
         c /= std::max<double>(1, pts.size());
         double ang = std::atan2(curPos_.y() - c.y(), curPos_.x() - c.x()) -
                      std::atan2(pressPos_.y() - c.y(), pressPos_.x() - c.x());
-        if (drag_ == Drag::Rotate) {  // Shift: 15° steps; Ctrl: 45° steps
-            const double step = e->modifiers() & Qt::ControlModifier ? 45 : shift_ ? 15 : 0;
-            if (step) ang = qDegreesToRadians(step * std::round(qRadiansToDegrees(ang) / step));
+        if (drag_ == Drag::Rotate && e->modifiers() & Qt::ControlModifier) {
+            // Ctrl: the structure lands square to the page or at a multiple of 45° from it, whatever
+            // angle it started at (one drawn 1° off turns to 45°, not 46°).
+            const double from = orientation(beforeDrag_, selectedAtoms_, selectedArrows_);
+            ang = qDegreesToRadians(45 * std::round((from + qRadiansToDegrees(ang)) / 45) - from);
+        } else if (drag_ == Drag::Rotate && shift_) {  // Shift: 15° steps from where it started
+            ang = qDegreesToRadians(15 * std::round(qRadiansToDegrees(ang) / 15));
         }
         for (QPointF* p : pts) {
             if (drag_ == Drag::Move) {

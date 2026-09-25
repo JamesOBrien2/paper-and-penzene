@@ -1856,7 +1856,9 @@ TEST_CASE("the Figure tools include a dashed ellipse (#222)") {
     REQUIRE(canvas->document().arrows.size() == 1);
     CHECK(canvas->document().arrows[0].kind == ArrowKind::Ellipse);
     CHECK(canvas->document().arrows[0].dashed);
-TEST_CASE("the selection's rotate handle turns it; Shift snaps to 15°, Ctrl to 45° (#218)") {
+}
+
+TEST_CASE("the selection's rotate handle turns it; Shift snaps to 15° steps, Ctrl to 45° from the page (#218)") {
     Fixture f;
     f.canvas.setTool(Canvas::Tool::Select);
     Document d;
@@ -1881,5 +1883,9 @@ TEST_CASE("the selection's rotate handle turns it; Shift snaps to 15°, Ctrl to 
     CHECK(std::abs(turn(90, {}) - 90) < 1.5);
     CHECK(std::abs(turn(70, Qt::ShiftModifier) - 75) < 0.01);
     CHECK(std::abs(turn(70, Qt::ControlModifier) - 90) < 0.01);
+    // Drawn 1° off: Shift keeps the 1° (15° steps from the start), Ctrl squares it up.
+    d.atoms[1].pos = kBondLength * QPointF(std::cos(qDegreesToRadians(1.0)), std::sin(qDegreesToRadians(1.0)));
+    CHECK(std::abs(turn(40, Qt::ShiftModifier) - 46) < 0.01);
+    CHECK(std::abs(turn(40, Qt::ControlModifier) - 45) < 0.01);
     CHECK(f.canvas.document().bonds.size() == 1);  // turned, not redrawn
 }

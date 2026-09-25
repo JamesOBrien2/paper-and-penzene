@@ -4,6 +4,18 @@
 #include <QString>
 #include <QUrl>
 
+// The app's only network use, always on the user's say-so: PubChem lookups, and
+// the check for a newer release (by hand, or weekly if they turn it on).
+namespace online {
+// The latest release's version tag (e.g. "v0.9.0") and page, from GitHub's API JSON.
+struct Release {
+    QString tag, url;
+};
+QUrl latestReleaseUrl();
+Release parseRelease(const QByteArray& json);
+bool isNewer(const QString& tag, const QString& current);  // "v0.9.0" vs "0.8.0"
+}  // namespace online
+
 // Optional online lookups against PubChem, only when the user asks for one.
 // ponytail: only compounds PubChem already knows resolve; a local namer (OPSIN
 // needs a JVM, STOUT an ML runtime) would lift that, at a heavy dependency cost.

@@ -1,4 +1,4 @@
-#include "PubChem.h"
+#include "Online.h"
 
 #include <QEventLoop>
 #include <QJsonArray>
@@ -6,7 +6,25 @@
 #include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QTimer>
+#include <QVersionNumber>
+
+namespace online {
+
+QUrl latestReleaseUrl() { return QUrl("https://api.github.com/repos/JamesOBrien2/penzene/releases/latest"); }
+
+Release parseRelease(const QByteArray& json) {
+    const auto o = QJsonDocument::fromJson(json).object();
+    return {o["tag_name"].toString(), o["html_url"].toString()};
+}
+
+bool isNewer(const QString& tag, const QString& current) {
+    const auto latest = QVersionNumber::fromString(QString(tag).remove(QRegularExpression("^v")));
+    return !latest.isNull() && latest > QVersionNumber::fromString(current);
+}
+
+}  // namespace online
 
 namespace pubchem {
 

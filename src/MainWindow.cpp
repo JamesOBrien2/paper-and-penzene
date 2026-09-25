@@ -1,10 +1,15 @@
 #include "MainWindow.h"
 #include "Canvas.h"
 #include "Chem.h"
-#include "PubChem.h"
+#include "Online.h"
 #include "Templates.h"
 
 #include <QActionGroup>
+#include <QNetworkReply>
+#include <QNetworkAccessManager>
+#include <QDesktopServices>
+#include <QDateTime>
+#include <QCheckBox>
 #include <QHash>
 #include <QTreeWidget>
 #include <QPainter>
@@ -346,6 +351,10 @@ void MainWindow::showPreferences() {
     marginBox->setValue(int(exportOptions().margin));
     form->addRow(tr("Export and copy scale:"), scaleBox);
     form->addRow(tr("Margin around exports:"), marginBox);
+    auto* updates = new QCheckBox(tr("Check for a new version once a week (asks GitHub)"));
+    updates->setObjectName("autoUpdates");
+    updates->setChecked(QSettings().value("updates/auto", false).toBool());
+    form->addRow(tr("Updates:"), updates);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     form->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -357,6 +366,7 @@ void MainWindow::showPreferences() {
     settings.setValue("exportBackground", backgroundBox->currentIndex() ? "white" : "clear");
     settings.setValue("exportScale", scaleBox->value());
     settings.setValue("exportMargin", marginBox->value());
+    settings.setValue("updates/auto", updates->isChecked());
     applyTheme(themeBox->currentText());
     for (auto* a : themeGroup_->actions()) a->setChecked(a->text() == themeBox->currentText());
 }
@@ -456,6 +466,41 @@ void MainWindow::saveTemplate() {
     }
     fillTemplates();
     templateDock_->show();
+}
+
+void MainWindow::checkForUpdates(bool quietly) {
+    auto* net = new QNetworkAccessManager(this);
+    QNetworkRequest request(online::latestReleaseUrl());
+    request.setHeader(QNetworkRequest::UserAgentHeader, "Penzene/" PENZENE_VERSION);  // GitHub's API wants one
+    request.setTransferTimeout(15000);
+    QNetworkReply* reply = net->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, net, quietly] {
+        const auto release = online::parseRelease(reply->readAll());
+        const QString error = reply->error() ? reply->errorString() : QString();
+        net->deleteLater();
+        if (release.tag.isEmpty()) {
+            if (!quietly) QMessageBox::warning(this, tr("Check for Updates"), tr("Couldn't reach GitHub: %1").arg(error));
+            return;
+        }
+        if (online::isNewer(release.tag, PENZENE_VERSION)) {
+            if (QMessageBox::question(this, tr("Check for Updates"),
+                                      tr("Penzene %1 is available (you have %2). Open the download page?")
+                                          .arg(QString(release.tag).remove(QRegularExpression("^v")), PENZENE_VERSION)) ==
+                QMessageBox::Yes)
+                QDesktopServices::openUrl(QUrl(release.url));
+        } else if (!quietly) {
+            QMessageBox::information(this, tr("Check for Updates"), tr("Penzene %1 is the latest version.").arg(PENZENE_VERSION));
+        }
+    });
+}
+
+void MainWindow::maybeCheckForUpdates() {
+    QSettings settings;
+    if (!settings.value("updates/auto", false).toBool()) return;
+    const QDateTime last = settings.value("updates/last").toDateTime();
+    if (last.isValid() && last.daysTo(QDateTime::currentDateTime()) < 7) return;
+    settings.setValue("updates/last", QDateTime::currentDateTime());
+    checkForUpdates(true);
 }
 
 void MainWindow::print() {
@@ -1330,6 +1375,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 </table>)"));
         box.exec();
     });
+    help->addAction(tr("Check for &Updates…"), this, [this] { checkForUpdates(false); });
     help->addAction(tr("&About Penzene"), this, [this] {
         QMessageBox::about(this, tr("About Penzene"),
                            tr("<h3>Penzene %1</h3><p>An open-source chemical structure editor.</p>"

@@ -2,7 +2,7 @@
 #include "Chem.h"
 #include "Edit.h"
 #include "MainWindow.h"
-#include "PubChem.h"
+#include "Online.h"
 #include "Templates.h"
 #include "Render.h"
 
@@ -26,6 +26,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QCheckBox>
 #include <QTreeWidget>
 #include <QFileInfo>
 #include <QPrinter>
@@ -1440,4 +1441,27 @@ TEST_CASE("ChemDraw shortcut parity: y, W, g, ?, Space, Enter, nudging (#157)") 
     QTest::keyClick(f.canvas.viewport(), Qt::Key_Down);                      // nudge 1
     CHECK(QLineF(f.doc().atoms[0].pos, before + QPointF(10, 1)).length() < 1e-9);
     CHECK(QLineF(f.doc().atoms[3].pos, chem::fromSmiles("CCO.CC")->atoms[3].pos).length() < 1e-9);  // the other molecule stays
+}
+
+TEST_CASE("update check: parsing GitHub's answer, comparing versions, off by default (#115)") {
+    App app;
+    const auto r = online::parseRelease(R"({"tag_name": "v0.9.0", "html_url": "https://github.com/JamesOBrien2/penzene/releases/tag/v0.9.0"})");
+    CHECK(r.tag == "v0.9.0");
+    CHECK(r.url.endsWith("/v0.9.0"));
+    CHECK(online::isNewer("v0.9.0", "0.8.0"));
+    CHECK(online::isNewer("v1.0.0", "0.10.2"));  // numerically, not as text
+    CHECK_FALSE(online::isNewer("v0.8.0", "0.8.0"));
+    CHECK_FALSE(online::isNewer("v0.7.1", "0.8.0"));
+    CHECK_FALSE(online::isNewer("", "0.8.0"));
+    CHECK(online::parseRelease("not json").tag.isEmpty());
+    QSettings().remove("updates");
+    MainWindow w;
+    QTimer::singleShot(0, [] {
+        for (auto* top : QApplication::topLevelWidgets())
+            if (auto* dialog = qobject_cast<QDialog*>(top); dialog && dialog->isVisible()) {
+                CHECK_FALSE(dialog->findChild<QCheckBox*>("autoUpdates")->isChecked());  // off unless chosen
+                dialog->reject();
+            }
+    });
+    w.showPreferences();
 }

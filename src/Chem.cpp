@@ -531,6 +531,7 @@ static void placeLabels(Document& doc, const std::vector<int>& nodeOf, const std
 }
 
 std::optional<Document> fromChemDraw(const QByteArray& data) {
+    if (data.startsWith("\xEF\xBB\xBF")) return fromChemDraw(data.mid(3));  // UTF-8 byte order mark
     if (!data.trimmed().startsWith('<')) {  // binary CDX: read as the CDXML it converts to
         const QByteArray xml = cdxToCdxml(data);
         return xml.isEmpty() ? std::nullopt : fromChemDraw(xml);

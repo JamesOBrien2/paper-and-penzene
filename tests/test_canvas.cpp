@@ -1817,3 +1817,14 @@ TEST_CASE("accessibility: the hotspot is announced to screen readers (#112)") {
     f.canvas.viewport()->repaint();
     CHECK(f.canvas.accessibleDescription() == "Hotspot: single bond, C1 to O2");
 }
+
+TEST_CASE("accessibility: an edit at the hotspot is announced too (#244)") {
+    Fixture f;
+    f.canvas.setDocumentSilently(*chem::fromSmiles("CC"));
+    f.hover(f.doc().atoms[1].pos);
+    f.canvas.viewport()->repaint();
+    CHECK(f.canvas.accessibleDescription() == "Hotspot: atom C2, 1 bond");
+    f.key("n");
+    f.canvas.viewport()->repaint();
+    CHECK(f.canvas.accessibleDescription() == "Hotspot: atom N2, 1 bond");
+}

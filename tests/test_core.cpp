@@ -704,3 +704,10 @@ TEST_CASE("element names for accessibility, without RDKit's logger (#112)") {
     CHECK(chem::elementName(0).empty());
     CHECK(chem::elementName(119).empty());
 }
+
+TEST_CASE("a CDXML file that starts with a byte order mark opens (#244)") {
+    const QByteArray cdxml = chem::toCdxml(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O"));
+    auto doc = chem::fromChemDraw("\xEF\xBB\xBF" + cdxml);
+    REQUIRE(doc);
+    CHECK(chem::toSmiles(*doc) == "CC(=O)Oc1ccccc1C(=O)O");
+}

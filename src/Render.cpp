@@ -273,11 +273,23 @@ static void trimEnd(std::vector<QPointF>& pts, double by) {
     pts.back() -= unit(pts.back() - pts[pts.size() - 2]) * std::min(by, len(pts.back() - pts[pts.size() - 2]) - 0.01);
 }
 
-// Filled head at `tip` pointing along `dir`; `sides` +1/-1 for a half head.
+// Where a polyline is `by` back from its end, measured along it.
+static QPointF pointBack(const std::vector<QPointF>& pts, double by) {
+    for (size_t i = pts.size() - 1; i > 0; --i) {
+        const double seg = len(pts[i] - pts[i - 1]);
+        if (seg >= by) return pts[i] - unit(pts[i] - pts[i - 1]) * by;
+        by -= seg;
+    }
+    return pts.front();
+}
+
+// Filled head at `tip` pointing along `dir`; `sides` +1/-1 for a half head (one barb, and no
+// sliver back along the shaft).
 static void drawHead(QPainter& p, QPointF tip, QPointF dir, int sides = 0) {
-    QPointF d = unit(dir), n = perp(d), base = tip - d * kHeadLength;
-    QPolygonF head{tip, base + n * (sides >= 0 ? kHeadWidth : 0), tip - d * (kHeadLength * 0.8),
-                   base - n * (sides <= 0 ? kHeadWidth : 0)};
+    QPointF d = unit(dir), n = perp(d), base = tip - d * kHeadLength, notch = tip - d * (kHeadLength * 0.8);
+    QPolygonF head = sides > 0   ? QPolygonF{tip, base + n * kHeadWidth, notch}
+                     : sides < 0 ? QPolygonF{tip, notch, base - n * kHeadWidth}
+                                 : QPolygonF{tip, base + n * kHeadWidth, notch, base - n * kHeadWidth};
     p.setBrush(p.pen().color());
     p.drawPolygon(head);
     p.setBrush(Qt::NoBrush);
@@ -311,8 +323,11 @@ static void drawArrow(QPainter& p, const Arrow& a) {
     }
     // Heads follow the tangent at each end; the shaft stops inside them so it
     // doesn't poke through the tip.
+    // A head is aimed along the chord it covers, not the tangent at the tip: on a tight curve the
+    // tangent turns the head off the shaft, which then leaves through one barb.
     std::vector<QPointF> pts = arrowPoints(a);
-    const QPointF endDir = pts.back() - pts[pts.size() - 2], startDir = pts.front() - pts[1];
+    const QPointF endDir = pts.back() - pointBack(pts, kHeadLength * 0.8);
+    const QPointF startDir = pts.front() - pointBack(std::vector<QPointF>(pts.rbegin(), pts.rend()), kHeadLength * 0.8);
     trimEnd(pts, kHeadLength * 0.7);
     if (a.kind == ArrowKind::Resonance) {
         std::reverse(pts.begin(), pts.end());

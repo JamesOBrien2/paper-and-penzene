@@ -17,7 +17,8 @@ if [ "$(uname)" = Darwin ] && [ -z "${DEVELOPER_DIR:-}" ]; then
 fi
 extra=()
 case "$(uname)" in
-    MINGW*|MSYS*) extra=(-DRDK_INSTALL_DLLS_MSVC=ON -DRDK_INSTALL_STATIC_LIBS=OFF)  # as conda-forge's bld.bat
+    # As conda-forge's bld.bat; with iostreams off, RDStreams.dll exports nothing and MSVC writes no .lib.
+    MINGW*|MSYS*) extra=(-DRDK_INSTALL_DLLS_MSVC=ON -DRDK_INSTALL_STATIC_LIBS=OFF -DRDK_USE_BOOST_IOSTREAMS=ON)
                   env_prefix="${CONDA_PREFIX:?run inside pixi}/Library" ;;
     *)            env_prefix="${CONDA_PREFIX:?run inside pixi}" ;;
 esac

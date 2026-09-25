@@ -20,6 +20,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 - The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.
 - Python: type stubs for editors and type checkers, and a written stability policy (semantic versioning, one minor release of deprecation warnings before anything is removed).
+- Python: `save()` writes ChemDraw `.cdxml` and `.cdx` too.
 
 ## 0.8.0 (2026-09-25)
 

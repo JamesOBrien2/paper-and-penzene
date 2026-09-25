@@ -2,7 +2,7 @@
 
     python tests/fuzz.py [--seed N] [--trials N] [--samples DIR]
 
-Random ChemDraw hotkey sequences, SMILES round trips (.penz and MOL),
+Random ChemDraw hotkey sequences, SMILES round trips (.penz, MOL and CDXML),
 abbreviations, and optionally a folder of ChemDraw files. Anything that raises,
 produces invalid chemistry from valid input, or lays bonds out badly after Clean
 is reported; the exit status is non-zero if a crash-class problem was found.
@@ -74,7 +74,7 @@ for s in ["CC(=O)Oc1ccccc1C(=O)O", "C[C@H](N)C(=O)O", "c1ccc2ccccc2c1", "C1CC1",
           "C#CC#C", "O=S(=O)(O)O", "C1CCCCCCCCCCC1", "c1ccncc1", "[NH4+]", "CC(C)(C)[Si](C)(C)OC",
           "F/C=C/F", "F/C=C\\F", "C[N+](C)(C)C", "B1OC(C)(C)C(C)(C)O1", "O", "c1cc2ccc3cccc4ccc(c1)c2c34"]:
     want = pz.from_smiles(s).to_smiles()
-    for ext in ("penz", "mol"):
+    for ext in ("penz", "mol", "cdxml"):
         d = pz.from_smiles(s)
         d.save(os.path.join(out, "x." + ext))
         got = pz.from_smiles(pz.read(os.path.join(out, "x." + ext)).to_smiles()).to_smiles()

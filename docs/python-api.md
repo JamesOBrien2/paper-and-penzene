@@ -71,7 +71,7 @@ Molecular weight
 
 ### `save(self, path: str) -> None`
 
-Write .penz (full fidelity) or MOL for any other extension.
+Write .penz (full fidelity), ChemDraw .cdxml or .cdx, or MOL for any other extension.
 
 ### `Document.style`
 

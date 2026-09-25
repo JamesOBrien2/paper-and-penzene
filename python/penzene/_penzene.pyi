@@ -116,7 +116,9 @@ class Document:
         """Monoisotopic mass"""
 
     def save(self, path: str) -> None:
-        """Write .penz (full fidelity) or MOL for any other extension."""
+        """
+        Write .penz (full fidelity), ChemDraw .cdxml or .cdx, or MOL for any other extension.
+        """
 
     def export(self, path: str) -> None:
         """Write .svg, .png or .pdf, exactly as the app exports."""

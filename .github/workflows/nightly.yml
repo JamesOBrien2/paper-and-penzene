@@ -1,0 +1,36 @@
+name: Nightly
+
+# The long checks: a large fuzz run with a new seed each night, and the tests under
+# AddressSanitizer in random order. Every PR runs a short fixed-seed fuzz (ci.yml).
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env: {QT_QPA_PLATFORM: offscreen}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: pixi run build
+      - name: Fuzz (seed printed below, to reproduce a failure locally)
+        run: PYTHONPATH=build/python pixi run python tests/fuzz.py --seed ${{ github.run_number }} --trials 100000
+
+  asan:
+    runs-on: macos-14   # Apple clang's AddressSanitizer; leak checking isn't supported on arm64
+    timeout-minutes: 90
+    env: {QT_QPA_PLATFORM: offscreen, ASAN_OPTIONS: 'detect_leaks=0:abort_on_error=1'}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with: {cache: true}
+      - run: >
+          pixi run cmake -G Ninja -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug -DPENZENE_PYTHON=OFF
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address -DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address
+      - run: pixi run cmake --build build-asan
+      - run: pixi run build-asan/bin/penzene_tests --order rand --rng-seed ${{ github.run_number }}

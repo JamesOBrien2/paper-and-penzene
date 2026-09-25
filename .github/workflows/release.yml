@@ -5,7 +5,7 @@ on:
     tags: ['v*']
   workflow_dispatch:   # builds + smoke-tests the packages without publishing
   pull_request:        # ...and whenever packaging itself changes
-    paths: ['.github/workflows/release.yml', 'cmake/**']
+    paths: ['.github/workflows/release.yml', '.github/workflows/rdkit.yml', 'cmake/**']
 
 permissions:
   contents: write
@@ -18,17 +18,26 @@ jobs:
           - {runner: macos-14, arch: arm64}          # Apple silicon
           - {runner: macos-15-intel, arch: x86_64}   # Intel
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 150   # 45 once RDKit comes from the cache
+    env: {RDKit_ROOT: '${{ github.workspace }}/rdkit-prefix'}
     steps:
       - uses: actions/checkout@v5
       - uses: prefix-dev/setup-pixi@v0.10.0
         with: {cache: true}
+      - uses: actions/cache@v4   # RDKit without its ChemDraw library (#233); see rdkit.yml
+        id: rdkit
+        with:
+          path: rdkit-prefix
+          key: rdkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/build-rdkit.sh', 'pixi.lock') }}
+      - if: steps.rdkit.outputs.cache-hit != 'true'
+        run: pixi run bash cmake/build-rdkit.sh rdkit-prefix
       - run: pixi run build
       - name: Bundle
         run: |
           mkdir dist && cp -R build/bin/penzene.app dist/
-          pixi run macdeployqt6 dist/penzene.app -libpath="$PWD/.pixi/envs/default/lib"
+          pixi run macdeployqt6 dist/penzene.app -libpath="$PWD/rdkit-prefix/lib" -libpath="$PWD/.pixi/envs/default/lib"
           test -d dist/penzene.app/Contents/PlugIns/tls   # HTTPS for the PubChem lookups
+          bash cmake/check-no-chemdraw.sh dist/penzene.app
           codesign --force --deep --sign - dist/penzene.app
           mv .pixi .pixi-hidden   # prove the bundle doesn't need the build env
           dist/penzene.app/Contents/MacOS/penzene --version
@@ -57,6 +66,7 @@ jobs:
           if (!(Test-Path dist/penzene/platforms/qwindows.dll)) { throw "windeployqt did not bundle the platform plugin" }
           if (!(Test-Path dist/penzene/tls)) { throw "windeployqt did not bundle a TLS backend" }
           pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/.pixi/envs/default/Library/bin"
+          if (Get-ChildItem dist/penzene -Recurse -Filter "*chemdraw*") { throw "RDKit's ChemDraw library is in the package (#233)" }
           Rename-Item .pixi .pixi-hidden
           dist/penzene/penzene.exe --version
           $p = Start-Process dist/penzene/penzene.exe -ArgumentList "--render","c1ccccc1O","smoke.svg" -NoNewWindow -PassThru
@@ -84,12 +94,20 @@ jobs:
 
   linux:
     runs-on: ubuntu-22.04   # older glibc base = runs on more distros
-    timeout-minutes: 45
+    timeout-minutes: 150   # 45 once RDKit comes from the cache
+    env: {RDKit_ROOT: '${{ github.workspace }}/rdkit-prefix'}
     steps:
       - uses: actions/checkout@v5
       - run: sudo apt-get update && sudo apt-get install -y libfuse2 libxkbcommon-x11-0 libxcb-cursor0 libegl1 libgl1 libfontconfig1 xvfb
       - uses: prefix-dev/setup-pixi@v0.10.0
         with: {cache: true}
+      - uses: actions/cache@v4   # RDKit without its ChemDraw library (#233); see rdkit.yml
+        id: rdkit
+        with:
+          path: rdkit-prefix
+          key: rdkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/build-rdkit.sh', 'pixi.lock') }}
+      - if: steps.rdkit.outputs.cache-hit != 'true'
+        run: pixi run bash cmake/build-rdkit.sh rdkit-prefix
       - run: pixi run build
       - name: AppImage
         run: |
@@ -106,12 +124,13 @@ jobs:
           DESK
           QT_QPA_PLATFORM=offscreen build/bin/penzene --render 'c1ccccc1' penzene.svg
           env="$PWD/.pixi/envs/default"
-          QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$env/lib" \
+          QMAKE="$env/bin/qmake6" LD_LIBRARY_PATH="$PWD/rdkit-prefix/lib:$env/lib" \
             ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/bin/penzene \
             -d penzene.desktop -i penzene.svg --plugin qt --output appimage \
             -l "$env/lib/libstdc++.so.6" -l "$env/lib/libgcc_s.so.1"  # conda-built, newer than the host's
           mv Penzene*.AppImage penzene-linux-x86_64.AppImage
           test -d AppDir/usr/plugins/tls   # HTTPS for the PubChem lookups
+          bash cmake/check-no-chemdraw.sh AppDir penzene-linux-x86_64.AppImage
           mv .pixi .pixi-hidden
           xvfb-run -a ./penzene-linux-x86_64.AppImage --render 'c1ccccc1O' smoke.svg
           test -s smoke.svg

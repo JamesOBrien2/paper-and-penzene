@@ -10,7 +10,7 @@ on:
   push:
     tags: ['v*']
   pull_request:
-    paths: ['.github/workflows/wheels.yml', 'pyproject.toml', 'python/**', 'CMakeLists.txt', 'cmake/bundle-libstdcxx.py']
+    paths: ['.github/workflows/wheels.yml', 'pyproject.toml', 'python/**', 'CMakeLists.txt', 'cmake/bundle-libstdcxx.py', 'cmake/build-rdkit.sh', 'cmake/check-no-chemdraw.sh']
 
 jobs:
   wheel:
@@ -23,29 +23,40 @@ jobs:
           - {os: macos-15-intel, name: macos-x86_64}
           - {os: windows-2022, name: windows-x64}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 150   # 60 once RDKit comes from the cache
     env:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
     steps:
       - uses: actions/checkout@v5
       - uses: prefix-dev/setup-pixi@v0.10.0
         with: {cache: true}
+      # RDKit without its ChemDraw library on macOS and Linux (#233; Windows' has none); see rdkit.yml.
+      - uses: actions/cache@v4
+        id: rdkit
+        if: runner.os != 'Windows'
+        with:
+          path: rdkit-prefix
+          key: rdkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/build-rdkit.sh', 'pixi.lock') }}
+      - if: runner.os != 'Windows' && steps.rdkit.outputs.cache-hit != 'true'
+        run: pixi run bash cmake/build-rdkit.sh rdkit-prefix
+      - if: runner.os != 'Windows'
+        run: echo "RDKit_ROOT=$PWD/rdkit-prefix" >> "$GITHUB_ENV"
       - run: pixi run wheel
       - name: Repair (Linux)
         if: runner.os == 'Linux'
         run: |
           pixi run python -m pip install -q auditwheel patchelf wheel
-          export LD_LIBRARY_PATH=$PWD/.pixi/envs/default/lib
+          export LD_LIBRARY_PATH=$PWD/rdkit-prefix/lib:$PWD/.pixi/envs/default/lib
           pixi run auditwheel repair -w repaired dist/*.whl
           # Bundle libstdc++ privately so the wheel runs on glibc 2.28-era systems (#122).
-          pixi run python cmake/bundle-libstdcxx.py repaired/*.whl "$LD_LIBRARY_PATH" wheelhouse
+          pixi run python cmake/bundle-libstdcxx.py repaired/*.whl "$PWD/.pixi/envs/default/lib" wheelhouse
           pixi run auditwheel show wheelhouse/*.whl
       - name: Repair (macOS)
         if: runner.os == 'macOS'
         run: |
           pixi run python -m pip install -q delocate
           # The module and the Qt plugin find conda's libs via @rpath; show delocate where.
-          export DYLD_LIBRARY_PATH=$PWD/.pixi/envs/default/lib
+          export DYLD_LIBRARY_PATH=$PWD/rdkit-prefix/lib:$PWD/.pixi/envs/default/lib
           pixi run delocate-wheel -w wheelhouse -v dist/*.whl
       - name: Repair (Windows)
         if: runner.os == 'Windows'
@@ -56,6 +67,11 @@ jobs:
           pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$PWD/.pixi/envs/default/Library/bin" dist/*.whl
       - run: ls -la wheelhouse
         shell: bash
+      - name: No RDKit ChemDraw library (#233)
+        shell: bash
+        run: |
+          mkdir unpacked && for w in wheelhouse/*.whl; do python -m zipfile -e "$w" unpacked/; done
+          bash cmake/check-no-chemdraw.sh unpacked
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Test in a clean venv, without the build env

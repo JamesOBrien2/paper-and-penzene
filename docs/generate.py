@@ -17,7 +17,7 @@ SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
 
 
 def keys_page():
-    src = (DOCS.parent / "src" / "MainWindow.cpp").read_text()
+    src = (DOCS.parent / "src" / "MainWindow.cpp").read_text(encoding="utf-8")
     table = re.search(r'<table cellspacing="5">(.*?)</table>', src, re.S).group(1)
     out = ["# Keyboard shortcuts", "",
            "Generated from Help → Keyboard Shortcuts in the app. Point at an atom or bond to make it the",
@@ -65,13 +65,13 @@ def member(owner, name, prefix=None):
 
 def main():
     pages = {"keys.md": keys_page(), "python-api.md": python_page()}
-    stale = [p for p, body in pages.items() if not (DOCS / p).exists() or (DOCS / p).read_text() != body]
+    stale = [p for p, body in pages.items() if not (DOCS / p).exists() or (DOCS / p).read_text(encoding="utf-8") != body]
     if "--check" in sys.argv:
         if stale:
             sys.exit(f"out of date: {', '.join(stale)} (run python docs/generate.py)")
         return
     for p in stale:
-        (DOCS / p).write_text(pages[p])
+        (DOCS / p).write_text(pages[p], encoding="utf-8")
         print("wrote", p)
 
 

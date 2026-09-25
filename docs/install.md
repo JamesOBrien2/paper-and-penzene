@@ -12,8 +12,10 @@ Download the installer for your system from the
 
 ## Opening it the first time
 
+:::{note}
 Penzene's installers aren't signed with a paid Apple or Microsoft certificate, so each system
 asks once whether to trust it.
+:::
 
 **macOS.** Drag Penzene to Applications and open it. If macOS says it "can't be opened" or can't be
 checked, go to **System Settings → Privacy & Security**, scroll down to the message about Penzene,

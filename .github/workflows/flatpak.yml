@@ -21,5 +21,7 @@ jobs:
         run: |
           flatpak install -y --user penzene.flatpak
           flatpak run --command=penzene io.github.jamesobrien2.penzene --version
-          flatpak run --env=QT_QPA_PLATFORM=offscreen --command=penzene io.github.jamesobrien2.penzene --render "CC(=O)Oc1ccccc1C(=O)O" /tmp/aspirin.svg
-          test -s /tmp/aspirin.svg
+          # Check the output inside Flatpak, where its private /tmp lives.
+          flatpak run --env=QT_QPA_PLATFORM=offscreen --command=sh \
+            io.github.jamesobrien2.penzene \
+            -c 'penzene --render "CC(=O)Oc1ccccc1C(=O)O" /tmp/aspirin.svg && test -s /tmp/aspirin.svg'

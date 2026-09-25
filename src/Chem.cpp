@@ -1211,8 +1211,32 @@ std::string symbol(int z) {
     return RDKit::Atom(z).getSymbol();
 }
 
+// A table rather than PeriodicTable::getElementName, for the same reason as symbol().
 std::string elementName(int z) {
-    return RDKit::PeriodicTable::getTable()->getElementName(z);
+    static const char* const names[] = {
+        "Hydrogen", "Helium", "Lithium", "Beryllium", "Boron", "Carbon",
+        "Nitrogen", "Oxygen", "Fluorine", "Neon", "Sodium", "Magnesium",
+        "Aluminium", "Silicon", "Phosphorus", "Sulfur", "Chlorine", "Argon",
+        "Potassium", "Calcium", "Scandium", "Titanium", "Vanadium", "Chromium",
+        "Manganese", "Iron", "Cobalt", "Nickel", "Copper", "Zinc", "Gallium",
+        "Germanium", "Arsenic", "Selenium", "Bromine", "Krypton", "Rubidium",
+        "Strontium", "Yttrium", "Zirconium", "Niobium", "Molybdenum",
+        "Technetium", "Ruthenium", "Rhodium", "Palladium", "Silver", "Cadmium",
+        "Indium", "Tin", "Antimony", "Tellurium", "Iodine", "Xenon", "Caesium",
+        "Barium", "Lanthanum", "Cerium", "Praseodymium", "Neodymium",
+        "Promethium", "Samarium", "Europium", "Gadolinium", "Terbium",
+        "Dysprosium", "Holmium", "Erbium", "Thulium", "Ytterbium", "Lutetium",
+        "Hafnium", "Tantalum", "Tungsten", "Rhenium", "Osmium", "Iridium",
+        "Platinum", "Gold", "Mercury", "Thallium", "Lead", "Bismuth",
+        "Polonium", "Astatine", "Radon", "Francium", "Radium", "Actinium",
+        "Thorium", "Protactinium", "Uranium", "Neptunium", "Plutonium",
+        "Americium", "Curium", "Berkelium", "Californium", "Einsteinium",
+        "Fermium", "Mendelevium", "Nobelium", "Lawrencium", "Rutherfordium",
+        "Dubnium", "Seaborgium", "Bohrium", "Hassium", "Meitnerium",
+        "Darmstadtium", "Roentgenium", "Copernicium", "Nihonium", "Flerovium",
+        "Moscovium", "Livermorium", "Tennessine", "Oganesson",
+    };
+    return z >= 1 && z <= int(std::size(names)) ? names[z - 1] : "";
 }
 
 int atomicNumber(const std::string& sym) {

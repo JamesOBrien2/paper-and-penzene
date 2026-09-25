@@ -696,3 +696,11 @@ TEST_CASE("CDXML: superseded graphics aren't doubled; lone-pair symbols land on 
     for (const auto& a : doc->atoms) pairs += a.z == 8 ? a.lonePairs : 0;
     CHECK(pairs == 1);
 }
+
+TEST_CASE("element names for accessibility, without RDKit's logger (#112)") {
+    CHECK(chem::elementName(1) == "Hydrogen");
+    CHECK(chem::elementName(6) == "Carbon");
+    CHECK(chem::elementName(118) == "Oganesson");
+    CHECK(chem::elementName(0).empty());
+    CHECK(chem::elementName(119).empty());
+}

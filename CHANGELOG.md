@@ -23,7 +23,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - Python: `save()` writes ChemDraw `.cdxml` and `.cdx` too.
 - Arrow heads sit evenly on tightly curved arrows, and half heads (fishhook, equilibrium) are clean at the base.
 - A dashed ellipse joins the Figure tools, which now pair each solid shape with its dashed version.
-- A round handle above a selection rotates it; hold Shift for 15° steps or Ctrl for 45°.
+- A round handle above a selection rotates it; hold Shift for 15° steps, or Ctrl to land it square to the page or at 45°.
 
 ## 0.8.0 (2026-09-25)
 

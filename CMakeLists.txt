@@ -39,6 +39,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)
 # The app's widgets; tests link this too, so they exercise the same code.
 add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/Online.cpp src/Templates.cpp)
 target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network Qt6::PrintSupport)
+qt_add_resources(penzene_ui "changelog" PREFIX "/" FILES CHANGELOG.md)  # What's New
 # The build shown in the title bar: git describe tells builds between releases
 # apart (0.5.0-12-gabc1234; 0.6.0-dev-gabc1234 once bumped, before the tag);
 # a tagged or git-less build is just the version.

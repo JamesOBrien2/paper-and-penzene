@@ -5,6 +5,7 @@
 #include "Templates.h"
 
 #include <QActionGroup>
+#include <QTextBrowser>
 #include <QNetworkReply>
 #include <QNetworkAccessManager>
 #include <QDesktopServices>
@@ -492,6 +493,36 @@ void MainWindow::checkForUpdates(bool quietly) {
             QMessageBox::information(this, tr("Check for Updates"), tr("Penzene %1 is the latest version.").arg(PENZENE_VERSION));
         }
     });
+}
+
+void MainWindow::showWhatsNew() {
+    QFile f(":/CHANGELOG.md");
+    const QString notes = f.open(QIODevice::ReadOnly) ? online::releaseNotes(QString::fromUtf8(f.readAll()), PENZENE_VERSION) : QString();
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("What's New in Penzene %1").arg(PENZENE_VERSION));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* text = new QTextBrowser;
+    text->setOpenExternalLinks(true);
+    text->setMarkdown(notes.isEmpty() ? tr("No notes for this version.") : notes);
+    layout->addWidget(text);
+    auto* all = new QLabel(tr("<a href='https://github.com/JamesOBrien2/penzene/blob/main/CHANGELOG.md'>All releases</a>"));
+    all->setOpenExternalLinks(true);
+    layout->addWidget(all);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+    dialog.resize(520, 420);
+    dialog.exec();
+}
+
+void MainWindow::maybeShowWhatsNew() {
+    QSettings settings;
+    const QString last = settings.value("lastVersion").toString();
+    settings.setValue("lastVersion", PENZENE_VERSION);
+    if (last.isEmpty() || !online::isNewer(PENZENE_VERSION, last)) return;  // fresh install, or not newer
+    QFile f(":/CHANGELOG.md");
+    if (f.open(QIODevice::ReadOnly) && !online::releaseNotes(QString::fromUtf8(f.readAll()), PENZENE_VERSION).isEmpty())
+        showWhatsNew();
 }
 
 void MainWindow::maybeCheckForUpdates() {
@@ -1375,6 +1406,7 @@ moves off, so you can keep typing.</p>
 </table>)"));
         box.exec();
     });
+    help->addAction(tr("&What's New"), this, &MainWindow::showWhatsNew);
     help->addAction(tr("Check for &Updates…"), this, [this] { checkForUpdates(false); });
     help->addAction(tr("&About Penzene"), this, [this] {
         QMessageBox::about(this, tr("About Penzene"),

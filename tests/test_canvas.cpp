@@ -1465,3 +1465,34 @@ TEST_CASE("update check: parsing GitHub's answer, comparing versions, off by def
     });
     w.showPreferences();
 }
+
+TEST_CASE("What's New: a release's notes, once after an update, never on a fresh install (#208)") {
+    App app;
+    const QString log = "# Changelog\n\n## Unreleased\n\n- soon\n\n## 0.9.0 (2026-10-01)\n\n- New thing\n- Other\n\n## 0.8.0 (2026-09-25)\n\n- Old\n";
+    CHECK(online::releaseNotes(log, "0.9.0") == "- New thing\n- Other");
+    CHECK(online::releaseNotes(log, "0.8.0") == "- Old");
+    CHECK(online::releaseNotes(log, "0.9").isEmpty());  // not a prefix of 0.9.0
+    CHECK(online::releaseNotes(log, "1.0.0").isEmpty());
+    QFile bundled(":/CHANGELOG.md");
+    REQUIRE(bundled.open(QIODevice::ReadOnly));  // shipped in the app
+    CHECK(bundled.readAll().startsWith("# Changelog"));
+
+    MainWindow w;
+    int shown = 0;
+    auto count = [&] {
+        QTimer::singleShot(0, [&] {
+            for (auto* top : QApplication::topLevelWidgets())
+                if (auto* d = qobject_cast<QDialog*>(top); d && d->isVisible() && d->windowTitle().startsWith("What's New"))
+                    ++shown, d->accept();
+        });
+    };
+    QSettings().remove("lastVersion");
+    count();
+    w.maybeShowWhatsNew();  // fresh install: nothing
+    QApplication::processEvents();
+    CHECK(shown == 0);
+    CHECK(QSettings().value("lastVersion").toString() == PENZENE_VERSION);
+    w.maybeShowWhatsNew();  // same version again: nothing
+    QApplication::processEvents();
+    CHECK(shown == 0);
+}

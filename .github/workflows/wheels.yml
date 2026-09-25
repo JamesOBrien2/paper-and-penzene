@@ -47,6 +47,10 @@ jobs:
         run: |
           pixi run python -m pip install -q auditwheel patchelf wheel
           export LD_LIBRARY_PATH=$PWD/rdkit-prefix/lib:$PWD/.pixi/envs/default/lib
+          # Our RDKit's libraries carry conda's lib in their RPATH, which outranks LD_LIBRARY_PATH:
+          # hide the env's RDKit while auditwheel looks, or it bundles that one, ChemDraw and all (#233).
+          mkdir conda-rdkit && mv .pixi/envs/default/lib/libRDKit* conda-rdkit/
+          trap 'mv conda-rdkit/* .pixi/envs/default/lib/' EXIT
           pixi run auditwheel repair -w repaired dist/*.whl
           # Bundle libstdc++ privately so the wheel runs on glibc 2.28-era systems (#122).
           pixi run python cmake/bundle-libstdcxx.py repaired/*.whl "$PWD/.pixi/envs/default/lib" wheelhouse

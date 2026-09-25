@@ -1,4 +1,4 @@
-"""Penzene: ChemDraw-style 2D chemical structures, drawn by the same engine as the app.
+"""Penzene: 2D chemical structures, drawn by the same engine as the app.
 
     import penzene as pz
     doc = pz.from_smiles("CC(=O)Oc1ccccc1C(=O)O")   # aspirin

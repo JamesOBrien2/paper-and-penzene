@@ -1,6 +1,6 @@
-# Keyboard shortcuts compared with ChemDraw
+# Shortcut audit (maintainers' reference, not part of the published docs)
 
-Penzene follows ChemDraw's hotkeys. This table checks every entry in ChemDraw 22's
+This table checks every entry in ChemDraw 22's
 `hotkeys.xml` (the file ChemDraw itself reads), plus the keys on its *Hotkeys
 Cheat Sheet*, against Penzene. The full list of Penzene's keys is under
 Help → Keyboard Shortcuts (F1).

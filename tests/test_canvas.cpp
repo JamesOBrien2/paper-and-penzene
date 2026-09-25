@@ -19,6 +19,7 @@
 #include <QDockWidget>
 #include <QFrame>
 #include <QStackedWidget>
+#include <QElapsedTimer>
 #include <QTest>
 
 #include <QComboBox>
@@ -1693,4 +1694,33 @@ TEST_CASE("the logo is drawn in the lab notebook palette (#234)") {
     const QString svg = QString::fromUtf8(f.readAll()).toLower();
     CHECK(svg.contains(theme("Light").accent.name()));  // teal ink
     CHECK(svg.contains(theme("Light").paper.name()));   // on warm paper
+}
+
+TEST_CASE("drawing and chemistry time grow linearly with the drawing (#114)") {
+    App app;
+    Document one = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    auto page = [&](int copies) {
+        Document doc;
+        for (int i = 0; i < copies; ++i) doc.append(one, QPointF((i % 20) * 150, (i / 20) * 150));
+        return doc;
+    };
+    // The best of a few runs, so a busy machine doesn't decide it.
+    auto best = [](const Document& doc) {
+        qint64 ns = std::numeric_limits<qint64>::max();
+        for (int k = 0; k < 3; ++k) {
+            QElapsedTimer t;
+            t.start();
+            QPicture pic;
+            QPainter p(&pic);
+            paintDocument(p, doc);
+            p.end();
+            chem::properties(doc);
+            ns = std::min(ns, t.nsecsElapsed());
+        }
+        return double(ns);
+    };
+    best(page(10));  // warm up fonts and RDKit
+    const double small = best(page(160)), large = best(page(640));  // 2080 and 8320 atoms
+    INFO("4x the atoms took " << large / small << "x as long");
+    CHECK(large / small < 8);  // linear is ~4, quadratic ~16
 }

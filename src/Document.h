@@ -117,6 +117,8 @@ struct Document {
     int addAtom(QPointF pos, int z = 6);
     int bondBetween(int a, int b) const;  // bond index or -1
     std::vector<int> neighbors(int atom) const;
+    // Each atom's bond indices, for loops over every atom (neighbors() scans all the bonds).
+    std::vector<std::vector<int>> bondsAt() const;
     QPointF awayDirection(int atom) const;  // bisects the widest gap between its bonds
     void removeBond(int bond);  // also drops endpoints left isolated
     void removeAtoms(const std::vector<int>& atoms);  // also drops their bonds

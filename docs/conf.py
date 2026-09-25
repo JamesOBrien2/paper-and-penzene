@@ -57,3 +57,35 @@ html_theme_options = {
 }
 copybutton_prompt_text = r"\$ |>>> "
 copybutton_prompt_is_regexp = True
+
+# ```{feature} icon-name
+# :title: Formula and mass
+# Markdown body.
+# ```
+# A What's New style card: a teal icon badge (a Tabler SVG from _static/icons, inlined so it
+# takes the theme's colour), a title and the text.
+from pathlib import Path
+from docutils import nodes
+from docutils.parsers.rst import Directive, directives
+
+ICONS = Path(__file__).parent / "_static" / "icons"
+
+
+class Feature(Directive):
+    required_arguments = 1
+    option_spec = {"title": directives.unchanged_required}
+    has_content = True
+
+    def run(self):
+        svg = (ICONS / f"{self.arguments[0]}.svg").read_text(encoding="utf-8")
+        card = nodes.container(classes=["feature"])
+        card += nodes.raw("", f'<span class="badge">{svg}</span>', format="html")
+        body = nodes.container(classes=["feature-body"])
+        body += nodes.paragraph("", "", nodes.strong(text=self.options["title"]), classes=["feature-title"])
+        self.state.nested_parse(self.content, self.content_offset, body)
+        card += body
+        return [card]
+
+
+def setup(app):
+    app.add_directive("feature", Feature)

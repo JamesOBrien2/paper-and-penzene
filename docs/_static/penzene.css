@@ -27,3 +27,16 @@ code.literal { border-radius: 5px; }
                   border-radius: 12px; padding: 0.9rem 1.1rem; }
 .features .card p { margin: 0.2rem 0; }
 .features .card p:first-child strong { color: var(--color-brand-primary); }
+
+/* Feature cards (the {feature} directive), after the app's What's New window. */
+[role="main"] .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0.8rem; margin: 1.2rem 0; }
+.feature { display: flex; gap: 0.85rem; align-items: flex-start; background: var(--color-background-secondary);
+           border: 1px solid var(--color-background-border); border-radius: 14px; }
+[role="main"] .feature { padding: 0.9rem 1.1rem 0.9rem 0.95rem; }
+.feature .badge { flex: none; display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 50%;
+                  background: var(--color-background-hover); color: var(--color-brand-primary); }
+.feature .badge svg { width: 1.25rem; height: 1.25rem; }
+.feature { font-size: 0.94rem; line-height: 1.5; }
+.feature-body { flex: 1 1 0; min-width: 0; }
+.feature-body > p { margin: 0.15rem 0; }
+.feature-title { margin-top: 0.1rem !important; }

@@ -4,7 +4,7 @@ What's new in each release. The app shows its own version's section once after a
 a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name -->` from
 `resources/whatsnew/`); the rest are listed as text.
 
-## Unreleased
+## 0.9.0 (2026-09-26)
 
 - **Lab notebook look**: warm paper and teal controls, with tools grouped into Draw, Chemistry and Figure. <!-- icon: palette -->
 - **Welcome**: an empty page offers examples (aspirin, a reaction scheme, a mechanism) and links to the keys and documentation. <!-- icon: sparkles -->
@@ -20,10 +20,11 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 - The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.
 - Python: type stubs for editors and type checkers, and a written stability policy (semantic versioning, one minor release of deprecation warnings before anything is removed).
-- Python: `save()` writes ChemDraw `.cdxml` and `.cdx` too.
+- Python: save() writes ChemDraw .cdxml and .cdx too.
 - Arrow heads sit evenly on tightly curved arrows, and half heads (fishhook, equilibrium) are clean at the base.
 - A dashed ellipse joins the Figure tools, which now pair each solid shape with its dashed version.
 - A round handle above a selection rotates it; hold Shift for 15° steps, or Ctrl to land it square to the page or at 45°.
+- The downloads build RDKit without its ChemDraw library (which contains MPL-1.0 code), so everything they ship is GPL-compatible; Penzene reads and writes ChemDraw files with its own copy.
 
 ## 0.8.0 (2026-09-25)
 

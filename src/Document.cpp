@@ -248,6 +248,12 @@ std::vector<int> Document::neighbors(int atom) const {
     return out;
 }
 
+std::vector<std::vector<int>> Document::bondsAt() const {
+    std::vector<std::vector<int>> at(atoms.size());
+    for (int i = 0; i < int(bonds.size()); ++i) at[bonds[i].a].push_back(i), at[bonds[i].b].push_back(i);
+    return at;
+}
+
 void Document::removeBond(int bond) {
     const int a = bonds[bond].a, b = bonds[bond].b;
     const bool dropA = neighbors(a).size() == 1;

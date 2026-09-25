@@ -13,6 +13,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - **Sharp copies**: Copy puts a vector PDF on the clipboard for Word, PowerPoint and Keynote, and every PDF carries the drawing, so it opens or pastes back editable. <!-- icon: file-type-pdf -->
 - **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->
 - The logo is drawn in the same teal on warm paper as the app.
+- Large drawings stay quick: drawing and chemistry now scale linearly (a 2000-atom page edits in about 17 ms).
 - The What's New window highlights main additions with icons and lists smaller changes below.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 - The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.

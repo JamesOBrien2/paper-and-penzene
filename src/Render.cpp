@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <limits>
 #include <numbers>
+#include <numeric>
 
 // Presets. Values come from the ChemDraw stationery (.cds) of the same name;
 // wedge width, hash spacing and label gap keep ACS's proportions to ours.
@@ -126,7 +127,7 @@ static void drawLabel(QPainter& p, const Document& doc, int i, int hydrogens, HS
 }
 
 static void drawBond(QPainter& p, const Document& doc, const Bond& b, const DrawingStyle& st, const std::vector<int>& degree,
-                     const std::vector<bool>& labeled, const std::vector<QPointF>& gaps = {}) {
+                     const std::vector<bool>& labeled, const BondsAt& at, const std::vector<QPointF>& gaps = {}) {
     QPointF pa = doc.atoms[b.a].pos, pb = doc.atoms[b.b].pos;
     QPointF d = unit(pb - pa), n = perp(d);
     const double gap = st.bondSpacing * kBondLength;  // double-bond spacing
@@ -204,7 +205,7 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
     } else {
         // Offset the second line toward the side where the neighbours are
         // (inside the ring); centre it for terminal bonds like C=O.
-        const int side = doubleBondSide(doc, b);
+        const int side = doubleBondSide(doc, b, at);
         if (side == 0) {
             QPointF o = n * gap / 2;
             line(a + o, e + o, true);
@@ -370,6 +371,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     const double lineWidth = style.lineWidth > 0 ? style.lineWidth : st.lineWidth;
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
+    const BondsAt bondsAt = doc.bondsAt();
     std::vector<int> degree(doc.atoms.size(), 0);
     for (const auto& b : doc.bonds) ++degree[b.a], ++degree[b.b];
     std::vector<bool> labeled(doc.atoms.size());
@@ -402,16 +404,25 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     }
     // Crossings: where a later bond (in front; Bring to Front moves one last) crosses an
     // earlier one that shares no atom with it, the earlier one gets a gap.
-    // ponytail: every pair of bonds per paint (O(n²)); a spatial grid if huge drawings stutter.
-    std::vector<std::vector<QPointF>> gaps(doc.bonds.size());
-    for (size_t i = 0; i < doc.bonds.size(); ++i)
-        for (size_t j = i + 1; j < doc.bonds.size(); ++j) {
+    // Sweep and prune: bonds sorted by left edge, so only pairs overlapping in x are tested.
+    const int nb = int(doc.bonds.size());
+    std::vector<QRectF> box(nb);
+    for (int i = 0; i < nb; ++i)
+        box[i] = QRectF(doc.atoms[doc.bonds[i].a].pos, doc.atoms[doc.bonds[i].b].pos).normalized();
+    std::vector<int> byLeft(nb);
+    std::iota(byLeft.begin(), byLeft.end(), 0);
+    std::sort(byLeft.begin(), byLeft.end(), [&](int i, int j) { return box[i].left() < box[j].left(); });
+    std::vector<std::vector<QPointF>> gaps(nb);
+    for (int k = 0; k < nb; ++k)
+        for (int m = k + 1; m < nb && box[byLeft[m]].left() <= box[byLeft[k]].right(); ++m) {
+            const int i = std::min(byLeft[k], byLeft[m]), j = std::max(byLeft[k], byLeft[m]);
+            if (box[i].top() > box[j].bottom() || box[j].top() > box[i].bottom()) continue;
             const Bond &x = doc.bonds[i], &y = doc.bonds[j];
             if (x.a == y.a || x.a == y.b || x.b == y.a || x.b == y.b) continue;
             QPointF at;
             if (QLineF(doc.atoms[x.a].pos, doc.atoms[x.b].pos).intersects(QLineF(doc.atoms[y.a].pos, doc.atoms[y.b].pos), &at) ==
                 QLineF::BoundedIntersection)
-                gaps[i].push_back(at);
+                gaps[i].push_back(at);  // the earlier bond is behind
         }
     for (int bi = 0; bi < int(doc.bonds.size()); ++bi) {
         const Bond& b = doc.bonds[bi];
@@ -419,9 +430,9 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         if (inCircle.contains(bi) && b.order == 2 && b.stereo == BondStereo::None) {
             Bond single = b;
             single.order = 1;
-            drawBond(p, doc, single, st, degree, labeled, gaps[bi]);
+            drawBond(p, doc, single, st, degree, labeled, bondsAt, gaps[bi]);
         } else {
-            drawBond(p, doc, b, st, degree, labeled, gaps[bi]);
+            drawBond(p, doc, b, st, degree, labeled, bondsAt, gaps[bi]);
         }
     }
     p.setPen(QPen(style.ink, lineWidth));
@@ -437,7 +448,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     auto hSide = [&](int i) {
         double dx = 0;
         bool left = false, right = false, up = false;
-        for (int nb : doc.neighbors(i)) {
+        for (int nb : neighbors(doc, bondsAt, i)) {
             const QPointF d = doc.atoms[nb].pos - doc.atoms[i].pos;
             dx += d.x();
             left |= d.x() < -0.3 * kBondLength, right |= d.x() > 0.3 * kBondLength, up |= d.y() < -0.3 * kBondLength;
@@ -469,7 +480,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     auto numberDirection = [&](int i) {
         const QPointF p = doc.atoms[i].pos;
         std::vector<double> ang;
-        for (int nb : doc.neighbors(i)) ang.push_back(std::atan2(doc.atoms[nb].pos.y() - p.y(), doc.atoms[nb].pos.x() - p.x()));
+        for (int nb : neighbors(doc, bondsAt, i)) ang.push_back(std::atan2(doc.atoms[nb].pos.y() - p.y(), doc.atoms[nb].pos.x() - p.x()));
         if (ang.size() < 2) return doc.awayDirection(i);
         std::sort(ang.begin(), ang.end());
         QPointF best;
@@ -489,7 +500,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
         const int marks = a.lonePairs + a.radicals + (a.partial ? 1 : 0);
         if (!marks) continue;
         std::vector<double> taken;
-        for (int nb : doc.neighbors(int(i)))
+        for (int nb : neighbors(doc, bondsAt, int(i)))
             taken.push_back(std::atan2(doc.atoms[nb].pos.y() - a.pos.y(), doc.atoms[nb].pos.x() - a.pos.x()));
         if (labeled[i] && info[i].hydrogens && !doc.hideImplicitH) {
             const HSide s = hSide(int(i));
@@ -577,7 +588,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
             } else {
                 const Bond& b = doc.bonds[l.bond];
                 const QPointF a = doc.atoms[b.a].pos, e = doc.atoms[b.b].pos, n = perp(unit(e - a));
-                at = (a + e) / 2 - n * (doubleBondSide(doc, b) > 0 ? 1 : -1) * (0.45 * kBondLength);
+                at = (a + e) / 2 - n * (doubleBondSide(doc, b, bondsAt) > 0 ? 1 : -1) * (0.45 * kBondLength);
             }
             const QString s = "(" + l.text + ")";
             QFontMetricsF fm(f);

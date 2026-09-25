@@ -113,10 +113,12 @@ Document expanded(const Document& doc) {
 //   drawn straight up is toward the viewer seen from above, straight down away.
 Document projectionsAsWedges(const Document& in) {
     Document doc = in;
+    const BondsAt at = in.bondsAt();
     const double tol = std::sin(qDegreesToRadians(4.0));
     auto dir = [&](int from, int to) { return unit(doc.atoms[to].pos - doc.atoms[from].pos); };
     for (int i = 0; i < int(doc.atoms.size()); ++i) {
-        const auto nbs = in.neighbors(i);
+        if (at[i].size() != 4) continue;
+        const auto nbs = neighbors(in, at, i);
         if (nbs.size() != 4) continue;
         int horizontal = 0, vertical = 0;
         bool wedged = false;
@@ -140,7 +142,7 @@ Document projectionsAsWedges(const Document& in) {
         std::vector<int> queue{front.b};
         prev[front.b] = front.b;
         for (size_t q = 0; q < queue.size() && prev[front.a] < 0; ++q)
-            for (int nb : in.neighbors(queue[q]))
+            for (int nb : neighbors(in, at, queue[q]))
                 if (prev[nb] < 0 && !(queue[q] == front.b && nb == front.a)) prev[nb] = queue[q], queue.push_back(nb);
         if (prev[front.a] < 0) continue;
         std::vector<int> ring{front.a};
@@ -153,7 +155,7 @@ Document projectionsAsWedges(const Document& in) {
         const QPointF centre = box.center();
         for (int i : ring) {
             std::vector<int> up, down;
-            for (int nb : in.neighbors(i)) {
+            for (int nb : neighbors(in, at, i)) {
                 if (std::find(ring.begin(), ring.end(), nb) != ring.end()) continue;
                 const QPointF d = dir(i, nb);
                 if (std::abs(d.x()) < 0.35 * std::abs(d.y())) (d.y() < 0 ? up : down).push_back(nb);

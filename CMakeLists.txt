@@ -28,7 +28,7 @@ target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSIO
 target_link_libraries(penzene_core PUBLIC
     Qt6::Gui Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol
-    RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler)
+    RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler RDKit::DistGeomHelpers)
 # Binary CDX writing, where RDKit was built with ChemDraw support (not conda's Windows build).
 if(TARGET RDKit::RDChemDrawLib)
     target_link_libraries(penzene_core PUBLIC RDKit::RDChemDrawLib)

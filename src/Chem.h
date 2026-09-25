@@ -1,6 +1,7 @@
 #pragma once
 // The only file that talks to RDKit. Everything else sees a Document.
 #include "Document.h"
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,6 +24,19 @@ struct Record {
 };
 std::vector<Record> readRecords(const QString& path);
 std::string toMolBlock(const Document& doc, bool v3000 = false);
+
+// Rotation out of the page: the molecules of `atoms` given a 3D shape (an RDKit
+// conformer posed to match the drawing), which project3D turns about the page's
+// x then y axis (degrees) and projects back, re-choosing wedges so stereo is kept.
+// Unturned it's the drawing exactly; over the first 30° it becomes the conformer.
+struct Pose3D {
+    std::vector<int> atoms;
+    std::vector<std::array<double, 3>> drawn;      // Å, y up, about `centre`: the drawing, with the conformer's depth
+    std::vector<std::array<double, 3>> conformer;  // the conformer itself, posed like the drawing
+    std::array<double, 3> centre{};
+};
+std::optional<Pose3D> pose3D(const Document& doc, const std::vector<int>& atoms);
+Document project3D(const Document& doc, const Pose3D& pose, double aboutX, double aboutY);
 QByteArray toCdxml(const Document& doc);  // molecules, arrows and text
 QByteArray toCdx(const Document& doc);    // binary CDX: molecules only
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid

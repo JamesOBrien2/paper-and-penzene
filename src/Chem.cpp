@@ -5,6 +5,8 @@
 #include <GraphMol/Chirality.h>
 #include <GraphMol/FileParsers/CDXMLParser.h>
 #include <GraphMol/Depictor/RDDepictor.h>
+#include <GraphMol/DistGeomHelpers/Embedder.h>
+#include <Eigen/Dense>
 #include <GraphMol/Descriptors/Crippen.h>
 #include <GraphMol/Descriptors/Lipinski.h>
 #include <GraphMol/Descriptors/MolDescriptors.h>
@@ -1213,6 +1215,90 @@ int atomicNumber(const std::string& sym) {
     } catch (...) {
         return 0;
     }
+}
+
+}  // namespace chem
+
+namespace chem {
+
+// ponytail: depth always comes from an embedding; a MOL file's own z isn't kept
+// on import, so a drawn 3D structure gets a fresh conformer. Keep z to use it.
+std::optional<Pose3D> pose3D(const Document& doc, const std::vector<int>& atoms) {
+    if (atoms.empty()) return std::nullopt;
+    auto mol = toRDKit(doc);
+    perceive(*mol);  // chiral tags from the wedges, which the embedding keeps
+    RWMol withH(*mol);
+    try {
+        RDKit::MolOps::addHs(withH);
+        // ETKDGv3, set through JSON: the preset is a DLL data symbol Windows can't import.
+        RDKit::DGeomHelpers::EmbedParameters params;
+        RDKit::DGeomHelpers::updateEmbedParametersFromJSON(params, R"({"useExpTorsionAnglePrefs": true,
+            "useBasicKnowledge": true, "ETversion": 2, "useMacrocycleTorsions": true, "useMacrocycle14config": true,
+            "enforceChirality": true, "randomSeed": 12648430})");  // a fixed seed: the same pose every time
+        if (RDKit::DGeomHelpers::EmbedMolecule(withH, params) < 0) {
+            params.useRandomCoords = true;
+            if (RDKit::DGeomHelpers::EmbedMolecule(withH, params) < 0) return std::nullopt;
+        }
+    } catch (...) {
+        return std::nullopt;
+    }
+    // Kabsch: the rotation that best lays the conformer onto the drawing (z = 0).
+    const auto& conf = withH.getConformer();
+    const int n = int(atoms.size());
+    Eigen::MatrixXd P(3, n), Q(3, n);
+    for (int k = 0; k < n; ++k) {
+        const auto& p = conf.getAtomPos(atoms[k]);
+        P.col(k) << p.x, p.y, p.z;
+        Q.col(k) << doc.atoms[atoms[k]].pos.x() / kScale, -doc.atoms[atoms[k]].pos.y() / kScale, 0;
+    }
+    const Eigen::Vector3d pc = P.rowwise().mean(), qc = Q.rowwise().mean();
+    P.colwise() -= pc, Q.colwise() -= qc;
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(Q * P.transpose(), Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::Matrix3d fix = Eigen::Matrix3d::Identity();
+    fix(2, 2) = (svd.matrixU() * svd.matrixV().transpose()).determinant() < 0 ? -1 : 1;  // a rotation, not a mirror
+    const Eigen::Matrix3d R = svd.matrixU() * fix * svd.matrixV().transpose();
+    Pose3D pose{atoms, {}, {}, {qc.x(), qc.y(), 0}};
+    for (int k = 0; k < n; ++k) {
+        const Eigen::Vector3d r = R * P.col(k);
+        pose.drawn.push_back({Q(0, k), Q(1, k), r.z()});
+        pose.conformer.push_back({r.x(), r.y(), r.z()});
+    }
+    return pose;
+}
+
+Document project3D(const Document& doc, const Pose3D& pose, double aboutX, double aboutY) {
+    Document out = doc;
+    const double ax = qDegreesToRadians(aboutX), ay = qDegreesToRadians(aboutY);
+    const double w = std::min(1.0, std::max(std::abs(aboutX), std::abs(aboutY)) / 30);  // drawing → conformer
+    for (size_t k = 0; k < pose.atoms.size(); ++k) {
+        const double x = (1 - w) * pose.drawn[k][0] + w * pose.conformer[k][0];
+        const double y = (1 - w) * pose.drawn[k][1] + w * pose.conformer[k][1];
+        const double z = pose.conformer[k][2];
+        const double y1 = y * std::cos(ax) - z * std::sin(ax), z1 = y * std::sin(ax) + z * std::cos(ax);  // about x
+        const double x2 = x * std::cos(ay) + z1 * std::sin(ay);                                              // about y
+        out.atoms[pose.atoms[k]].pos = QPointF((x2 + pose.centre[0]) * kScale, -(y1 + pose.centre[1]) * kScale);
+    }
+    // Wedges for the new view: the drawing's own stereo (chiral tags), placed by RDKit.
+    auto mol = toRDKit(doc);
+    if (!perceive(*mol)) return out;
+    auto& conf = mol->getConformer();
+    for (int i = 0; i < int(out.atoms.size()); ++i)
+        conf.setAtomPos(i, {out.atoms[i].pos.x() / kScale, -out.atoms[i].pos.y() / kScale, 0});
+    for (auto* b : mol->bonds()) b->setBondDir(RDKit::Bond::NONE);
+    RDKit::Chirality::wedgeMolBonds(*mol, &conf);
+    std::vector<bool> moved(out.atoms.size());
+    for (int i : pose.atoms) moved[i] = true;
+    for (auto& b : out.bonds)
+        if (moved[b.a] && moved[b.b] && (b.stereo == BondStereo::Wedge || b.stereo == BondStereo::Hash)) b.stereo = BondStereo::None;
+    for (const auto* b : mol->bonds()) {
+        const int i = int(b->getBeginAtomIdx()), j = int(b->getEndAtomIdx());
+        if (i >= int(out.atoms.size()) || j >= int(out.atoms.size()) || !moved[i]) continue;
+        const int k = out.bondBetween(i, j);
+        if (k < 0 || (b->getBondDir() != RDKit::Bond::BEGINWEDGE && b->getBondDir() != RDKit::Bond::BEGINDASH)) continue;
+        out.bonds[k].a = i, out.bonds[k].b = j;
+        out.bonds[k].stereo = b->getBondDir() == RDKit::Bond::BEGINWEDGE ? BondStereo::Wedge : BondStereo::Hash;
+    }
+    return out;
 }
 
 }  // namespace chem

@@ -9,6 +9,7 @@ libboost-devel = "*"             # RDKit public headers include Boost
 qt6-main = ">=6.8,<7"            # Widgets, Svg, PDF
 catch2 = ">=3.5,<4"
 expat = ">=2.5"                  # XML parsing for the vendored ChemDraw file library
+zlib = "*"                       # headers for building RDKit without ChemDraw (#233)
 cmake = ">=3.28"
 ninja = "*"
 python = ">=3.12,<3.14"          # Python module (abi3: one build serves 3.12+)

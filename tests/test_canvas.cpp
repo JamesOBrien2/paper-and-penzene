@@ -1541,6 +1541,8 @@ TEST_CASE("What's New shows one card per highlighted addition (#215)") {
             if (!dialog || dialog->objectName() != "whatsNew") continue;
             inspected = true;
             CHECK(dialog->findChildren<QFrame*>("highlight").size() == 5);
+            for (auto* detail : dialog->findChildren<QLabel*>("detail"))  // changelog text isn't markup (#246)
+                CHECK(detail->textFormat() == Qt::PlainText);
             for (auto* detail : dialog->findChildren<QLabel*>("detail"))  // wrapped text isn't clipped
                 CHECK(detail->height() >= detail->heightForWidth(detail->width()));
             auto* others = dialog->findChild<QLabel*>("others");
@@ -1645,6 +1647,12 @@ TEST_CASE("PDF: copied and exported as vectors, with the drawing attached (#228)
     REQUIRE(back);
     CHECK(*back == doc);
     CHECK_FALSE(Document::fromEmbedded(QByteArray("%PDF-1.4\n1 0 obj\n<<>>\nstream\nnot a drawing\nendstream\n")));
+    // Only attached files are read (#246): a drawing in a plain stream isn't, so a big PDF from
+    // elsewhere isn't inflated stream by stream.
+    const QByteArray json = Document(*chem::fromSmiles("CCO")).toJson();
+    const QByteArray plain = "%PDF-1.4\n1 0 obj\n<<>>\nstream\n" + json + "\nendstream\nendobj\n";
+    CHECK_FALSE(Document::fromEmbedded(plain));
+    CHECK(Document::fromEmbedded(plain + "2 0 obj\n<< /Type/Filespec /EF <</F 1 0 R>> >>\nendobj\n"));
 
     // Copy offers the PDF; a PDF alone pastes back as the drawing.
     MainWindow w;

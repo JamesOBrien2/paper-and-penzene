@@ -90,24 +90,29 @@ QByteArray Document::toJson() const {
 std::optional<Document> Document::fromEmbedded(const QByteArray& file) {
     if (file.startsWith("\x89PNG")) return fromJson(QImage::fromData(file, "PNG").text("penzene").toUtf8());
     if (file.startsWith("%PDF")) {
-        // The drawing is one of the PDF's (deflated) attachment streams; try each stream.
-        // ponytail: a linear scan of every stream, fine for figure-sized PDFs.
-        for (qsizetype at = file.indexOf("stream"); at >= 0; at = file.indexOf("stream", at + 1)) {
-            if (at >= 3 && file.mid(at - 3, 3) == "end") continue;
+        // The drawing is an attached file: a /Filespec names its stream as /EF <</F n 0 R>>. Only
+        // those are inflated, so pasting a big PDF from elsewhere costs a search, not a decode.
+        for (qsizetype ef = file.indexOf("/EF"); ef >= 0; ef = file.indexOf("/EF", ef + 3)) {
+            static const QRegularExpression ref(R"(^/EF\s*<<\s*/F\s+(\d+)\s+0\s+R)");
+            const auto m = ref.match(QString::fromLatin1(file.mid(ef, 40)));
+            if (!m.hasMatch()) continue;
+            const QByteArray head = m.captured(1).toLatin1() + " 0 obj";
+            qsizetype obj = file.indexOf("\n" + head);
+            if (obj < 0) continue;
+            const qsizetype at = file.indexOf("stream", obj);
+            if (at < 0) continue;
             qsizetype begin = at + 6;
             if (file.mid(begin, 2) == "\r\n") begin += 2;
             else if (file.mid(begin, 1) == "\n") begin += 1;
             const qsizetype end = file.indexOf("endstream", begin);
-            if (end < 0) break;
+            if (end < 0) continue;
             QByteArray data = file.mid(begin, end - begin);
-            const qsizetype obj = file.lastIndexOf(" obj", at);
-            if (obj >= 0 && file.mid(obj, at - obj).contains("/FlateDecode")) {
+            if (file.mid(obj, at - obj).contains("/FlateDecode")) {
                 QByteArray sized(4, 0);
                 qToBigEndian<quint32>(quint32(data.size() * 16), sized.data());  // qUncompress's size hint
                 data = qUncompress(sized + data);
             }
             if (auto doc = fromJson(data)) return doc;
-            at = end;
         }
         return std::nullopt;
     }

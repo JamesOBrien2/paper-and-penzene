@@ -80,8 +80,9 @@ QString fetch(const QUrl& url, const QString& key, QString* error, const QByteAr
     const QByteArray body = reply->readAll();
     const QString value = property(body, key);
     if (value.isEmpty())
-        *error = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404
-                     ? QObject::tr("PubChem has no match.")
+        *error = reply->error() == QNetworkReply::NoError ||
+                         reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 404
+                     ? QObject::tr("PubChem has no match.")  // answered, but without the property
                      : reply->errorString();
     reply->deleteLater();
     return value;

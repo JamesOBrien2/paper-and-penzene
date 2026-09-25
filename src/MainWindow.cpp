@@ -933,7 +933,9 @@ struct GridArrows : QObject {
         const int dc = key == Qt::Key_Right ? 1 : key == Qt::Key_Left ? -1 : 0;
         if (!dr && !dc) return false;
         int row, col, rs, cs;
-        grid->getItemPosition(grid->indexOf(static_cast<QWidget*>(o)), &row, &col, &rs, &cs);
+        const int index = grid->indexOf(static_cast<QWidget*>(o));
+        if (index < 0) return false;
+        grid->getItemPosition(index, &row, &col, &rs, &cs);
         for (int r = row + dr, c = col + dc; r >= 0 && r < grid->rowCount() && c >= 0 && c < grid->columnCount();
              r += dr, c += dc)
             if (auto* item = grid->itemAtPosition(r, c); item && item->widget()) {

@@ -22,6 +22,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - Python: type stubs for editors and type checkers, and a written stability policy (semantic versioning, one minor release of deprecation warnings before anything is removed).
 - Python: `save()` writes ChemDraw `.cdxml` and `.cdx` too.
 - Arrow heads sit evenly on tightly curved arrows, and half heads (fishhook, equilibrium) are clean at the base.
+- A dashed ellipse joins the Figure tools, which now pair each solid shape with its dashed version.
 
 ## 0.8.0 (2026-09-25)
 

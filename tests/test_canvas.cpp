@@ -1836,3 +1836,24 @@ TEST_CASE("accessibility: an edit at the hotspot is announced too (#244)") {
     f.canvas.viewport()->repaint();
     CHECK(f.canvas.accessibleDescription() == "Hotspot: atom N2, 1 bond");
 }
+
+TEST_CASE("the Figure tools include a dashed ellipse (#222)") {
+    App app;
+    MainWindow w;
+    w.resize(1000, 700);
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    QAction* dashedEllipse = nullptr;
+    for (auto* b : w.findChildren<QToolButton*>())
+        if (b->defaultAction() && b->defaultAction()->toolTip().startsWith("Dashed ellipse")) dashedEllipse = b->defaultAction();
+    REQUIRE(dashedEllipse);
+    dashedEllipse->trigger();
+    QTest::mousePress(canvas->viewport(), Qt::LeftButton, {}, canvas->mapFromScene(QPointF(0, 0)));
+    const QPoint to = canvas->mapFromScene(QPointF(60, 40));
+    QMouseEvent move(QEvent::MouseMove, to, canvas->viewport()->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, {});
+    QApplication::sendEvent(canvas->viewport(), &move);
+    QTest::mouseRelease(canvas->viewport(), Qt::LeftButton, {}, to);
+    REQUIRE(canvas->document().arrows.size() == 1);
+    CHECK(canvas->document().arrows[0].kind == ArrowKind::Ellipse);
+    CHECK(canvas->document().arrows[0].dashed);
+}

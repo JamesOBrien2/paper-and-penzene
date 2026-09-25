@@ -41,7 +41,7 @@ jobs:
         run: pixi run bash cmake/build-rdkit.sh rdkit-prefix
       - shell: bash
         run: echo "RDKit_ROOT=$(pwd -W 2>/dev/null || pwd)/rdkit-prefix" >> "$GITHUB_ENV"  # Git bash: D:/a/...
-      - run: pixi run wheel
+      - run: pixi run wheel -v   # shows CMake's "RDKit:" line
       - name: Repair (Linux)
         if: runner.os == 'Linux'
         run: |

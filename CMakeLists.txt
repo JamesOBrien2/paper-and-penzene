@@ -21,6 +21,13 @@ option(PENZENE_TESTS "Build the tests (needs Catch2)" ${app_default})
 find_package(Qt6 REQUIRED COMPONENTS Gui Svg)
 find_package(RDKit REQUIRED CONFIG)
 message(STATUS "RDKit: ${RDKit_DIR}")
+if(DEFINED ENV{RDKit_ROOT})  # release packages: the RDKit without its ChemDraw library (#233), never another
+    cmake_path(SET rdkit_root NORMALIZE "$ENV{RDKit_ROOT}")
+    cmake_path(IS_PREFIX rdkit_root "${RDKit_DIR}" NORMALIZE rdkit_from_root)
+    if(NOT rdkit_from_root)
+        message(FATAL_ERROR "RDKit_ROOT is ${rdkit_root}, but RDKit was found at ${RDKit_DIR}")
+    endif()
+endif()
 
 # The engine: document, chemistry, editing and rendering. QtGui only, no
 # widgets, so it can back a command line or Python module as well as the app.

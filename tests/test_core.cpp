@@ -491,13 +491,31 @@ TEST_CASE("CDXML export reads back: molecules, wedges, arrows and text (#29)") {
     CHECK(rb->atoms.size() == 2);
     CHECK(rb->atoms[1].label == "R");
 
+    // Binary CDX on every platform (#185), carrying arrows and text too (#181).
     const QByteArray cdx = chem::toCdx(doc);
-    if (!cdx.isEmpty()) {  // where RDKit has ChemDraw support
-        CHECK(cdx.startsWith("VjCD0100"));
-        auto fromCdx = chem::fromChemDraw(cdx);
-        REQUIRE(fromCdx);
-        CHECK(chem::toSmiles(*fromCdx) == smiles);
-    }
+    REQUIRE(cdx.startsWith("VjCD0100"));
+    auto fromCdx = chem::fromChemDraw(cdx);
+    REQUIRE(fromCdx);
+    CHECK(chem::toSmiles(*fromCdx) == smiles);
+    CHECK(fromCdx->arrows.size() == 2);
+    REQUIRE(fromCdx->texts.size() == 1);
+    INFO(fromCdx->texts[0].text.toStdString());
+    CHECK(fromCdx->texts[0].text == "L-alanine");
+    CHECK(chem::cdxToCdxml("not a CDX file").isEmpty());
+    CHECK(chem::cdxmlToCdx("<not closed").isEmpty());
+}
+
+TEST_CASE("a real ChemDraw file survives CDXML → CDX → CDXML (#185)") {
+    QFile f(QString(PENZENE_TEST_DATA) + "/scheme.cdxml");
+    REQUIRE(f.open(QIODevice::ReadOnly));
+    const QByteArray cdxml = f.readAll();
+    auto direct = chem::fromChemDraw(cdxml);
+    auto viaCdx = chem::fromChemDraw(chem::cdxmlToCdx(cdxml));
+    REQUIRE(direct);
+    REQUIRE(viaCdx);
+    CHECK(chem::toSmiles(*viaCdx) == chem::toSmiles(*direct));
+    CHECK(viaCdx->arrows.size() == direct->arrows.size());
+    CHECK(viaCdx->texts.size() == direct->texts.size());
 }
 
 TEST_CASE("SMILES of a ring with a charged boron or phosphorus reads back (fuzz)") {

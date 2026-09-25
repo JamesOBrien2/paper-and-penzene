@@ -38,7 +38,10 @@ struct Pose3D {
 std::optional<Pose3D> pose3D(const Document& doc, const std::vector<int>& atoms);
 Document project3D(const Document& doc, const Pose3D& pose, double aboutX, double aboutY);
 QByteArray toCdxml(const Document& doc);  // molecules, arrows and text
-QByteArray toCdx(const Document& doc);    // binary CDX: molecules only
+QByteArray toCdx(const Document& doc);    // binary CDX: all that toCdxml writes
+// Binary CDX ⇄ CDXML (Revvity's ChemDraw file library); empty if it can't be read.
+QByteArray cdxToCdxml(const QByteArray& cdx);
+QByteArray cdxmlToCdx(const QByteArray& cdxml);
 std::string toSmiles(const Document& doc);  // "" if the structure isn't valid
 
 // A drawn reaction: the molecules before, alongside and after its arrow.

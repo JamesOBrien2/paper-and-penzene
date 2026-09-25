@@ -686,6 +686,27 @@ QByteArray renderSvg(const Document& doc, const ExportOptions& o) {
     return svg;
 }
 
+QByteArray renderPdf(const Document& doc, const ExportOptions& o) {
+    const auto [r, s] = exportFrame(doc, o);
+    QBuffer buf;
+    buf.open(QIODevice::WriteOnly);
+    {
+        QPdfWriter pdf(&buf);
+        pdf.setResolution(72);
+        pdf.setPageSize(QPageSize(r.size() * s, QPageSize::Point));
+        pdf.setPageMargins({});
+        pdf.setCreator("Penzene");
+        // The editable drawing rides along as attachments: ours in full, and a MOL for anything else.
+        pdf.addFileAttachment("drawing.penz", doc.toJson(), "application/x-penzene");
+        if (!doc.atoms.empty())
+            if (const std::string mol = chem::toMolBlock(doc); !mol.empty())
+                pdf.addFileAttachment("structure.mol", QByteArray::fromStdString(mol), "chemical/x-mdl-molfile");
+        QPainter p(&pdf);
+        paintFrame(p, doc, o, 1);
+    }
+    return buf.data();
+}
+
 bool exportDocument(const Document& doc, const QString& path, const ExportOptions& o) {
     if (doc.empty()) return false;
     const QString ext = QFileInfo(path).suffix().toLower();
@@ -695,15 +716,8 @@ bool exportDocument(const Document& doc, const QString& path, const ExportOption
         return f.open(QIODevice::WriteOnly) && f.write(renderSvg(doc, o)) > 0;
     }
     if (ext == "pdf") {
-        const auto [r, s] = exportFrame(doc, o);
-        QPdfWriter pdf(path);
-        pdf.setResolution(72);
-        pdf.setPageSize(QPageSize(r.size() * s, QPageSize::Point));
-        pdf.setPageMargins({});
-        pdf.setCreator("Penzene");
-        QPainter p(&pdf);
-        paintFrame(p, doc, o, 1);
-        return true;
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly) && f.write(renderPdf(doc, o)) > 0;
     }
     return false;
 }

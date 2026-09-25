@@ -631,6 +631,7 @@ void MainWindow::copy() {
     auto* mime = new QMimeData;
     mime->setImageData(renderImage(doc, exportOptions()));
     mime->setData("image/svg+xml", renderSvg(doc, exportOptions()));
+    mime->setData("application/pdf", renderPdf(doc, exportOptions()));  // vector, for Office and Keynote
     mime->setData(kPenzMime, doc.toJson());
     // For pasting into ChemDraw (macOS maps this to its pasteboard type through ChemDrawPasteboard).
     if (const QByteArray cdx = doc.atoms.empty() ? QByteArray() : chem::toCdx(doc); !cdx.isEmpty())
@@ -645,12 +646,14 @@ void MainWindow::copy() {
 
 #ifdef Q_OS_MACOS
 // Qt only shows pasteboard types it has a converter for: ChemDraw's copies
-// carry binary CDX under this UTI.
+// carry binary CDX under this UTI, and PDF (Penzene's vector copy) has none built in.
 ChemDrawPasteboard::ChemDrawPasteboard() = default;
 QString ChemDrawPasteboard::mimeForUti(const QString& uti) const {
+    if (uti == "com.adobe.pdf") return "application/pdf";
     return uti == "com.perkinelmer.chemdraw.cdx-clipboard" ? "chemical/x-cdx" : QString();
 }
 QString ChemDrawPasteboard::utiForMime(const QString& mime) const {
+    if (mime == "application/pdf") return "com.adobe.pdf";
     return mime == "chemical/x-cdx" ? "com.perkinelmer.chemdraw.cdx-clipboard" : QString();
 }
 QVariant ChemDrawPasteboard::convertToMime(const QString&, const QList<QByteArray>& data, const QString&) const {
@@ -672,7 +675,7 @@ void MainWindow::paste() {
     if (auto doc = Document::fromJson(mime->data(kPenzMime)); doc && !doc->empty())
         return canvas_->insert(*doc, tr("Paste"));
     // A figure Penzene exported, copied from another app or as a file: the drawing inside it.
-    for (const char* type : {"image/svg+xml", "image/png"})
+    for (const char* type : {"image/svg+xml", "application/pdf", "image/png"})
         if (auto doc = Document::fromEmbedded(mime->data(type)); doc && !doc->empty())
             return canvas_->insert(*doc, tr("Paste"));
     for (const QUrl& url : mime->urls())
@@ -1174,7 +1177,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
         QString p = QFileDialog::getOpenFileName(this, tr("Open"), {},
-                                                 tr("Structures (*.penz *.mol *.sdf *.smi *.inchi *.rxn *.cdxml *.cdx);;Penzene figures (*.svg *.png);;All files (*)"));
+                                                 tr("Structures (*.penz *.mol *.sdf *.smi *.inchi *.rxn *.cdxml *.cdx);;Penzene figures (*.svg *.png *.pdf);;All files (*)"));
         if (!p.isEmpty()) openFile(p);
     });
     auto* recent = file->addMenu(tr("Open &Recent"));

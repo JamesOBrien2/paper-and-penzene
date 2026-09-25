@@ -1622,3 +1622,40 @@ TEST_CASE("Lab notebook theme groups the tools into modes (#214)") {
     if (previousTheme.isValid()) QSettings().setValue("theme", previousTheme);
     else QSettings().remove("theme");
 }
+
+TEST_CASE("PDF: copied and exported as vectors, with the drawing attached (#228)") {
+    App app;
+    Document doc = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");
+    doc.atoms[0].color = Qt::red;
+    doc.texts.push_back({{0, 60}, "aspirin"});
+    const QByteArray pdf = renderPdf(doc);
+    CHECK(pdf.startsWith("%PDF"));
+    CHECK(pdf.contains("/EmbeddedFiles"));
+    auto back = Document::fromEmbedded(pdf);
+    REQUIRE(back);
+    CHECK(*back == doc);
+    QTemporaryDir dir;
+    REQUIRE(exportDocument(doc, dir.filePath("aspirin.pdf")));
+    back = chem::readFile(dir.filePath("aspirin.pdf"));
+    REQUIRE(back);
+    CHECK(*back == doc);
+    CHECK_FALSE(Document::fromEmbedded(QByteArray("%PDF-1.4\n1 0 obj\n<<>>\nstream\nnot a drawing\nendstream\n")));
+
+    // Copy offers the PDF; a PDF alone pastes back as the drawing.
+    MainWindow w;
+    auto* canvas = w.findChild<Canvas*>();
+    canvas->setDocumentSilently(doc);
+    canvas->selectAll();
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->shortcut() == QKeySequence::Copy) a->trigger();
+    const QByteArray copied = QApplication::clipboard()->mimeData()->data("application/pdf");
+    CHECK(copied.startsWith("%PDF"));
+    auto* mime = new QMimeData;
+    mime->setData("application/pdf", copied);
+    QApplication::clipboard()->setMimeData(mime);
+    canvas->setDocumentSilently(Document{});
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->shortcut() == QKeySequence::Paste) a->trigger();
+    CHECK(canvas->document().atoms.size() == doc.atoms.size());
+    CHECK(canvas->document().texts.size() == 1);
+}

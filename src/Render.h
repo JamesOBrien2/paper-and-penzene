@@ -68,6 +68,7 @@ struct ExportOptions {
 bool exportDocument(const Document& doc, const QString& path, const ExportOptions& options = {});
 QImage renderImage(const Document& doc, const ExportOptions& options = {});
 QByteArray renderSvg(const Document& doc, const ExportOptions& options = {});
+QByteArray renderPdf(const Document& doc, const ExportOptions& options = {});  // vector, drawing attached
 QPainterPath arrowPath(const Arrow& a);
 QFont labelFont(const DrawingStyle& s, double scale = 1);
 constexpr int kTabSpaces = 8;  // text tab stops, in spaces: the canvas and the text dialog agree

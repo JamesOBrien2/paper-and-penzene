@@ -111,7 +111,7 @@ struct Document {
     // .penz: {"format":"penzene","version":1,"atoms":[...],"bonds":[...],"arrows":[...],"texts":[...]}
     QByteArray toJson() const;
     static std::optional<Document> fromJson(const QByteArray& data);
-    // The drawing Penzene embedded in an exported PNG (text chunk) or SVG (<metadata>).
+    // The drawing Penzene embedded in an exported PNG (text chunk), SVG (<metadata>) or PDF (attachment).
     static std::optional<Document> fromEmbedded(const QByteArray& file);
 
     int addAtom(QPointF pos, int z = 6);

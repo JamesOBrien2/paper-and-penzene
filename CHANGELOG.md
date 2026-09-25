@@ -12,6 +12,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - **Updates**: Help → Check for Updates, and an optional weekly check (off unless you turn it on). <!-- icon: refresh -->
 - **Sharp copies**: Copy puts a vector PDF on the clipboard for Word, PowerPoint and Keynote, and every PDF carries the drawing, so it opens or pastes back editable. <!-- icon: file-type-pdf -->
 - **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->
+- The logo is drawn in the same teal on warm paper as the app.
 - The What's New window highlights main additions with icons and lists smaller changes below.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 - The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.

@@ -3,6 +3,8 @@
 #include "Render.h"
 
 #include <QFile>
+#include <QImage>
+#include <QPainter>
 #include <QTemporaryDir>
 
 #include <catch2/catch_test_macros.hpp>
@@ -710,4 +712,38 @@ TEST_CASE("a CDXML file that starts with a byte order mark opens (#244)") {
     auto doc = chem::fromChemDraw("\xEF\xBB\xBF" + cdxml);
     REQUIRE(doc);
     CHECK(chem::toSmiles(*doc) == "CC(=O)Oc1ccccc1C(=O)O");
+}
+
+TEST_CASE("arrow heads: even on a tight curve, and a half head has no sliver (#221)") {
+    // Ink either side of the head's axis, which runs from where the shaft is 4.8 pt (the head's
+    // notch) back from the tip. `side` +1 or -1; samples the head, not the shaft behind it.
+    auto inkBeside = [](const Arrow& a, int side) {
+        Document d;
+        d.arrows.push_back(a);
+        const double k = 20;
+        QImage img(800, 800, QImage::Format_ARGB32);
+        img.fill(Qt::white);
+        QPainter p(&img);
+        p.translate(400, 400);
+        p.scale(k, k);
+        p.translate(-a.to);
+        paintDocument(p, d, {Qt::black, Qt::black, 0.6});
+        p.end();
+        const QPainterPath path = arrowPath(a);
+        const QPointF back = path.pointAtPercent(path.percentAtLength(path.length() - 4.8));
+        const QPointF dir = (a.to - back) / QLineF(back, a.to).length(), n(-dir.y(), dir.x());
+        int ink = 0;
+        for (double t = 0.3; t < 4.8; t += 0.1)
+            for (double s = 0.4; s < 2.4; s += 0.1) {
+                const QPointF q = (a.to - dir * t + n * (side * s) - a.to) * k + QPointF(400, 400);
+                ink += qGray(img.pixel(q.toPoint())) < 128;
+            }
+        return ink;
+    };
+    const Arrow curved{{0, 0}, {16, 0}, ArrowKind::Reaction, 10};  // the tool icon's
+    const int left = inkBeside(curved, 1), right = inkBeside(curved, -1);
+    CHECK(std::min(left, right) > 0.7 * std::max(left, right));
+    // A fishhook's single barb is on one side; the other side stays clear of the head.
+    const Arrow hook{{0, 0}, {40, 0}, ArrowKind::Fishhook, 12};
+    CHECK(std::min(inkBeside(hook, 1), inkBeside(hook, -1)) == 0);
 }

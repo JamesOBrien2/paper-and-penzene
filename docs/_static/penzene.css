@@ -1,0 +1,29 @@
+/* Penzene's lab notebook look on top of Furo: calm headings, rounded cards, teal accents. */
+h1, h2, h3 { letter-spacing: -0.01em; font-weight: 650; }
+article h2 { margin-top: 2.2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--color-background-border); }
+
+.highlight, div.admonition, table.docutils, .sidebar-search-container input, .hero img {
+    border-radius: 10px;
+}
+.highlight { border: 1px solid var(--color-background-border); }
+div.admonition { border: 1px solid var(--color-background-border); box-shadow: none; }
+table.docutils { border: 1px solid var(--color-background-border); border-collapse: separate;
+                 border-spacing: 0; overflow: hidden; box-shadow: none; }
+table.docutils { width: 100%; }
+table.docutils th { text-align: left; background: var(--color-background-secondary); }
+table.docutils td, table.docutils th { border-left: none; border-right: none; }
+code.literal { border-radius: 5px; }
+
+.sidebar-logo { max-width: 72px; }
+.sidebar-brand-text { font-weight: 650; }
+.sidebar-tree .caption-text { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; }
+
+/* Landing page */
+.hero { text-align: center; }
+.hero .tagline { font-size: 1.2rem; color: var(--color-foreground-secondary); max-width: 38rem; margin: 0 auto 1.5rem; }
+.hero img.shot { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); border: 1px solid var(--color-background-border); }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.9rem; margin: 1.5rem 0; }
+.features .card { background: var(--color-background-secondary); border: 1px solid var(--color-background-border);
+                  border-radius: 12px; padding: 0.9rem 1.1rem; }
+.features .card p { margin: 0.2rem 0; }
+.features .card p:first-child strong { color: var(--color-brand-primary); }

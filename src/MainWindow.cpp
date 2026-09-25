@@ -1269,10 +1269,12 @@ void MainWindow::buildTools() {
     const QString shape = tr(" (drag to draw; Shift for a square or circle; click one to restyle it)");
     auto* figureDefault = add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
     add(docIcon(arrowDoc(ArrowKind::Line, 0, true)), tr("Dashed line (drag to draw)"), arrow(ArrowKind::Line, false, true));
-    add(docIcon(arrowDoc(ArrowKind::Box)), tr("Box") + shape, arrow(ArrowKind::Box, false));
-    add(docIcon(arrowDoc(ArrowKind::RoundedBox, 0, true)), tr("Dashed rounded box") + shape, arrow(ArrowKind::RoundedBox, false, true));
+    // Solid on the left, dashed on the right.
     add(docIcon(arrowDoc(ArrowKind::RoundedBox)), tr("Rounded box") + shape, arrow(ArrowKind::RoundedBox, false));
+    add(docIcon(arrowDoc(ArrowKind::RoundedBox, 0, true)), tr("Dashed rounded box") + shape, arrow(ArrowKind::RoundedBox, false, true));
     add(docIcon(arrowDoc(ArrowKind::Ellipse)), tr("Ellipse") + shape, arrow(ArrowKind::Ellipse, false));
+    add(docIcon(arrowDoc(ArrowKind::Ellipse, 0, true)), tr("Dashed ellipse") + shape, arrow(ArrowKind::Ellipse, false, true));
+    add(docIcon(arrowDoc(ArrowKind::Box)), tr("Box") + shape, arrow(ArrowKind::Box, false));
     section();
     keys["t"] = add(docIcon(textDoc("T")), tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
     useMode(1);

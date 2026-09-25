@@ -21,10 +21,11 @@ cleanup:
   - /share/eigen3
   - '*.a'
 modules:
-  - name: boost-headers  # RDKit needs only Boost's headers with serialization and iostreams off
+  - name: boost  # headers plus CMake configs (RDKit's find_package(Boost CONFIG)); only the tiny system lib is built
     buildsystem: simple
     build-commands:
-      - mkdir -p /app/include && cp -r boost /app/include/
+      - ./bootstrap.sh --prefix=/app --with-libraries=system
+      - ./b2 install -j${FLATPAK_BUILDER_N_JOBS} --prefix=/app link=shared variant=release
     sources:
       - type: archive
         url: https://archives.boost.io/release/1.87.0/source/boost_1_87_0.tar.bz2
@@ -62,7 +63,6 @@ modules:
       - -DRDK_BUILD_PUBCHEMSHAPE_SUPPORT=OFF
       - -DRDK_USE_BOOST_SERIALIZATION=OFF
       - -DRDK_USE_BOOST_IOSTREAMS=OFF
-      - -DBoost_INCLUDE_DIR=/app/include
       - -DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS=/run/build/rdkit/better-enums
       - -DFETCHCONTENT_FULLY_DISCONNECTED=ON
     sources:

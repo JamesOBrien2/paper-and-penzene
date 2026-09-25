@@ -64,7 +64,7 @@ jobs:
         run: |
           pixi run python -m pip install -q delvewheel
           # No mangling: the offscreen plugin must find the same Qt DLLs by name.
-          pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$(pwd -W)/rdkit-prefix/bin;$(pwd -W)/.pixi/envs/default/Library/bin" dist/*.whl
+          pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$(pwd -W)/rdkit-prefix/lib;$(pwd -W)/.pixi/envs/default/Library/bin" dist/*.whl
       - run: ls -la wheelhouse
         shell: bash
       - name: No RDKit ChemDraw library (#233)

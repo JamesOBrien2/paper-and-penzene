@@ -75,7 +75,7 @@ jobs:
           pixi run windeployqt6 --qtpaths "$qtpaths" --release --no-translations --no-system-d3d-compiler dist/penzene/penzene.exe
           if (!(Test-Path dist/penzene/platforms/qwindows.dll)) { throw "windeployqt did not bundle the platform plugin" }
           if (!(Test-Path dist/penzene/tls)) { throw "windeployqt did not bundle a TLS backend" }
-          pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/rdkit-prefix/bin;$PWD/.pixi/envs/default/Library/bin"
+          pixi run pwsh -NoProfile -File cmake/deploy-deps.ps1 -Dest "$PWD/dist/penzene" -Search "$PWD/rdkit-prefix/lib;$PWD/.pixi/envs/default/Library/bin"
           if (Get-ChildItem dist/penzene -Recurse -Filter "*chemdraw*") { throw "RDKit's ChemDraw library is in the package (#233)" }
           Rename-Item .pixi .pixi-hidden
           dist/penzene/penzene.exe --version

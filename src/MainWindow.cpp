@@ -427,11 +427,11 @@ void MainWindow::fillTemplates() {
         }
     }
     for (const auto& t : builtinTemplates()) {
-        auto doc = chem::fromSmiles(t.smiles.toStdString());
-        if (!doc) continue;
+        const Document doc = templateDocument(t);
+        if (doc.empty()) continue;
         auto* item = new QTreeWidgetItem(group(t.category), {t.name});
-        item->setIcon(0, templateIcon(*doc));
-        item->setData(0, Qt::UserRole, doc->toJson());
+        item->setIcon(0, templateIcon(doc));
+        item->setData(0, Qt::UserRole, doc.toJson());
     }
     if (!mine.empty()) groups[tr("My templates")]->setExpanded(true);
 }

@@ -5,8 +5,18 @@
 An open-source, native desktop chemical structure editor — a free alternative to ChemDraw.
 Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www.rdkit.org).
 
-> Status: early development. See the [roadmap](https://github.com/users/JamesOBrien2/projects) and
-> [issues](https://github.com/JamesOBrien2/penzene/issues).
+> Status: beta. **Documentation: [penzene.readthedocs.io](https://penzene.readthedocs.io)**.
+> See the [roadmap](https://github.com/users/JamesOBrien2/projects/1) and [issues](https://github.com/JamesOBrien2/penzene/issues).
+
+## Install
+
+Download the installer for your system from the [latest release](https://github.com/JamesOBrien2/penzene/releases/latest)
+(macOS `.dmg`, Windows `setup.exe` or `.zip`, Linux `.AppImage`), or `pip install penzene` for the Python package.
+
+The installers aren't signed with a paid certificate, so the first time you open Penzene:
+- **macOS:** if it "can't be opened", go to System Settings → Privacy & Security and click **Open Anyway**.
+- **Windows:** if SmartScreen appears, click **More info → Run anyway**.
+- **Linux:** `chmod +x penzene-linux-x86_64.AppImage`, then run it.
 
 <p align="center"><img src="docs/screenshot.png" width="720" alt="Penzene main window showing aspirin"></p>
 
@@ -41,10 +51,8 @@ Inputs can be SMILES strings or `.smi`, `.sdf`, `.mol`, `.penz` and `.cdxml` fil
 
 The same engine as the app, from Python 3.12+ on macOS, Linux (glibc 2.17+) and Windows:
 
-Until it is on PyPI, download the `.whl` for your platform from the [latest release](https://github.com/JamesOBrien2/penzene/releases/latest) and install it:
-
 ```sh
-pip install penzene-*.whl
+pip install penzene
 ```
 
 ```python

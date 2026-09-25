@@ -60,25 +60,25 @@ NB_MODULE(_penzene, m) {
     m.doc() = "Penzene: ChemDraw-style 2D structures, drawn by the same engine as the app.";
     m.attr("__version__") = PENZENE_VERSION;
 
-    nb::class_<Atom>(m, "Atom")
+    nb::class_<Atom>(m, "Atom", "An atom of a Document (read-only; edit through Document).")
         .def_prop_ro("symbol", &symbol, "Element symbol, or the abbreviation (Boc, OMe…) if it has one")
-        .def_prop_ro("x", [](const Atom& a) { return a.pos.x(); })
+        .def_prop_ro("x", [](const Atom& a) { return a.pos.x(); }, "Points, x right")
         .def_prop_ro("y", [](const Atom& a) { return a.pos.y(); }, "Points, y down")
-        .def_ro("charge", &Atom::charge)
+        .def_ro("charge", &Atom::charge, "Formal charge")
         .def("__repr__", [](const Atom& a) { return "<Atom " + symbol(a) + ">"; });
 
-    nb::class_<Bond>(m, "Bond")
-        .def_ro("a", &Bond::a)
-        .def_ro("b", &Bond::b)
-        .def_ro("order", &Bond::order)
+    nb::class_<Bond>(m, "Bond", "A bond of a Document (read-only).")
+        .def_ro("a", &Bond::a, "Index of the first atom (a wedge starts here)")
+        .def_ro("b", &Bond::b, "Index of the second atom")
+        .def_ro("order", &Bond::order, "1, 2 or 3")
         .def("__repr__", [](const Bond& b) {
             return "<Bond " + std::to_string(b.a) + "-" + std::to_string(b.b) + " order " + std::to_string(b.order) + ">";
         });
 
-    nb::class_<Document>(m, "Document")
-        .def(nb::init<>())
-        .def_ro("atoms", &Document::atoms)
-        .def_ro("bonds", &Document::bonds)
+    nb::class_<Document>(m, "Document", "A drawing: molecules, arrows and text, as the app holds it.")
+        .def(nb::init<>(), "An empty drawing.")
+        .def_ro("atoms", &Document::atoms, "The atoms, in order (their index is what add_bond and hotkeys take)")
+        .def_ro("bonds", &Document::bonds, "The bonds")
         .def_prop_rw(
             "style", [](const Document& d) { return drawingStyle(d.style).name.toStdString(); },
             [](Document& d, const std::string& name) {
@@ -107,7 +107,7 @@ NB_MODULE(_penzene, m) {
                 if (order < 1 || order > 3) throw nb::value_error("order must be 1, 2 or 3");
                 edit::link(d, a, b, order);
             },
-            "a"_a, "b"_a, "order"_a = 1)
+            "a"_a, "b"_a, "order"_a = 1, "Bond atoms a and b (order 1, 2 or 3).")
         .def(
             "hotkeys",
             [](Document& d, int atom, const std::string& keys, std::optional<int> bond) {
@@ -126,12 +126,12 @@ NB_MODULE(_penzene, m) {
         .def(
             "clean", [](Document& d, std::vector<int> atoms) { d = chem::clean2D(d, atoms); }, "atoms"_a = std::vector<int>{},
             "Lay out afresh with RDKit; with atoms, only the molecules containing them.")
-        .def("to_smiles", [](const Document& d) { return chem::toSmiles(d); })
-        .def("to_molblock", [](const Document& d) { return chem::toMolBlock(d); })
-        .def("to_inchi", [](const Document& d) { return chem::toInchi(d); })
-        .def("to_inchikey", [](const Document& d) { return chem::toInchiKey(d); })
-        .def("to_json", [](const Document& d) { return d.toJson().toStdString(); })
-        .def("to_svg", [](const Document& d) { return renderSvg(d).toStdString(); })
+        .def("to_smiles", [](const Document& d) { return chem::toSmiles(d); }, "Canonical SMILES (\"\" if the drawing isn't valid chemistry).")
+        .def("to_molblock", [](const Document& d) { return chem::toMolBlock(d); }, "MDL MOL (V2000), with the drawing's wedges.")
+        .def("to_inchi", [](const Document& d) { return chem::toInchi(d); }, "Standard InChI.")
+        .def("to_inchikey", [](const Document& d) { return chem::toInchiKey(d); }, "Standard InChIKey.")
+        .def("to_json", [](const Document& d) { return d.toJson().toStdString(); }, "The .penz document (JSON).")
+        .def("to_svg", [](const Document& d) { return renderSvg(d).toStdString(); }, "SVG, as the app exports it (the drawing embedded, so it reopens editable).")
         .def(
             "to_png",
             [](const Document& d, double dpi) {
@@ -141,10 +141,12 @@ NB_MODULE(_penzene, m) {
                 renderImage(d, {dpi}).save(&buf, "PNG");
                 return nb::bytes(png.constData(), png.size());
             },
-            "dpi"_a = 300)
-        .def_prop_ro("formula", [](const Document& d) { auto p = chem::properties(d); return p ? p->formula : ""; })
-        .def_prop_ro("mw", [](const Document& d) { auto p = chem::properties(d); return p ? p->mw : 0.0; })
-        .def_prop_ro("exact_mass", [](const Document& d) { auto p = chem::properties(d); return p ? p->exactMass : 0.0; })
+            "dpi"_a = 300, "PNG bytes at this resolution.")
+        .def_prop_ro("formula", [](const Document& d) { auto p = chem::properties(d); return p ? p->formula : ""; },
+                     "Molecular formula, Hill order, all molecules together")
+        .def_prop_ro("mw", [](const Document& d) { auto p = chem::properties(d); return p ? p->mw : 0.0; }, "Molecular weight")
+        .def_prop_ro("exact_mass", [](const Document& d) { auto p = chem::properties(d); return p ? p->exactMass : 0.0; },
+                     "Monoisotopic mass")
         .def("save", &save, "path"_a, "Write .penz (full fidelity) or MOL for any other extension.")
         .def(
             "export",
@@ -163,11 +165,13 @@ NB_MODULE(_penzene, m) {
         auto d = Document::fromJson(QByteArray::fromStdString(json));
         if (!d) throw nb::value_error("not a .penz document");
         return *d;
-    });
-    m.def("read", &readPath, "path"_a, "Open .penz, .mol/.sdf (first record) or ChemDraw .cdxml.");
+    }, "json"_a, "A Document from .penz JSON (as to_json writes).");
+    m.def("read", &readPath, "path"_a,
+          "Open a file: .penz, MOL, ChemDraw .cdxml/.cdx, .rxn, a Penzene SVG/PNG, or every record of an "
+          "SDF, .smi or .inchi file laid out as a grid.");
     m.def("drawing_styles", [] {
         std::vector<std::string> out;
         for (const auto& s : drawingStyles()) out.push_back(s.name.toStdString());
         return out;
-    });
+    }, "The drawing style names Document.style takes.");
 }

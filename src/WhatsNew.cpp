@@ -137,6 +137,7 @@ void showWhatsNewDialog(QWidget* parent, const QString& changelog, const QString
     footer->addWidget(ok);
     layout->addSpacing(4);
     layout->addLayout(footer);
-    dialog.setFixedWidth(620);
+    // A top-level window sizes itself without heightForWidth, which clips wrapped card text.
+    dialog.setFixedSize(620, dialog.heightForWidth(620));
     dialog.exec();
 }

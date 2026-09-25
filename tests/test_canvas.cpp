@@ -1517,22 +1517,30 @@ TEST_CASE("What's New separates highlighted additions from smaller changes (#215
 TEST_CASE("What's New shows one card per highlighted addition (#215)") {
     App app;
     const QString changelog = "## 0.9.0 (2026-10-01)\n\n"
-                              "- **Drawing tools**: New shapes. <!-- icon: shapes -->\n"
+                              "- **Drawing tools**: Lines, boxes, rounded boxes, ellipses, arcs, brackets and more, all snapping to the grid. <!-- icon: shapes -->\n"
                               "- **Templates**: Ready-made structures.\n"
                               "- **Colours**: A new palette. <!-- icon: palette -->\n"
-                              "- Faster opening.\n";
+                              "- **Rotate in 3D**: Shift+Alt+drag turns a structure out of the page and keeps its stereo.\n"
+                              "- **Projections**: Haworth, Fischer and Newman drawings with the right stereo.\n"
+                              "- Faster opening.\n"
+                              "- Lone pairs, radicals, and brackets with a subscript.\n"
+                              "- Stretch and squash with handles; Structure → Transform.\n"
+                              "- R-groups and generic atoms; attachment points and η-bonded rings.\n"
+                              "- Arrow keys nudge a selection.\n";
     bool inspected = false;
     QTimer::singleShot(0, [&] {
         for (auto* top : QApplication::topLevelWidgets()) {
             auto* dialog = qobject_cast<QDialog*>(top);
             if (!dialog || dialog->objectName() != "whatsNew") continue;
             inspected = true;
-            CHECK(dialog->findChildren<QFrame*>("highlight").size() == 3);
+            CHECK(dialog->findChildren<QFrame*>("highlight").size() == 5);
+            for (auto* detail : dialog->findChildren<QLabel*>("detail"))  // wrapped text isn't clipped
+                CHECK(detail->height() >= detail->heightForWidth(detail->width()));
             auto* others = dialog->findChild<QLabel*>("others");
             CHECK(others);
             if (others) {
                 CHECK(others->textFormat() == Qt::PlainText);
-                CHECK(others->text() == "• Faster opening.");
+                CHECK(others->text().startsWith("• Faster opening.\n• Lone pairs"));
             }
             dialog->accept();
         }

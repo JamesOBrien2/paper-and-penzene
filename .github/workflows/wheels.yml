@@ -30,17 +30,17 @@ jobs:
       - uses: actions/checkout@v5
       - uses: prefix-dev/setup-pixi@v0.10.0
         with: {cache: true}
-      # RDKit without its ChemDraw library on macOS and Linux (#233; Windows' has none); see rdkit.yml.
+      # RDKit without its ChemDraw library (#233); see rdkit.yml.
       - uses: actions/cache@v4
         id: rdkit
-        if: runner.os != 'Windows'
         with:
           path: rdkit-prefix
           key: rdkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/build-rdkit.sh', 'pixi.lock') }}
-      - if: runner.os != 'Windows' && steps.rdkit.outputs.cache-hit != 'true'
+      - if: steps.rdkit.outputs.cache-hit != 'true'
+        shell: bash
         run: pixi run bash cmake/build-rdkit.sh rdkit-prefix
-      - if: runner.os != 'Windows'
-        run: echo "RDKit_ROOT=$PWD/rdkit-prefix" >> "$GITHUB_ENV"
+      - shell: bash
+        run: echo "RDKit_ROOT=$(pwd -W 2>/dev/null || pwd)/rdkit-prefix" >> "$GITHUB_ENV"  # Git bash: D:/a/...
       - run: pixi run wheel
       - name: Repair (Linux)
         if: runner.os == 'Linux'
@@ -64,7 +64,7 @@ jobs:
         run: |
           pixi run python -m pip install -q delvewheel
           # No mangling: the offscreen plugin must find the same Qt DLLs by name.
-          pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$PWD/.pixi/envs/default/Library/bin" dist/*.whl
+          pixi run delvewheel repair --no-mangle-all -w wheelhouse --add-path "$(pwd -W)/rdkit-prefix/bin;$(pwd -W)/.pixi/envs/default/Library/bin" dist/*.whl
       - run: ls -la wheelhouse
         shell: bash
       - name: No RDKit ChemDraw library (#233)

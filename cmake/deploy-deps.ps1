@@ -1,6 +1,6 @@
 # Copies every DLL that penzene.exe and its Qt plugins load from the build env
 # into the package. windeployqt handles Qt itself; this picks up RDKit, Boost, ICU...
-# Only follows DLLs that exist in -Search, so system DLLs are never crawled.
+# Only follows DLLs that exist in -Search (';'-separated, first directory wins), so system DLLs are never crawled.
 param([string]$Dest, [string]$Search)
 $queue = [System.Collections.Generic.Queue[string]]::new()
 Get-ChildItem $Dest -Recurse -Include *.exe, *.dll | ForEach-Object { $queue.Enqueue($_.FullName) }
@@ -11,8 +11,8 @@ while ($queue.Count) {
         $name = $line.Trim()
         if ($name -notmatch '\.dll$' -or $seen[$name]) { continue }
         $seen[$name] = $true
-        $src = Join-Path $Search $name
-        if ((Test-Path $src) -and -not (Test-Path (Join-Path $Dest $name))) {
+        $src = $Search.Split(';') | ForEach-Object { Join-Path $_ $name } | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($src -and -not (Test-Path (Join-Path $Dest $name))) {
             Copy-Item $src $Dest
             $queue.Enqueue((Join-Path $Dest $name))
         }

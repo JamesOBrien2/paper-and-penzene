@@ -7,7 +7,20 @@
 #   export RDKit_ROOT=$PWD/rdkit-prefix      # then configure Penzene as usual
 set -euo pipefail
 export MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-11.0}  # as the wheels; ignored elsewhere
-prefix=$(mkdir -p "$1" && cd "$1" && pwd)
+prefix=$(mkdir -p "$1" && cd "$1" && { pwd -W 2>/dev/null || pwd; })  # Git bash: D:/a/..., which CMake reads
+
+# RDKit 2026.03 needs a newer clang than the macos-14 runner's default Xcode 15.4.
+if [ "$(uname)" = Darwin ] && [ -z "${DEVELOPER_DIR:-}" ]; then
+    for x in /Applications/Xcode_16.4.app /Applications/Xcode_16.2.app /Applications/Xcode_16.1.app; do
+        if [ -d "$x" ]; then export DEVELOPER_DIR=$x/Contents/Developer; echo "RDKit built with $x"; break; fi
+    done
+fi
+extra=()
+case "$(uname)" in
+    MINGW*|MSYS*) extra=(-DRDK_INSTALL_DLLS_MSVC=ON -DRDK_INSTALL_STATIC_LIBS=OFF)  # as conda-forge's bld.bat
+                  env_prefix="${CONDA_PREFIX:?run inside pixi}/Library" ;;
+    *)            env_prefix="${CONDA_PREFIX:?run inside pixi}" ;;
+esac
 work=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/rdkit-build
 rm -rf "$work" && mkdir -p "$work" && cd "$work"
 
@@ -34,14 +47,14 @@ tar xzf rdl.tar.gz --strip-components=1 -C rdkit/External/RingFamilies/RingDecom
 
 # Boost and Eigen from the pixi environment, so the libraries match the rest of the build.
 cmake -G Ninja -S rdkit -B build -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_PREFIX_PATH="${CONDA_PREFIX:?run inside pixi}" \
+    -DCMAKE_INSTALL_PREFIX="$prefix" -DCMAKE_PREFIX_PATH="$env_prefix" \
     -DRDK_INSTALL_INTREE=OFF -DRDK_BUILD_PYTHON_WRAPPERS=OFF -DRDK_BUILD_CPP_TESTS=OFF \
     -DRDK_BUILD_CONTRIB=OFF -DRDK_BUILD_INCHI_SUPPORT=ON -DRDK_BUILD_CHEMDRAW_SUPPORT=OFF \
     -DRDK_BUILD_COORDGEN_SUPPORT=OFF -DRDK_BUILD_MAEPARSER_SUPPORT=OFF -DRDK_BUILD_FREETYPE_SUPPORT=OFF \
     -DRDK_BUILD_CAIRO_SUPPORT=OFF -DRDK_BUILD_YAEHMOP_SUPPORT=OFF -DRDK_BUILD_FREESASA_SUPPORT=OFF \
     -DRDK_BUILD_AVALON_SUPPORT=OFF -DRDK_BUILD_PUBCHEMSHAPE_SUPPORT=OFF \
     -DRDK_USE_BOOST_SERIALIZATION=OFF -DRDK_USE_BOOST_IOSTREAMS=OFF \
-    -DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS="$work/better-enums" -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+    -DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS="$work/better-enums" -DFETCHCONTENT_FULLY_DISCONNECTED=ON "${extra[@]}"
 cmake --build build
 cmake --install build
 echo "RDKit (no ChemDraw library) in $prefix"

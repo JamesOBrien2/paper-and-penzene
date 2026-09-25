@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        runner: [macos-14, macos-15-intel, ubuntu-22.04]
+        runner: [macos-14, macos-15-intel, ubuntu-22.04, windows-2022]  # one Linux build (conda gcc) serves 22.04 and 24.04
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 150
     steps:
@@ -27,4 +27,5 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         with: {cache: true}
       - if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
         run: pixi run bash cmake/build-rdkit.sh rdkit-prefix

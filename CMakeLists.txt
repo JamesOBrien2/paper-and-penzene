@@ -20,6 +20,7 @@ option(PENZENE_TESTS "Build the tests (needs Catch2)" ${app_default})
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Svg)
 find_package(RDKit REQUIRED CONFIG)
+message(STATUS "RDKit: ${RDKit_DIR}")
 
 # The engine: document, chemistry, editing and rendering. QtGui only, no
 # widgets, so it can back a command line or Python module as well as the app.

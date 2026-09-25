@@ -1685,3 +1685,12 @@ TEST_CASE("welcome card: examples on an empty page, gone once drawing starts (#1
     CHECK_FALSE(welcome->isVisible());
     CHECK_FALSE(canvas->document().empty());
 }
+
+TEST_CASE("the logo is drawn in the lab notebook palette (#234)") {
+    App app;
+    QFile f(":/logo.svg");
+    REQUIRE(f.open(QIODevice::ReadOnly));
+    const QString svg = QString::fromUtf8(f.readAll()).toLower();
+    CHECK(svg.contains(theme("Light").accent.name()));  // teal ink
+    CHECK(svg.contains(theme("Light").paper.name()));   // on warm paper
+}

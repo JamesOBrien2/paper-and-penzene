@@ -190,6 +190,11 @@ if(PENZENE_PYTHON)
             # The docs' generated pages (keys, Python API) match the code.
             add_test(NAME docs COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/docs/generate.py --check)
             set_tests_properties(docs PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python;QT_QPA_PLATFORM=offscreen")
+            # Release notes come from CHANGELOG.md; a version without notes can't be released.
+            add_test(NAME release-notes COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/release-notes.py v0.8.0)
+            set_tests_properties(release-notes PROPERTIES PASS_REGULAR_EXPRESSION "Template library" FAIL_REGULAR_EXPRESSION "<!--")
+            add_test(NAME release-notes-missing COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/cmake/release-notes.py v0.0.9)
+            set_tests_properties(release-notes-missing PROPERTIES WILL_FAIL ON)
         endif()
     endif()
 endif()

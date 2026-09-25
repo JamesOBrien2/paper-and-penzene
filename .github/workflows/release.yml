@@ -154,11 +154,14 @@ jobs:
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5   # the release notes come from CHANGELOG.md
+        with: {path: notes, sparse-checkout: "CHANGELOG.md\ncmake/release-notes.py", sparse-checkout-cone-mode: false}
       - uses: actions/download-artifact@v4
         with: {merge-multiple: true}
       - run: |
           # Both workflows get here on a tag; whichever is second finds the release made.
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes 2>/dev/null ||
+          python3 notes/cmake/release-notes.py "$GITHUB_REF_NAME" notes/CHANGELOG.md > notes.md  # fails without notes
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md 2>/dev/null ||
             gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null
           gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber *.dmg *.zip *.exe *.AppImage
         env: {GH_TOKEN: '${{ github.token }}'}

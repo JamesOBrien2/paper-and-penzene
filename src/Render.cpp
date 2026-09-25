@@ -716,9 +716,10 @@ const std::vector<Theme>& themes() {
     };
     static const std::vector<Theme> t{
         {"System"},
-        {"Light"},
-        {"Dark", true, QColor(0x1e, 0x1e, 0x1e), QColor(0xe6, 0xe6, 0xe6), QColor(255, 105, 97),
-         QColor(90, 160, 255), QColor(80, 200, 120)},
+        {"Light", false, QColor("#FBF8F1"), QColor("#2C2C2A"), QColor(220, 40, 40),
+         QColor("#0F6E56"), QColor("#0F6E56"), QColor("#FBF8F1"), QColor("#FFFFFF"), QColor("#2C2C2A")},
+        {"Dark", true, QColor("#22211F"), QColor("#F1EFE8"), QColor(255, 105, 97),
+         QColor("#5DCAA5"), QColor("#5DCAA5"), QColor("#22211F"), QColor("#2C2C2A"), QColor("#F1EFE8")},
         // https://catppuccin.com/palette: base, mantle, surface0, text, red, blue, green
         cat("Catppuccin Latte", false, "#eff1f5", "#e6e9ef", "#ccd0da", "#4c4f69", "#d20f39", "#1e66f5", "#40a02b"),
         cat("Catppuccin Frappé", true, "#303446", "#292c3c", "#414559", "#c6d0f5", "#e78284", "#8caaee", "#a6d189"),
@@ -733,4 +734,3 @@ const Theme& theme(const QString& name) {
         if (t.name == name) return t;
     return themes()[0];
 }
-

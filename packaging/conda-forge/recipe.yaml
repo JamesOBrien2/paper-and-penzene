@@ -32,6 +32,7 @@ requirements:
     - nanobind >=2.4
     - librdkit-dev
     - libboost-devel
+    - expat  # the vendored ChemDraw file library parses CDXML with it
     - qt6-main >=6.8
   run:
     - python

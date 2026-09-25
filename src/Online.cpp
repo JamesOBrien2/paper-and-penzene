@@ -33,6 +33,22 @@ QString releaseNotes(const QString& changelog, const QString& version) {
     return changelog.mid(m.capturedEnd(), next < 0 ? -1 : next - m.capturedEnd()).trimmed();
 }
 
+ReleaseNotes parseReleaseNotes(const QString& section) {
+    static const QRegularExpression highlight(R"(^\*\*(.+?)\*\*:?\s*(.*?)\s*(?:<!--\s*icon:\s*([\w-]+)\s*-->)?\s*$)");
+    static const QRegularExpression comment(R"(\s*<!--.*?-->)");
+    ReleaseNotes notes;
+    for (QString line : section.split('\n')) {
+        line = line.trimmed();
+        if (!line.startsWith("- ")) continue;
+        line = line.mid(2);
+        if (const auto m = highlight.match(line); m.hasMatch())
+            notes.highlights.push_back({m.captured(3).isEmpty() ? "sparkles" : m.captured(3), m.captured(1), m.captured(2)});
+        else
+            notes.others << QString(line).remove(comment).remove("**");
+    }
+    return notes;
+}
+
 }  // namespace online
 
 namespace pubchem {

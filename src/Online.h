@@ -2,7 +2,9 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
+#include <vector>
 
 // The app's only network use, always on the user's say-so: PubChem lookups, and
 // the check for a newer release (by hand, or weekly if they turn it on).
@@ -16,6 +18,16 @@ Release parseRelease(const QByteArray& json);
 bool isNewer(const QString& tag, const QString& current);  // "v0.9.0" vs "0.8.0"
 // One release's section of CHANGELOG.md (its "## 0.9.0 (date)" heading to the next); empty if none.
 QString releaseNotes(const QString& changelog, const QString& version);
+// A section split for What's New: "- **Title**: detail <!-- icon: name -->" bullets are
+// highlights; other bullets are the smaller changes, as plain text.
+struct Highlight {
+    QString icon, title, detail;
+};
+struct ReleaseNotes {
+    std::vector<Highlight> highlights;
+    QStringList others;
+};
+ReleaseNotes parseReleaseNotes(const QString& section);
 }  // namespace online
 
 // Optional online lookups against PubChem, only when the user asks for one.

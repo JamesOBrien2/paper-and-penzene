@@ -70,9 +70,13 @@ target_link_libraries(penzene_core PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,penzene
 if(PENZENE_APP)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)
 # The app's widgets; tests link this too, so they exercise the same code.
-add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/Online.cpp src/Templates.cpp)
+add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/Online.cpp src/Templates.cpp src/WhatsNew.cpp)
 target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network Qt6::PrintSupport)
 qt_add_resources(penzene_ui "changelog" PREFIX "/" FILES CHANGELOG.md)  # What's New
+# The logo (window icon, What's New) and What's New's icons, with the widgets so tests see them too.
+file(GLOB whatsnew_icons RELATIVE ${CMAKE_SOURCE_DIR}/resources ${CMAKE_SOURCE_DIR}/resources/whatsnew/*.svg)
+list(TRANSFORM whatsnew_icons PREPEND resources/)
+qt_add_resources(penzene_ui "art" PREFIX "/" BASE resources FILES resources/logo.svg ${whatsnew_icons})
 # The build shown in the title bar: git describe tells builds between releases
 # apart (0.5.0-12-gabc1234; 0.6.0-dev-gabc1234 once bumped, before the tag);
 # a tagged or git-less build is just the version.
@@ -100,7 +104,6 @@ target_compile_definitions(penzene_ui PUBLIC PENZENE_BUILD="${PENZENE_BUILD}")
 set(PENZENE_ICNS resources/penzene.icns)
 set_source_files_properties(${PENZENE_ICNS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 add_executable(penzene WIN32 MACOSX_BUNDLE src/main.cpp ${PENZENE_ICNS} resources/penzene.rc)
-qt_add_resources(penzene "icons" PREFIX "/" BASE resources FILES resources/logo.svg)
 target_link_libraries(penzene PRIVATE penzene_ui)
 set_target_properties(penzene PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER io.github.jamesobrien2.penzene

@@ -3,6 +3,7 @@
 #include "Chem.h"
 #include "Online.h"
 #include "Templates.h"
+#include "WhatsNew.h"
 
 #include <QActionGroup>
 #include <QTextBrowser>
@@ -497,22 +498,7 @@ void MainWindow::checkForUpdates(bool quietly) {
 
 void MainWindow::showWhatsNew() {
     QFile f(":/CHANGELOG.md");
-    const QString notes = f.open(QIODevice::ReadOnly) ? online::releaseNotes(QString::fromUtf8(f.readAll()), PENZENE_VERSION) : QString();
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("What's New in Penzene %1").arg(PENZENE_VERSION));
-    auto* layout = new QVBoxLayout(&dialog);
-    auto* text = new QTextBrowser;
-    text->setOpenExternalLinks(true);
-    text->setMarkdown(notes.isEmpty() ? tr("No notes for this version.") : notes);
-    layout->addWidget(text);
-    auto* all = new QLabel(tr("<a href='https://github.com/JamesOBrien2/penzene/blob/main/CHANGELOG.md'>All releases</a>"));
-    all->setOpenExternalLinks(true);
-    layout->addWidget(all);
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-    dialog.resize(520, 420);
-    dialog.exec();
+    showWhatsNewDialog(this, f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()) : QString(), PENZENE_VERSION);
 }
 
 void MainWindow::maybeShowWhatsNew() {

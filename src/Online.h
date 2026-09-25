@@ -14,6 +14,8 @@ struct Release {
 QUrl latestReleaseUrl();
 Release parseRelease(const QByteArray& json);
 bool isNewer(const QString& tag, const QString& current);  // "v0.9.0" vs "0.8.0"
+// One release's section of CHANGELOG.md (its "## 0.9.0 (date)" heading to the next); empty if none.
+QString releaseNotes(const QString& changelog, const QString& version);
 }  // namespace online
 
 // Optional online lookups against PubChem, only when the user asks for one.

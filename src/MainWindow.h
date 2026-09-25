@@ -36,6 +36,9 @@ public:
     // check, off unless turned on in Preferences) it only speaks up if there is one.
     void checkForUpdates(bool quietly);
     void maybeCheckForUpdates();  // at startup: weekly, if turned on
+    // The first start of a newer version shows its CHANGELOG.md section (not on a fresh install).
+    void maybeShowWhatsNew();
+    void showWhatsNew();
     void autosave();  // writes unsaved changes to autosavePath() (every minute)
     static QString autosavePath();
     QStringList recentFiles() const;

@@ -24,6 +24,15 @@ bool isNewer(const QString& tag, const QString& current) {
     return !latest.isNull() && latest > QVersionNumber::fromString(current);
 }
 
+QString releaseNotes(const QString& changelog, const QString& version) {
+    const QRegularExpression heading("^## " + QRegularExpression::escape(version) + "(?=[ \\t]|$)[^\n]*\n",
+                                     QRegularExpression::MultilineOption);
+    const auto m = heading.match(changelog);
+    if (!m.hasMatch()) return {};
+    const qsizetype next = changelog.indexOf("\n## ", m.capturedEnd());
+    return changelog.mid(m.capturedEnd(), next < 0 ? -1 : next - m.capturedEnd()).trimmed();
+}
+
 }  // namespace online
 
 namespace pubchem {

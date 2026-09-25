@@ -9,7 +9,9 @@
 // (saved selections, one .penz each in the app's data folder).
 struct Template {
     QString category, name, smiles;
+    Document (*draw)() = nullptr;  // a drawing (projections) instead of laying out `smiles`
 };
+Document templateDocument(const Template& t);  // empty if it doesn't parse
 const std::vector<Template>& builtinTemplates();
 std::vector<std::pair<QString, Document>> userTemplates();  // by name
 bool saveUserTemplate(const QString& name, const Document& doc);  // replaces one of the same name

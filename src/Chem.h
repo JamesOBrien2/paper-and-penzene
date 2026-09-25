@@ -96,6 +96,8 @@ QStringList abbreviations();
 // the rest out away from its bonds. New atoms are appended, so indices stay valid.
 bool attach(Document& doc, int atom, const std::string& smilesOrAbbreviation);
 Document expanded(const Document& doc);  // abbreviations drawn out in full
+// Fischer crossings and Haworth rings redrawn with the wedges they mean (chemistry uses this).
+Document projectionsAsWedges(const Document& doc);
 
 std::string symbol(int z);
 int atomicNumber(const std::string& symbol);  // 0 if unknown

@@ -1292,3 +1292,28 @@ TEST_CASE("template library: built-ins insert, selections save as templates (#32
         w.grab().save(out);
     }
 }
+
+TEST_CASE("Haworth and Fischer projections read with PubChem's stereo (#108)") {
+    App app;
+    int checked = 0;
+    for (const auto& t : builtinTemplates()) {
+        if (t.category != "Projections" || t.smiles.isEmpty()) continue;
+        INFO(t.name.toStdString());
+        const Document doc = templateDocument(t);
+        REQUIRE_FALSE(doc.empty());
+        // Through SMILES and back, which drops the Fischer drawings' explicit H.
+        CHECK(chem::toSmiles(*chem::fromSmiles(chem::toSmiles(doc))) == chem::toSmiles(*chem::fromSmiles(t.smiles.toStdString())));
+        ++checked;
+    }
+    CHECK(checked == 5);
+    // A Fischer centre needs its four bonds exactly on the axes; tilt one and it's unspecified again.
+    Document glyceraldehyde = templateDocument(*std::find_if(builtinTemplates().begin(), builtinTemplates().end(),
+                                                             [](const Template& t) { return t.name.contains("glyceraldehyde"); }));
+    for (auto& a : glyceraldehyde.atoms)
+        if (a.z == 8 && a.pos.x() > 1) a.pos += QPointF(0, 5);
+    CHECK(chem::toSmiles(glyceraldehyde).find('@') == std::string::npos);
+    // An ordinary ring drawn with a bold bond isn't a Haworth ring.
+    Document cyclohexanol = *chem::fromSmiles("OC1CCCCC1");
+    cyclohexanol.bonds[2].stereo = BondStereo::Bold;
+    CHECK(chem::toSmiles(cyclohexanol) == "OC1CCCCC1");
+}

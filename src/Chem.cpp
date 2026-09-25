@@ -1,4 +1,5 @@
 #include "Chem.h"
+#include "Geometry.h"
 
 #include <GraphMol/CIPLabeler/CIPLabeler.h>
 #include <GraphMol/Chirality.h>
@@ -47,7 +48,7 @@ static const QHash<QString, QString>& groups() {
         {"Me", "C"},        {"Et", "CC"},          {"iPr", "C(C)C"},   {"tBu", "C(C)(C)C"},
         {"Ph", "c1ccccc1"}, {"OMe", "OC"},         {"NO2", "[N+](=O)[O-]"}, {"CF3", "C(F)(F)F"},
         {"CN", "C#N"},      {"CO2Me", "C(=O)OC"},  {"CO2Et", "C(=O)OCC"}, {"CO2H", "C(=O)O"},
-        {"CHO", "C=O"},     {"Ac", "C(C)=O"},      {"OAc", "OC(C)=O"},  {"N3", "N=[N+]=[N-]"},
+        {"CHO", "C=O"},     {"CH2OH", "CO"},       {"Ac", "C(C)=O"},      {"OAc", "OC(C)=O"},  {"N3", "N=[N+]=[N-]"},
         {"Boc", "C(=O)OC(C)(C)C"}, {"Cbz", "C(=O)OCc1ccccc1"}, {"Fmoc", "C(=O)OCC1c2ccccc2-c2ccccc21"},
         {"Bn", "Cc1ccccc1"}, {"Bz", "C(=O)c1ccccc1"}, {"MgBr", "[Mg]Br"}, {"SO2Me", "S(=O)(=O)C"},
         {"Ts", "S(=O)(=O)c1ccc(C)cc1"}, {"Ms", "S(=O)(=O)C"}, {"Tf", "S(=O)(=O)C(F)(F)F"},
@@ -107,8 +108,78 @@ Document expanded(const Document& doc) {
 
 // Abbreviations are expanded first (unless `expand` is false, for layout);
 // atom i of `doc` is atom i of the mol.
+// Projections read as the wedge drawings they stand for, for chemistry only:
+// - Fischer: an atom whose four drawn bonds go straight up, down, left and right,
+//   none wedged: the horizontal ones come toward the viewer.
+// - Haworth: a flattened 5- or 6-ring with a bold (front) edge; a substituent
+//   drawn straight up is toward the viewer seen from above, straight down away.
+Document projectionsAsWedges(const Document& in) {
+    Document doc = in;
+    const double tol = std::sin(qDegreesToRadians(4.0));
+    auto dir = [&](int from, int to) { return unit(doc.atoms[to].pos - doc.atoms[from].pos); };
+    for (int i = 0; i < int(doc.atoms.size()); ++i) {
+        const auto nbs = in.neighbors(i);
+        if (nbs.size() != 4) continue;
+        int horizontal = 0, vertical = 0;
+        bool wedged = false;
+        for (int nb : nbs) {
+            const QPointF d = dir(i, nb);
+            horizontal += std::abs(d.y()) < tol, vertical += std::abs(d.x()) < tol;
+            const BondStereo s = in.bonds[in.bondBetween(i, nb)].stereo;
+            wedged |= s == BondStereo::Wedge || s == BondStereo::Hash;
+        }
+        if (horizontal != 2 || vertical != 2 || wedged) continue;
+        for (int nb : nbs)
+            if (std::abs(dir(i, nb).y()) < tol) {
+                Bond& b = doc.bonds[in.bondBetween(i, nb)];
+                b.a = i, b.b = nb, b.stereo = BondStereo::Wedge;
+            }
+    }
+    // Haworth rings: from each bold bond, the smallest cycle back through it.
+    for (const Bond& front : in.bonds) {
+        if (front.stereo != BondStereo::Bold) continue;
+        std::vector<int> prev(in.atoms.size(), -1);
+        std::vector<int> queue{front.b};
+        prev[front.b] = front.b;
+        for (size_t q = 0; q < queue.size() && prev[front.a] < 0; ++q)
+            for (int nb : in.neighbors(queue[q]))
+                if (prev[nb] < 0 && !(queue[q] == front.b && nb == front.a)) prev[nb] = queue[q], queue.push_back(nb);
+        if (prev[front.a] < 0) continue;
+        std::vector<int> ring{front.a};
+        while (ring.back() != front.b) ring.push_back(prev[ring.back()]);
+        if (ring.size() < 5 || ring.size() > 6) continue;
+        QPolygonF poly;
+        for (int i : ring) poly << in.atoms[i].pos;
+        const QRectF box = poly.boundingRect();
+        if (box.height() > 0.75 * box.width()) continue;  // not flattened: an ordinary ring
+        const QPointF centre = box.center();
+        for (int i : ring) {
+            std::vector<int> up, down;
+            for (int nb : in.neighbors(i)) {
+                if (std::find(ring.begin(), ring.end(), nb) != ring.end()) continue;
+                const QPointF d = dir(i, nb);
+                if (std::abs(d.x()) < 0.35 * std::abs(d.y())) (d.y() < 0 ? up : down).push_back(nb);
+            }
+            if (up.size() > 1 || down.size() > 1 || up.size() + down.size() == 0) continue;
+            const QPointF out = unit(in.atoms[i].pos - centre);
+            const bool both = up.size() + down.size() == 2;
+            for (int nb : up) {
+                doc.atoms[nb].pos = in.atoms[i].pos + rotated(out, both ? 25 : 0) * kBondLength;
+                Bond& b = doc.bonds[in.bondBetween(i, nb)];
+                b.a = i, b.b = nb, b.stereo = BondStereo::Wedge;
+            }
+            for (int nb : down) {
+                doc.atoms[nb].pos = in.atoms[i].pos + rotated(out, both ? -25 : 0) * kBondLength;
+                Bond& b = doc.bonds[in.bondBetween(i, nb)];
+                b.a = i, b.b = nb, b.stereo = BondStereo::Hash;
+            }
+        }
+    }
+    return doc;
+}
+
 static std::unique_ptr<RWMol> toRDKit(const Document& in, bool expand = true) {
-    const Document doc = expand ? expanded(in) : in;
+    const Document doc = projectionsAsWedges(expand ? expanded(in) : in);
     auto mol = std::make_unique<RWMol>();
     auto* conf = new RDKit::Conformer(doc.atoms.size());
     for (size_t i = 0; i < doc.atoms.size(); ++i) {

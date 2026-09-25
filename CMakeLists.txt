@@ -40,7 +40,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)
 add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/PubChem.cpp src/Templates.cpp)
 target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network Qt6::PrintSupport)
 # The build shown in the title bar: git describe tells builds between releases
-# apart (0.5.0-12-gabc1234); a tagged or git-less build is just the version.
+# apart (0.5.0-12-gabc1234; 0.6.0-dev-gabc1234 once bumped, before the tag);
+# a tagged or git-less build is just the version.
 set(PENZENE_BUILD ${PROJECT_VERSION})
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS ${CMAKE_SOURCE_DIR}/.git)
@@ -48,7 +49,16 @@ if(GIT_FOUND AND EXISTS ${CMAKE_SOURCE_DIR}/.git)
                     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} OUTPUT_VARIABLE described
                     OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE failed)
     if(NOT failed)
-        string(REGEX REPLACE "^v" "" PENZENE_BUILD "${described}")
+        string(REGEX REPLACE "^v" "" described "${described}")
+        if(described MATCHES "^${PROJECT_VERSION}(-|$)")
+            set(PENZENE_BUILD "${described}")
+        else()  # bumped but not tagged yet: this version, in development
+            string(REGEX MATCH "g[0-9a-f]+(-dirty)?$" commit "${described}")
+            set(PENZENE_BUILD "${PROJECT_VERSION}-dev")
+            if(commit)
+                set(PENZENE_BUILD "${PROJECT_VERSION}-dev-${commit}")
+            endif()
+        endif()
     endif()
 endif()
 target_compile_definitions(penzene_ui PUBLIC PENZENE_BUILD="${PENZENE_BUILD}")

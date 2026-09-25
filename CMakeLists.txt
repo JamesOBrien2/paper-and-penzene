@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.24)
 project(penzene VERSION 0.8.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,17 +22,42 @@ find_package(RDKit REQUIRED CONFIG)
 
 # The engine: document, chemistry, editing and rendering. QtGui only, no
 # widgets, so it can back a command line or Python module as well as the app.
-add_library(penzene_core STATIC src/Document.cpp src/Chem.cpp src/Edit.cpp src/Render.cpp)
+add_library(penzene_core STATIC src/Document.cpp src/Chem.cpp src/Edit.cpp src/Render.cpp src/ChemDrawIO.cpp)
 target_include_directories(penzene_core PUBLIC src)
 target_compile_definitions(penzene_core PUBLIC PENZENE_VERSION="${PROJECT_VERSION}")
+# Revvity's ChemDraw file library (BSD-3, third_party/chemdraw): binary CDX in and out on
+# every platform. Private and static, so it can't clash with RDKit's own copy.
+find_package(EXPAT REQUIRED)
+find_package(Boost CONFIG REQUIRED)
+file(GLOB chemdraw_sources third_party/chemdraw/chemdraw/*.cpp)
+add_library(penzene_chemdraw STATIC ${chemdraw_sources})
+target_include_directories(penzene_chemdraw PUBLIC third_party/chemdraw)
+# UTF8_STD_STRING: text is UTF-8 throughout (as in Penzene), written with ChemDraw's UTF-8 text property.
+target_compile_definitions(penzene_chemdraw PUBLIC CHEMDRAW_STATIC_LINK PLATFORM_LITTLEENDIAN UTF8_STD_STRING=1)
+target_link_libraries(penzene_chemdraw PUBLIC EXPAT::EXPAT Boost::headers)
+set_target_properties(penzene_chemdraw PROPERTIES CXX_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON AUTOMOC OFF)
+if(APPLE)
+    target_link_libraries(penzene_chemdraw PRIVATE "-framework CoreFoundation")
+elseif(WIN32)
+    target_compile_definitions(penzene_chemdraw PUBLIC TARGET_OS_WIN32=1 TARGET_API_LIB _WINDOWS)
+else()  # Linux converts text encodings with Boost.Locale
+    find_package(Boost CONFIG REQUIRED COMPONENTS locale)
+    target_link_libraries(penzene_chemdraw PRIVATE Boost::locale)
+endif()
+if(MSVC)
+    target_compile_options(penzene_chemdraw PRIVATE /W0)
+    target_compile_definitions(penzene_chemdraw PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+else()
+    target_compile_options(penzene_chemdraw PRIVATE -w)
+endif()
+
 target_link_libraries(penzene_core PUBLIC
     Qt6::Gui Qt6::Svg
     RDKit::SmilesParse RDKit::FileParsers RDKit::Depictor RDKit::GraphMol
     RDKit::Descriptors RDKit::RDInchiLib RDKit::CIPLabeler RDKit::DistGeomHelpers)
-# Binary CDX writing, where RDKit was built with ChemDraw support (not conda's Windows build).
-if(TARGET RDKit::RDChemDrawLib)
-    target_link_libraries(penzene_core PUBLIC RDKit::RDChemDrawLib)
-endif()
+# Whole: RDKit's shared ChemDraw library (macOS, Linux) defines the same functions, and a
+# plain archive link would take RDKit's copies instead of these (which carry Penzene's fixes).
+target_link_libraries(penzene_core PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,penzene_chemdraw>")
 
 if(PENZENE_APP)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)

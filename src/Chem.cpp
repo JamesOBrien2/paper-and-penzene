@@ -13,10 +13,6 @@
 #include <GraphMol/Descriptors/MolSurf.h>
 #include <map>
 #include <GraphMol/inchi.h>
-#if __has_include(<GraphMol/chemdraw.h>)
-#include <GraphMol/chemdraw.h>
-#define PENZENE_CDX_WRITER 1
-#endif
 #include <GraphMol/FileParsers/FileParsers.h>
 #include <GraphMol/FileParsers/FileWriters.h>
 #include <GraphMol/MolOps.h>
@@ -533,10 +529,12 @@ static void placeLabels(Document& doc, const std::vector<int>& nodeOf, const std
 }
 
 std::optional<Document> fromChemDraw(const QByteArray& data) {
+    if (!data.trimmed().startsWith('<')) {  // binary CDX: read as the CDXML it converts to
+        const QByteArray xml = cdxToCdxml(data);
+        return xml.isEmpty() ? std::nullopt : fromChemDraw(xml);
+    }
     std::vector<std::unique_ptr<RWMol>> mols;
     try {
-        // Binary .cdx needs RDKit's ChemDraw library, which not every build has.
-        if (!data.trimmed().startsWith('<') && !RDKit::v2::CDXMLParser::hasChemDrawCDXSupport()) return std::nullopt;
         mols = RDKit::v2::CDXMLParser::MolsFromCDXML(data.toStdString());
     } catch (...) {
         return std::nullopt;
@@ -903,21 +901,8 @@ QByteArray toCdxml(const Document& in) {
     return out;
 }
 
-// Binary CDX, through RDKit: molecules only (no arrows or text). Empty where
-// RDKit has no ChemDraw writer.
-QByteArray toCdx(const Document& doc) {
-#ifndef PENZENE_CDX_WRITER
-    return {};
-#else
-    auto mol = toRDKit(doc);
-    perceive(*mol);
-    try {
-        return QByteArray::fromStdString(RDKit::v2::MolToChemDrawBlock(*mol, RDKit::v2::CDXFormat::CDX));
-    } catch (...) {
-        return {};
-    }
-#endif
-}
+// Binary CDX: our CDXML, converted by the ChemDraw file library.
+QByteArray toCdx(const Document& doc) { return cdxmlToCdx(toCdxml(doc)); }
 
 std::string toMolBlock(const Document& doc, bool v3000) {
     auto mol = toRDKit(doc);

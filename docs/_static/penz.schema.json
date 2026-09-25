@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://penzene.readthedocs.io/en/latest/_static/penz.schema.json",
+  "title": "Penzene drawing (.penz), version 1",
+  "description": "Coordinates are points, x right and y down; a bond is 14.4 points long. Readers ignore fields they don't know, so every object allows extra properties.",
+  "type": "object",
+  "required": ["format", "version", "atoms", "bonds"],
+  "properties": {
+    "format": {"const": "penzene"},
+    "version": {"const": 1},
+    "atoms": {"type": "array", "items": {"$ref": "#/$defs/atom"}},
+    "bonds": {"type": "array", "items": {"$ref": "#/$defs/bond"}},
+    "arrows": {"type": "array", "items": {"$ref": "#/$defs/arrow"}},
+    "texts": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+    "fills": {"type": "array", "items": {"$ref": "#/$defs/fill"}},
+    "brackets": {"type": "array", "items": {"$ref": "#/$defs/bracket"}},
+    "style": {"type": "string", "description": "Drawing style name, e.g. \"ACS 1996\"; unknown names fall back to the default."},
+    "carbonLabels": {"enum": ["all", "terminal"], "description": "Absent: no carbon labels."},
+    "hideImplicitH": {"type": "boolean"},
+    "showStereo": {"type": "boolean"},
+    "showAtomNumbers": {"type": "boolean"},
+    "aromaticCircles": {"type": "boolean"},
+    "aromaticCircleOverrides": {
+      "type": "array",
+      "description": "Rings (atom indices) drawn the other way from the aromaticCircles setting.",
+      "items": {"type": "array", "items": {"$ref": "#/$defs/index"}, "minItems": 3, "uniqueItems": true}
+    },
+    "page": {
+      "type": "object",
+      "description": "A page size shown on the canvas, and where its top-left corner sits.",
+      "required": ["name"],
+      "properties": {"name": {"type": "string"}, "x": {"type": "number"}, "y": {"type": "number"}}
+    }
+  },
+  "$defs": {
+    "index": {"type": "integer", "minimum": 0, "description": "An index into atoms."},
+    "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+    "atom": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "integer", "minimum": 0, "default": 6, "description": "Atomic number; 0 for a generic or R-group label."},
+        "charge": {"type": "integer", "default": 0},
+        "label": {"type": "string", "description": "Shown instead of the element: an abbreviation (OMe, Boc) or generic label."},
+        "color": {"$ref": "#/$defs/color"},
+        "map": {"type": "integer", "minimum": 0, "description": "Reaction atom-map number."},
+        "lonePairs": {"type": "integer", "minimum": 0, "maximum": 4},
+        "radicals": {"type": "integer", "minimum": 0, "maximum": 2},
+        "partial": {"enum": [-1, 0, 1], "description": "Partial charge mark: δ− or δ+."}
+      }
+    },
+    "bond": {
+      "type": "object",
+      "required": ["a", "b"],
+      "properties": {
+        "a": {"$ref": "#/$defs/index", "description": "First atom; a wedge starts here."},
+        "b": {"$ref": "#/$defs/index"},
+        "order": {"enum": [1, 2, 3], "default": 1},
+        "stereo": {"enum": ["none", "wedge", "hash", "bold", "dashed", "wavy", "interaction", "partial"]},
+        "position": {"enum": ["auto", "left", "centre", "right"], "description": "Which side a double bond's second line goes."},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "arrow": {
+      "type": "object",
+      "required": ["x1", "y1", "x2", "y2"],
+      "description": "Arrows, and the plain lines and shapes (whose points are opposite corners).",
+      "properties": {
+        "x1": {"type": "number"},
+        "y1": {"type": "number"},
+        "x2": {"type": "number"},
+        "y2": {"type": "number"},
+        "kind": {"enum": ["reaction", "equilibrium", "resonance", "retro", "fishhook", "line", "box", "roundedbox", "ellipse"], "default": "reaction"},
+        "bend": {"type": "number", "description": "Curvature: how far the middle bows out, in points."},
+        "color": {"$ref": "#/$defs/color"},
+        "dashed": {"type": "boolean"}
+      }
+    },
+    "text": {
+      "type": "object",
+      "required": ["x", "y", "text"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "text": {"type": "string"},
+        "scale": {"type": "number", "exclusiveMinimum": 0, "default": 1},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "fill": {
+      "type": "object",
+      "required": ["atoms", "color"],
+      "properties": {
+        "atoms": {"type": "array", "items": {"$ref": "#/$defs/index"}, "minItems": 3},
+        "color": {"$ref": "#/$defs/color"}
+      }
+    },
+    "bracket": {
+      "type": "object",
+      "required": ["atoms"],
+      "properties": {
+        "atoms": {"type": "array", "items": {"$ref": "#/$defs/index"}, "minItems": 1},
+        "round": {"type": "boolean", "description": "Round brackets; absent or false: square."},
+        "label": {"type": "string", "description": "Subscript, e.g. n for a repeat unit."}
+      }
+    }
+  }
+}

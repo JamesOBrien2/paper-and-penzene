@@ -119,6 +119,9 @@ if(PENZENE_PYTHON)
             add_test(NAME python COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_python.py)
             set_tests_properties(python PROPERTIES ENVIRONMENT
                 "PYTHONPATH=${CMAKE_BINARY_DIR}/python;PENZENE_TEST_DATA=${CMAKE_SOURCE_DIR}/tests/data")
+            # The docs' generated pages (keys, Python API) match the code.
+            add_test(NAME docs COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/docs/generate.py --check)
+            set_tests_properties(docs PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python;QT_QPA_PLATFORM=offscreen")
         endif()
     endif()
 endif()

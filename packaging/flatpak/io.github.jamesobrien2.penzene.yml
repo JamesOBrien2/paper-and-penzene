@@ -21,10 +21,10 @@ cleanup:
   - /share/eigen3
   - '*.a'
 modules:
-  - name: boost  # headers plus CMake configs (RDKit's find_package(Boost CONFIG)); only the tiny system lib is built
+  - name: boost  # headers plus CMake configs (RDKit's find_package(Boost CONFIG)); plus the system and locale libs (the ChemDraw library converts text with Boost.Locale on Linux)
     buildsystem: simple
     build-commands:
-      - ./bootstrap.sh --prefix=/app --with-libraries=system
+      - ./bootstrap.sh --prefix=/app --with-libraries=system,locale
       - ./b2 install -j${FLATPAK_BUILDER_N_JOBS} --prefix=/app link=shared variant=release
     sources:
       - type: archive

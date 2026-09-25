@@ -35,6 +35,8 @@ public:
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     void rotateSelection(double degrees);
+    // The round handle above the selection box that turns it (Shift: 15° steps; Ctrl: 45°).
+    std::optional<QPointF> rotateHandle() const;
     // Out of the page, about the page's x then y axis; stereo is kept (Shift+Alt+drag or arrows).
     void rotate3D(double aboutX, double aboutY);
     // Brackets around the selected atoms (square or round, with a subscript such as "n"); none removes theirs.

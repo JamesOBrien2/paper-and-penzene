@@ -54,7 +54,8 @@ when converted to SMILES. **Structure → Save Selection as Template** adds your
   atom on another to merge them.
 - The arrow keys nudge a selection (Shift for 10 points). Ctrl+arrow duplicates it across the next
   reaction arrow.
-- **Rotate:** Alt+drag, or Alt+←/→ in 15° steps. **Out of the page:** Shift+Alt+drag or
+- **Rotate:** drag the round handle above a selection (Shift for 15° steps, Ctrl for 45°), Alt+drag,
+  or Alt+←/→ in 15° steps. **Out of the page:** Shift+Alt+drag or
   Shift+Alt+arrows turn it in 3D and keep its stereo; **Structure → Turn Over** flips it 180°.
 - **Stretch and squash:** drag the handles around a selection (corners scale, edges stretch), or use
   **Structure → Transform** for exact values.

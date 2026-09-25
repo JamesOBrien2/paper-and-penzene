@@ -402,6 +402,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
     }
     // Crossings: where a later bond (in front; Bring to Front moves one last) crosses an
     // earlier one that shares no atom with it, the earlier one gets a gap.
+    // ponytail: every pair of bonds per paint (O(n²)); a spatial grid if huge drawings stutter.
     std::vector<std::vector<QPointF>> gaps(doc.bonds.size());
     for (size_t i = 0; i < doc.bonds.size(); ++i)
         for (size_t j = i + 1; j < doc.bonds.size(); ++j) {

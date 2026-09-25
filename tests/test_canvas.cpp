@@ -1548,3 +1548,38 @@ TEST_CASE("What's New shows one card per highlighted addition (#215)") {
     showWhatsNewDialog(nullptr, changelog, "0.9.0");
     CHECK(inspected);
 }
+
+TEST_CASE("the colour swatch opens CPK colours; the pick paints atoms and bonds (#225)") {
+    App app;
+    MainWindow w;
+    w.resize(1000, 700);
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    QToolButton* colourButton = nullptr;
+    for (auto* b : w.findChildren<QToolButton*>())
+        if (b->defaultAction() && b->defaultAction()->toolTip().startsWith("Colour")) colourButton = b;
+    REQUIRE(colourButton);
+    CHECK(colourButton->popupMode() == QToolButton::InstantPopup);  // the swatch itself opens the colours
+    REQUIRE(colourButton->menu());
+    QToolButton* nitrogen = nullptr;
+    for (auto* wa : colourButton->menu()->findChildren<QWidgetAction*>())
+        for (auto* b : wa->defaultWidget()->findChildren<QToolButton*>())
+            if (b->toolTip() == "Nitrogen") nitrogen = b;
+    REQUIRE(nitrogen);
+    nitrogen->click();
+    const QColor blue(0x30, 0x50, 0xF8);
+    CHECK(canvas->colour() == blue);
+    CHECK(colourButton->defaultAction()->isChecked());  // picking chooses the tool
+
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}, 8}};
+    d.bonds = {{0, 1}};
+    canvas->setDocumentSilently(d);
+    auto click = [&](QPointF scene) {
+        QTest::mouseClick(canvas->viewport(), Qt::LeftButton, {}, canvas->mapFromScene(scene));
+    };
+    click(canvas->document().atoms[1].pos);
+    click((canvas->document().atoms[0].pos + canvas->document().atoms[1].pos) / 2);
+    CHECK(canvas->document().atoms[1].color == blue);
+    CHECK(canvas->document().bonds[0].color == blue);
+}

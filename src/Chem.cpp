@@ -1211,6 +1211,10 @@ std::string symbol(int z) {
     return RDKit::Atom(z).getSymbol();
 }
 
+std::string elementName(int z) {
+    return RDKit::PeriodicTable::getTable()->getElementName(z);
+}
+
 int atomicNumber(const std::string& sym) {
     try {
         return int(RDKit::Atom(sym).getAtomicNum());

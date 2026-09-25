@@ -15,6 +15,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - The logo is drawn in the same teal on warm paper as the app.
 - Large drawings stay quick: drawing and chemistry now scale linearly (a 2000-atom page edits in about 17 ms).
 - Preferences → Language, and the groundwork for translations (see Contributing to add one).
+- Accessibility: Tab reaches every tool, with a visible focus ring and names for screen readers; arrow keys move around the periodic table; the hotspot is announced; every theme meets WCAG contrast.
 - The What's New window highlights main additions with icons and lists smaller changes below.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 - The colour tool offers the CPK atom colours; click its swatch to pick one, then click atoms and bonds.

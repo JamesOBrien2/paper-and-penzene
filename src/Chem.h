@@ -117,5 +117,6 @@ Document expanded(const Document& doc);  // abbreviations drawn out in full
 Document projectionsAsWedges(const Document& doc);
 
 std::string symbol(int z);
+std::string elementName(int z);  // "Carbon"
 int atomicNumber(const std::string& symbol);  // 0 if unknown
 }  // namespace chem

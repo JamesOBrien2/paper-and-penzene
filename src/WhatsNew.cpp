@@ -115,9 +115,9 @@ void showWhatsNewDialog(QWidget* parent, const QString& changelog, const QString
     if (!notes.others.isEmpty()) {
         auto* section = new QLabel(QObject::tr("Also in this release"));
         section->setObjectName("section");
-        auto* others = new QLabel("• " + notes.others.join("<br>• "));
+        auto* others = new QLabel("• " + notes.others.join("\n• "));
         others->setObjectName("others");
-        others->setTextFormat(Qt::RichText);
+        others->setTextFormat(Qt::PlainText);
         others->setWordWrap(true);
         layout->addWidget(section);
         layout->addWidget(others);

@@ -9,7 +9,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - **Documentation**: a full guide online at penzene.readthedocs.io. <!-- icon: book-2 -->
 - **Updates**: Help → Check for Updates, and an optional weekly check (off unless you turn it on). <!-- icon: refresh -->
 - **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->
-- A What's New window after an update.
+- The What's New window highlights main additions with icons and lists smaller changes below.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 
 ## 0.8.0 (2026-09-25)

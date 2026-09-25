@@ -3,6 +3,7 @@
 #include "Edit.h"
 #include "MainWindow.h"
 #include "Online.h"
+#include "WhatsNew.h"
 #include "Templates.h"
 #include "Render.h"
 
@@ -15,6 +16,7 @@
 #include <QListWidget>
 
 #include <QLabel>
+#include <QFrame>
 #include <QTest>
 
 #include <QComboBox>
@@ -1495,4 +1497,46 @@ TEST_CASE("What's New: a release's notes, once after an update, never on a fresh
     w.maybeShowWhatsNew();  // same version again: nothing
     QApplication::processEvents();
     CHECK(shown == 0);
+}
+
+TEST_CASE("What's New separates highlighted additions from smaller changes (#215)") {
+    const auto notes = online::parseReleaseNotes(
+        "- **Drawing tools**: New shapes. <!-- icon: shapes -->\n"
+        "- **Templates**: Ready-made structures.\n"
+        "- Faster opening with **large** files. <!-- internal note -->");
+    REQUIRE(notes.highlights.size() == 2);
+    CHECK(notes.highlights[0].icon == "shapes");
+    CHECK(notes.highlights[0].title == "Drawing tools");
+    CHECK(notes.highlights[0].detail == "New shapes.");
+    CHECK(notes.highlights[1].icon == "sparkles");
+    CHECK(notes.highlights[1].title == "Templates");
+    CHECK(notes.highlights[1].detail == "Ready-made structures.");
+    CHECK(notes.others == QStringList{"Faster opening with large files."});
+}
+
+TEST_CASE("What's New shows one card per highlighted addition (#215)") {
+    App app;
+    const QString changelog = "## 0.9.0 (2026-10-01)\n\n"
+                              "- **Drawing tools**: New shapes. <!-- icon: shapes -->\n"
+                              "- **Templates**: Ready-made structures.\n"
+                              "- **Colours**: A new palette. <!-- icon: palette -->\n"
+                              "- Faster opening.\n";
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+        for (auto* top : QApplication::topLevelWidgets()) {
+            auto* dialog = qobject_cast<QDialog*>(top);
+            if (!dialog || dialog->objectName() != "whatsNew") continue;
+            inspected = true;
+            CHECK(dialog->findChildren<QFrame*>("highlight").size() == 3);
+            auto* others = dialog->findChild<QLabel*>("others");
+            CHECK(others);
+            if (others) {
+                CHECK(others->textFormat() == Qt::PlainText);
+                CHECK(others->text() == "• Faster opening.");
+            }
+            dialog->accept();
+        }
+    });
+    showWhatsNewDialog(nullptr, changelog, "0.9.0");
+    CHECK(inspected);
 }

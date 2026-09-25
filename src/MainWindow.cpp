@@ -95,6 +95,9 @@ static QString uiStyle(const Theme& t) {
         QFrame#toolDivider { background: %3; border: none; }
         QToolBar#tools QToolButton { color: %4; background: transparent; border: none; border-radius: 8px; padding: 5px; }
         QToolBar#tools QToolButton:hover, QToolBar#tools QToolButton:checked { background: %7; }
+        QToolBar#tools QToolButton::menu-button { background: transparent; border: none; width: 10px; }
+        QCheckBox::indicator { width: 14px; height: 14px; background: %2; border: 1px solid %5; border-radius: 4px; }
+        QCheckBox::indicator:checked { background: %6; border-color: %6; }
         QToolBar#modeBar { background: %1; border: none; border-bottom: 1px solid %3; padding: 7px 12px; spacing: 6px; }
         QToolBar#modeBar QToolButton { color: %5; background: transparent; border: none; border-radius: 8px;
                                         padding: 6px 14px; font-weight: 600; }
@@ -843,7 +846,7 @@ void MainWindow::buildTools() {
         grids[i] = new QGridLayout(palettes[i]);
         grids[i]->setSpacing(2);
         grids[i]->setContentsMargins(2, 2, 2, 2);
-        grids[i]->setAlignment(Qt::AlignTop);
+        grids[i]->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
         pages->addWidget(palettes[i]);
     }
     auto* modes = new QToolBar(tr("Workspace"), this);

@@ -1,5 +1,7 @@
 """The Python module: the #47 snippet as written, plus the rest of the API."""
 import os
+import subprocess
+import sys
 import tempfile
 
 import penzene as pz
@@ -50,3 +52,12 @@ for bad in (lambda: pz.from_smiles("C1CC"), lambda: m.add_atom("notachem!!"), la
     else:
         raise AssertionError("expected ValueError")
 print("python ok", pz.__version__)
+
+# The committed type stubs match the module (regenerate with `pixi run stubs`), and ship with it.
+stub = os.path.join(out, "_penzene.pyi")
+subprocess.run([sys.executable, "-m", "nanobind.stubgen", "-q", "-m", "penzene._penzene", "-o", stub], check=True)
+package = os.path.join(os.path.dirname(os.environ["PENZENE_TEST_DATA"]), "..", "python", "penzene")
+with open(stub) as fresh, open(os.path.join(package, "_penzene.pyi")) as committed:
+    assert fresh.read() == committed.read(), "type stubs are out of date: pixi run stubs"
+assert os.path.exists(os.path.join(package, "py.typed"))
+assert set(pz.__all__) == {n for n in dir(pz) if not n.startswith("_")} | {"__version__"}, "__all__ is the public API"

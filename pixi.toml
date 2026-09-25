@@ -31,6 +31,9 @@ test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["buil
 # The Python wheel, built against this environment's RDKit and Qt (not yet self-contained, see #77).
 wheel = "python -m pip wheel . --no-build-isolation --no-deps -w dist"
 
+# Type stubs for the Python module, from its docstrings (tests/test_python.py checks they're current).
+stubs = { cmd = "python -m nanobind.stubgen -m penzene._penzene -o python/penzene/_penzene.pyi", env = { PYTHONPATH = "build/python", QT_QPA_PLATFORM = "offscreen" }, depends-on = ["build"] }
+
 [target.unix.tasks]
 run = { cmd = "build/bin/penzene", depends-on = ["build"] }
 # Collects the interface strings into a translation: pixi run lupdate -ts translations/penzene_de.ts

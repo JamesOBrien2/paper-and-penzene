@@ -1,0 +1,63 @@
+# conda-forge recipe (rattler-build), for a pull request to conda-forge/staged-recipes
+# as recipes/penzene/recipe.yaml. Builds the Python module against conda-forge's own
+# RDKit and Qt, so it shares them with the rest of the environment.
+context:
+  version: "0.8.0"
+
+package:
+  name: penzene
+  version: ${{ version }}
+
+source:
+  url: https://github.com/JamesOBrien2/penzene/archive/refs/tags/v${{ version }}.tar.gz
+  sha256: 220c29ef85f0ab40c90df5246c4f4910d7457a70acf3f08876545c72d576156d
+
+build:
+  number: 0
+  skip: match(python, "<3.12")
+  script: ${{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+
+requirements:
+  build:
+    - ${{ compiler('cxx') }}
+    - ${{ stdlib('c') }}
+    - cmake >=3.28
+    - ninja
+  host:
+    - python
+    - pip
+    - cmake >=3.28  # scikit-build-core looks for these in the host environment
+    - ninja
+    - scikit-build-core >=0.10
+    - nanobind >=2.4
+    - librdkit-dev
+    - libboost-devel
+    - qt6-main >=6.8
+  run:
+    - python
+    - librdkit  # librdkit-dev brings no run_exports for the runtime libraries
+
+tests:
+  - python:
+      imports:
+        - penzene
+  - script:
+      - python -c "import os; os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen'); import penzene as pz; d = pz.from_smiles('CC(=O)Oc1ccccc1C(=O)O'); assert d.formula == 'C9H8O4'; assert d.to_svg().startswith('<?xml')"
+    requirements:
+      run:
+        - python
+
+about:
+  homepage: https://github.com/JamesOBrien2/penzene
+  documentation: https://penzene.readthedocs.io
+  summary: Publication-quality 2D chemical structures from Python, drawn by the Penzene engine
+  description: |
+    Draw, convert and render 2D chemical structures with the same engine as the Penzene
+    desktop app: SMILES, MOL, InChI and ChemDraw CDXML in; SVG, PNG and PDF out, in
+    ACS, RSC or JDP style.
+  license: GPL-3.0-or-later
+  license_file: LICENSE
+
+extra:
+  recipe-maintainers:
+    - JamesOBrien2

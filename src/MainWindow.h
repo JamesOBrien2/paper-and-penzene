@@ -32,6 +32,10 @@ public:
     bool openFile(const QString& path);
     // Crash recovery: offer the autosaved document left behind by a crash, if any.
     void offerRecovery();
+    // A newer release on GitHub? By hand (Help menu) it always answers; quietly (the weekly
+    // check, off unless turned on in Preferences) it only speaks up if there is one.
+    void checkForUpdates(bool quietly);
+    void maybeCheckForUpdates();  // at startup: weekly, if turned on
     void autosave();  // writes unsaved changes to autosavePath() (every minute)
     static QString autosavePath();
     QStringList recentFiles() const;

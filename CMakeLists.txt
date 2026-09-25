@@ -37,7 +37,7 @@ endif()
 if(PENZENE_APP)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network PrintSupport Test)
 # The app's widgets; tests link this too, so they exercise the same code.
-add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/PubChem.cpp src/Templates.cpp)
+add_library(penzene_ui STATIC src/Canvas.cpp src/MainWindow.cpp src/Online.cpp src/Templates.cpp)
 target_link_libraries(penzene_ui PUBLIC penzene_core Qt6::Widgets Qt6::Network Qt6::PrintSupport)
 # The build shown in the title bar: git describe tells builds between releases
 # apart (0.5.0-12-gabc1234; 0.6.0-dev-gabc1234 once bumped, before the tag);

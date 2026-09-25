@@ -101,5 +101,6 @@ int main(int argc, char** argv) {
     if (argc == 2) w.openFile(QString::fromLocal8Bit(argv[1]));
     w.show();
     w.offerRecovery();  // after a crash, the last unsaved drawing
+    w.maybeCheckForUpdates();  // only if turned on in Preferences
     return app.exec();
 }

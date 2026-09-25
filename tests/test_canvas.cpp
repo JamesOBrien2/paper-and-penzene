@@ -16,7 +16,9 @@
 #include <QListWidget>
 
 #include <QLabel>
+#include <QDockWidget>
 #include <QFrame>
+#include <QStackedWidget>
 #include <QTest>
 
 #include <QComboBox>
@@ -1582,4 +1584,41 @@ TEST_CASE("the colour swatch opens CPK colours; the pick paints atoms and bonds 
     click((canvas->document().atoms[0].pos + canvas->document().atoms[1].pos) / 2);
     CHECK(canvas->document().atoms[1].color == blue);
     CHECK(canvas->document().bonds[0].color == blue);
+}
+
+TEST_CASE("Lab notebook theme groups the tools into modes (#214)") {
+    CHECK(theme("Light").paper == QColor("#FBF8F1"));
+    CHECK(theme("Light").accent == QColor("#0F6E56"));
+    CHECK(theme("Dark").paper == QColor("#22211F"));
+    CHECK(theme("Dark").accent == QColor("#5DCAA5"));
+    App app;
+    const QVariant previousTheme = QSettings().value("theme");
+    QSettings().setValue("theme", "Light");
+    MainWindow w;
+    auto* pages = w.findChild<QStackedWidget*>("toolPages");
+    auto* card = w.findChild<QFrame*>("toolCard");
+    CHECK(card);
+    REQUIRE(pages);
+    CHECK(pages->count() == 3);
+    CHECK(pages->currentIndex() == 0);
+    auto* chemistry = w.findChild<QToolButton*>("modeChemistry");
+    auto* figure = w.findChild<QToolButton*>("modeFigure");
+    auto* draw = w.findChild<QToolButton*>("modeDraw");
+    REQUIRE(chemistry);
+    REQUIRE(figure);
+    REQUIRE(draw);
+    chemistry->click();
+    CHECK(pages->currentIndex() == 1);
+    CHECK(chemistry->isChecked());
+    CHECK_FALSE(draw->isChecked());
+    CHECK(pages->currentWidget()->findChildren<QToolButton*>().size() > 2);
+    figure->click();
+    CHECK(pages->currentIndex() == 2);
+    draw->click();
+    CHECK(pages->currentIndex() == 0);
+    CHECK(w.findChild<QDockWidget*>("properties"));
+    CHECK(w.findChild<QDockWidget*>("templates"));
+    CHECK(w.findChildren<QFrame*>("panelCard").size() == 2);
+    if (previousTheme.isValid()) QSettings().setValue("theme", previousTheme);
+    else QSettings().remove("theme");
 }

@@ -6,6 +6,7 @@
 #include "WhatsNew.h"
 
 #include <QActionGroup>
+#include <QButtonGroup>
 #include <QTextBrowser>
 #include <QNetworkReply>
 #include <QNetworkAccessManager>
@@ -59,11 +60,64 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QStatusBar>
+#include <QStackedWidget>
 #include <QToolBar>
 #include <QUndoStack>
+#include <array>
 
 static const char* kMolMime = "chemical/x-mdl-molfile";
 static const char* kPenzMime = "application/x-penzene";  // full fidelity: arrows and text too
+
+static QString uiStyle(const Theme& t) {
+    QString border, secondary, accentBg;
+    if (t.name == "Light") {
+        border = "#E4E1D6";
+        secondary = "#5F5E5A";
+        accentBg = "#E1F5EE";
+    } else if (t.name == "Dark") {
+        border = "#444441";
+        secondary = "#B4B2A9";
+        accentBg = "#0B3B30";
+    } else {  // the Catppuccin themes keep their own colours
+        border = t.surface.lighter(125).name();
+        secondary = t.text.name();
+        accentBg = (t.dark ? t.surface.lighter(145) : t.surface.darker(110)).name();
+    }
+    return QString(R"(
+        QMainWindow, QDialog { background: %1; color: %4; }
+        QMenuBar, QStatusBar { background: %1; color: %4; border: none; }
+        QMenuBar::item { padding: 5px 9px; border-radius: 6px; }
+        QMenuBar::item:selected, QMenu::item:selected { background: %7; color: %6; }
+        QMenu { background: %2; color: %4; border: 1px solid %3; border-radius: 10px; padding: 5px; }
+        QMenu::item { padding: 5px 20px; border-radius: 6px; }
+        QToolBar#tools { background: transparent; border: none; padding: 8px 4px; }
+        QFrame#toolCard { background: %2; border: 1px solid %3; border-radius: 14px; }
+        QFrame#toolDivider { background: %3; border: none; }
+        QToolBar#tools QToolButton { color: %4; background: transparent; border: none; border-radius: 8px; padding: 5px; }
+        QToolBar#tools QToolButton:hover, QToolBar#tools QToolButton:checked { background: %7; }
+        QToolBar#modeBar { background: %1; border: none; border-bottom: 1px solid %3; padding: 7px 12px; spacing: 6px; }
+        QToolBar#modeBar QToolButton { color: %5; background: transparent; border: none; border-radius: 8px;
+                                        padding: 6px 14px; font-weight: 600; }
+        QToolBar#modeBar QToolButton:hover { background: %2; }
+        QToolBar#modeBar QToolButton:checked { color: %6; background: %7; }
+        QDockWidget#properties, QDockWidget#templates { background: %1; color: %4; border: none; }
+        QDockWidget::title { background: %2; color: %4; border: 1px solid %3; border-radius: 10px; padding: 8px; }
+        QFrame#panelCard { background: %2; border: 1px solid %3; border-radius: 12px; }
+        QTreeWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            background: %2; color: %4; border: 1px solid %3; border-radius: 7px; padding: 3px;
+            selection-background-color: %7; selection-color: %6;
+        }
+        QPushButton { background: %2; color: %4; border: 1px solid %3; border-radius: 8px; padding: 6px 12px; }
+        QPushButton:hover { border-color: %6; }
+        QPushButton:default { background: %6; color: %1; border-color: %6; }
+        QScrollBar:vertical { background: %1; width: 12px; margin: 0; }
+        QScrollBar:horizontal { background: %1; height: 12px; margin: 0; }
+        QScrollBar::handle { background: %3; border-radius: 5px; min-width: 24px; min-height: 24px; }
+        QScrollBar::handle:hover { background: %5; }
+        QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+        QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+    )").arg(t.window.name(), t.surface.name(), border, t.text.name(), secondary, t.accent.name(), accentBg);
+}
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {
 #ifdef Q_OS_MACOS
@@ -79,7 +133,12 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     templates_->setHeaderHidden(true);
     templates_->setIconSize({56, 40});
     templates_->setContextMenuPolicy(Qt::CustomContextMenu);
-    templateDock_->setWidget(templates_);
+    auto* templateCard = new QFrame;
+    templateCard->setObjectName("panelCard");
+    auto* templateLayout = new QVBoxLayout(templateCard);
+    templateLayout->setContentsMargins(8, 8, 8, 8);
+    templateLayout->addWidget(templates_);
+    templateDock_->setWidget(templateCard);
     addDockWidget(Qt::RightDockWidgetArea, templateDock_);
     templateDock_->hide();
     connect(templateDock_, &QDockWidget::visibilityChanged, this, [this](bool shown) {
@@ -100,8 +159,10 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     // Properties panel (built before the menus, which offer its toggle): descriptors for the selection or everything.
     profileDock_ = new QDockWidget(tr("Properties"), this);
     profileDock_->setObjectName("properties");
-    auto* panel = new QWidget;
+    auto* panel = new QFrame;
+    panel->setObjectName("panelCard");
     auto* panelLayout = new QVBoxLayout(panel);
+    panelLayout->setContentsMargins(12, 12, 12, 12);
     profile_ = new QLabel;
     profile_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     profile_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
@@ -358,6 +419,7 @@ void MainWindow::showPreferences() {
     updates->setChecked(QSettings().value("updates/auto", false).toBool());
     form->addRow(tr("Updates:"), updates);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    buttons->button(QDialogButtonBox::Ok)->setDefault(true);
     form->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -760,22 +822,68 @@ static QWidget* periodicTable(const std::function<void(int)>& picked) {
 }
 
 void MainWindow::buildTools() {
-    auto* bar = addToolBar(tr("Tools"));
+    auto* bar = new QToolBar(tr("Tools"), this);
     bar->setObjectName("tools");
     addToolBar(Qt::LeftToolBarArea, bar);
     bar->setMovable(false);
-    // A two-column palette, like ChemDraw's, so related tools sit together.
-    auto* palette = new QWidget;
-    auto* grid = new QGridLayout(palette);
-    grid->setSpacing(2);
-    grid->setContentsMargins(4, 4, 4, 4);
-    bar->addWidget(palette);
+    bar->setFloatable(false);
+    auto* card = new QFrame(bar);
+    card->setObjectName("toolCard");
+    auto* cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(6, 6, 6, 6);
+    auto* pages = new QStackedWidget(card);
+    pages->setObjectName("toolPages");
+    pages->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
+    cardLayout->addWidget(pages);
+    bar->addWidget(card);
+    std::array<QWidget*, 3> palettes;
+    std::array<QGridLayout*, 3> grids;
+    for (int i = 0; i < 3; ++i) {
+        palettes[i] = new QWidget;
+        grids[i] = new QGridLayout(palettes[i]);
+        grids[i]->setSpacing(2);
+        grids[i]->setContentsMargins(2, 2, 2, 2);
+        grids[i]->setAlignment(Qt::AlignTop);
+        pages->addWidget(palettes[i]);
+    }
+    auto* modes = new QToolBar(tr("Workspace"), this);
+    modes->setObjectName("modeBar");
+    modes->setMovable(false);
+    modes->setFloatable(false);
+    addToolBar(Qt::TopToolBarArea, modes);
+    auto* modeGroup = new QButtonGroup(modes);
+    modeGroup->setExclusive(true);
+    const QStringList modeNames{tr("Draw"), tr("Chemistry"), tr("Figure")};
+    const QStringList modeIds{"modeDraw", "modeChemistry", "modeFigure"};
+    for (int i = 0; i < 3; ++i) {
+        auto* b = new QToolButton(modes);
+        b->setObjectName(modeIds[i]);
+        b->setText(modeNames[i]);
+        b->setCheckable(true);
+        modeGroup->addButton(b, i);
+        modes->addWidget(b);
+        connect(b, &QToolButton::clicked, pages, [pages, i] { pages->setCurrentIndex(i); });
+        if (i == 0) b->setChecked(true);
+    }
+    // Each mode keeps its own two-column palette while tool shortcuts stay available.
+    int mode = 0;
+    std::array<int, 3> positions{};
+    auto* palette = palettes[mode];
+    auto* grid = grids[mode];
     int slot = 0;  // next free cell, counted left to right
+    auto useMode = [&](int next) {
+        positions[mode] = slot;
+        mode = next;
+        slot = positions[mode];
+        palette = palettes[mode];
+        grid = grids[mode];
+    };
     auto section = [&] {
         if (slot % 2) ++slot;
         auto* line = new QFrame;
-        line->setFrameShape(QFrame::HLine);
-        line->setFrameShadow(QFrame::Sunken);
+        line->setObjectName("toolDivider");
+        line->setFrameShape(QFrame::NoFrame);
+        line->setFixedHeight(1);
         grid->addWidget(line, slot / 2, 0, 1, 2);
         slot += 2;
     };
@@ -969,7 +1077,7 @@ void MainWindow::buildTools() {
                                    tr("Fluorine"), tr("Chlorine"), tr("Bromine"), tr("Iodine"), tr("Iron"),
                                    tr("Carbon (grey)"), tr("Boron")}));
         }
-    section();
+    useMode(1);
     auto arrow = [this](ArrowKind k, bool curved, bool dashed = false) {
         return [this, k, curved, dashed] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved, dashed); };
     };
@@ -983,9 +1091,9 @@ void MainWindow::buildTools() {
         arrow(ArrowKind::Reaction, true));
     add(docIcon(arrowDoc(ArrowKind::Fishhook, 10)), tr("Fishhook arrow, single electron (click it again to flip)"),
         arrow(ArrowKind::Fishhook, true));
-    section();
+    useMode(2);
     const QString shape = tr(" (drag to draw; Shift for a square or circle; click one to restyle it)");
-    add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
+    auto* figureDefault = add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
     add(docIcon(arrowDoc(ArrowKind::Line, 0, true)), tr("Dashed line (drag to draw)"), arrow(ArrowKind::Line, false, true));
     add(docIcon(arrowDoc(ArrowKind::Box)), tr("Box") + shape, arrow(ArrowKind::Box, false));
     add(docIcon(arrowDoc(ArrowKind::RoundedBox, 0, true)), tr("Dashed rounded box") + shape, arrow(ArrowKind::RoundedBox, false, true));
@@ -993,6 +1101,24 @@ void MainWindow::buildTools() {
     add(docIcon(arrowDoc(ArrowKind::Ellipse)), tr("Ellipse") + shape, arrow(ArrowKind::Ellipse, false));
     section();
     keys["t"] = add(docIcon(textDoc("T")), tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
+    useMode(1);
+    section();
+    auto panelButton = [&](QAction* action) {
+        if (slot % 2) ++slot;
+        auto* b = new QToolButton;
+        b->setDefaultAction(action);
+        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        grid->addWidget(b, slot / 2, 0, 1, 2);
+        slot += 2;
+    };
+    panelButton(profileDock_->toggleViewAction());
+    panelButton(templateDock_->toggleViewAction());
+    auto sizeCard = [card, pages] { card->setFixedHeight(pages->currentWidget()->sizeHint().height() + 12); };
+    connect(pages, &QStackedWidget::currentChanged, card, [sizeCard] { sizeCard(); });
+    sizeCard();
+    QTimer::singleShot(0, card, sizeCard);  // after the theme style has been applied
+    const std::array<QAction*, 3> defaults{keys["x"], keys["e"], figureDefault};
+    connect(modeGroup, &QButtonGroup::idClicked, this, [defaults](int i) { defaults[i]->trigger(); });
     connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
         if (auto* a = keys.value(k)) a->trigger();
     });
@@ -1006,23 +1132,27 @@ void MainWindow::applyTheme(const QString& name) {
     hints->setColorScheme(chosen.name == "System" ? Qt::ColorScheme::Unknown
                           : chosen.dark           ? Qt::ColorScheme::Dark
                                                   : Qt::ColorScheme::Light);
+    const auto scheme = hints->colorScheme();
+    const bool dark = chosen.name == "System"
+                          ? scheme == Qt::ColorScheme::Dark ||
+                                (scheme == Qt::ColorScheme::Unknown &&
+                                 QApplication::style()->standardPalette().color(QPalette::Window).lightness() < 128)
+                          : chosen.dark;
+    const Theme& active = chosen.name == "System" ? theme(dark ? "Dark" : "Light") : chosen;
     QPalette pal = QApplication::style()->standardPalette();
-    if (chosen.window.isValid()) {
-        for (auto role : {QPalette::Window, QPalette::Button}) pal.setColor(role, chosen.window);
-        for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText, QPalette::ToolTipText})
-            pal.setColor(role, chosen.text);
-        pal.setColor(QPalette::Base, chosen.paper);
-        pal.setColor(QPalette::AlternateBase, chosen.surface);
-        pal.setColor(QPalette::ToolTipBase, chosen.surface);
-        pal.setColor(QPalette::Highlight, chosen.accent);
-        pal.setColor(QPalette::HighlightedText, chosen.paper);
-        pal.setColor(QPalette::Mid, chosen.surface);
-        QApplication::setPalette(pal);
-    } else {
-        QApplication::setPalette(QPalette());  // back to the platform's own
-    }
-    const bool dark = chosen.name == "System" ? hints->colorScheme() == Qt::ColorScheme::Dark : chosen.dark;
-    canvas_->setTheme(chosen.name == "System" ? theme(dark ? "Dark" : "Light") : chosen);
+    pal.setColor(QPalette::Window, active.window);
+    pal.setColor(QPalette::Button, active.surface);
+    for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText, QPalette::ToolTipText})
+        pal.setColor(role, active.text);
+    pal.setColor(QPalette::Base, active.paper);
+    pal.setColor(QPalette::AlternateBase, active.surface);
+    pal.setColor(QPalette::ToolTipBase, active.surface);
+    pal.setColor(QPalette::Highlight, active.accent);
+    pal.setColor(QPalette::HighlightedText, active.paper);
+    pal.setColor(QPalette::Mid, active.surface);
+    QApplication::setPalette(pal);
+    qApp->setStyleSheet(uiStyle(active));
+    canvas_->setTheme(active);
     for (auto& [action, make] : icons_) action->setIcon(make());
     QSettings().setValue("theme", chosen.name);
 }

@@ -6,6 +6,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 
 ## Unreleased
 
+- **Lab notebook look**: warm paper and teal controls, with tools grouped into Draw, Chemistry and Figure. <!-- icon: palette -->
 - **Documentation**: a full guide online at penzene.readthedocs.io. <!-- icon: book-2 -->
 - **Updates**: Help → Check for Updates, and an optional weekly check (off unless you turn it on). <!-- icon: refresh -->
 - **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->

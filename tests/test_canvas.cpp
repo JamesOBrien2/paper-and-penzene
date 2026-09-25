@@ -21,6 +21,7 @@
 #include <QStackedWidget>
 #include <QElapsedTimer>
 #include <QMenuBar>
+#include <QAccessible>
 #include <QTest>
 
 #include <QComboBox>
@@ -875,7 +876,7 @@ TEST_CASE("ring fill colour is picked from the fill button (#126)") {
     QToolButton* pink = nullptr;  // a swatch in the drop-down
     for (auto* wa : fillButton->menu()->findChildren<QWidgetAction*>())
         for (auto* b : wa->defaultWidget()->findChildren<QToolButton*>())
-            if (b->toolTip() == QColor(255, 214, 214).name()) pink = b;
+            if (b->toolTip() == "Rose") pink = b;  // QColor(255, 214, 214)
     REQUIRE(pink);
     pink->click();
     CHECK(canvas->fillColor() == QColor(255, 214, 214));
@@ -1749,4 +1750,70 @@ TEST_CASE("translations: a built-in language is offered, and applies to the menu
     });
     w.showPreferences();
     CHECK(offered);
+}
+
+static double contrast(QColor a, QColor b) {  // WCAG 2 contrast ratio
+    auto lum = [](QColor c) {
+        auto ch = [](double v) { return v <= 0.03928 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * ch(c.redF()) + 0.7152 * ch(c.greenF()) + 0.0722 * ch(c.blueF());
+    };
+    const double x = lum(a), y = lum(b);
+    return (std::max(x, y) + 0.05) / (std::min(x, y) + 0.05);
+}
+
+TEST_CASE("accessibility: named, focusable tools; arrow keys in the periodic table; contrast (#112)") {
+    // Every theme: text 4.5:1 or better, marks drawn on the page (hotspot, selection, errors) 3:1.
+    for (const auto& t : themes()) {
+        INFO(t.name.toStdString());
+        CHECK(contrast(t.ink, t.paper) >= 4.5);
+        if (t.text.isValid()) CHECK(contrast(t.text, t.window) >= 4.5);
+        CHECK(contrast(t.accent, t.paper) >= 3);
+        CHECK(contrast(t.hotspot, t.paper) >= 3);
+        CHECK(contrast(t.error, t.paper) >= 3);
+    }
+
+    App app;
+    MainWindow w;
+    w.resize(1100, 750);
+    w.show();
+    QToolButton* benzene = nullptr;
+    for (auto* b : w.findChild<QWidget*>("toolPages")->findChildren<QToolButton*>()) {
+        INFO(b->toolTip().toStdString());
+        const QString name = QAccessible::queryAccessibleInterface(b)->text(QAccessible::Name);
+        CHECK_FALSE(name.isEmpty());  // what a screen reader says
+        if (!qobject_cast<QMenu*>(b->window())) CHECK(b->focusPolicy() == Qt::StrongFocus);  // Tab reaches it
+        if (name == "Benzene") benzene = b;
+    }
+    CHECK(benzene);
+
+    // The periodic table: arrow keys move between elements, over the table's gaps.
+    QHash<QString, QToolButton*> elements;
+    for (auto* wa : w.findChildren<QWidgetAction*>())
+        for (auto* b : wa->defaultWidget()->findChildren<QToolButton*>()) elements[b->text()] = b;
+    REQUIRE(elements.contains("C"));
+    CHECK(elements["C"]->accessibleName() == "Carbon");
+    QWidget* table = elements["C"]->parentWidget();
+    table->show();
+    auto press = [&](QToolButton* from, Qt::Key key) {
+        from->setFocus();
+        QKeyEvent e(QEvent::KeyPress, key, Qt::NoModifier);
+        QApplication::sendEvent(from, &e);
+        return table->window()->focusWidget();
+    };
+    CHECK(press(elements["C"], Qt::Key_Right) == elements["N"]);
+    CHECK(press(elements["C"], Qt::Key_Down) == elements["Si"]);
+    CHECK(press(elements["Be"], Qt::Key_Right) == elements["B"]);  // across the d-block gap
+    CHECK(press(elements["He"], Qt::Key_Up) == elements["He"]);    // nothing above: stays
+
+}
+
+TEST_CASE("accessibility: the hotspot is announced to screen readers (#112)") {
+    Fixture f;
+    f.canvas.setDocumentSilently(*chem::fromSmiles("CO"));
+    f.hover(f.doc().atoms[1].pos);
+    f.canvas.viewport()->repaint();
+    CHECK(f.canvas.accessibleDescription() == "Hotspot: atom O2, 1 bond");
+    f.hover((f.doc().atoms[0].pos + f.doc().atoms[1].pos) / 2);
+    f.canvas.viewport()->repaint();
+    CHECK(f.canvas.accessibleDescription() == "Hotspot: single bond, C1 to O2");
 }

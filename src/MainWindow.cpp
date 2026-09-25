@@ -99,6 +99,7 @@ static QString uiStyle(const Theme& t) {
         QFrame#toolDivider { background: %3; border: none; }
         QToolBar#tools QToolButton { color: %4; background: transparent; border: none; border-radius: 8px; padding: 5px; }
         QToolBar#tools QToolButton:hover, QToolBar#tools QToolButton:checked { background: %7; }
+        QToolBar#tools QToolButton:focus { border: 2px solid %6; }
         QToolBar#tools QToolButton::menu-button { background: transparent; border: none; width: 10px; }
         QCheckBox::indicator { width: 14px; height: 14px; background: %2; border: 1px solid %5; border-radius: 4px; }
         QCheckBox::indicator:checked { background: %6; border-color: %6; }
@@ -896,6 +897,7 @@ static QMenu* colourMenu(QWidget* parent, const QList<QColor>& presets, std::fun
         b->setFixedSize(24, 24);
         b->setAutoRaise(true);
         b->setToolTip(names.value(i, presets[i].name()));
+        b->setAccessibleName(b->toolTip());
         b->setCheckable(true);
         QPixmap swatch(16, 16);
         swatch.fill(presets[i]);
@@ -919,9 +921,34 @@ static QMenu* colourMenu(QWidget* parent, const QList<QColor>& presets, std::fun
     return menu;
 }
 
+namespace {
+// Arrow keys move between the buttons of a grid layout, skipping its gaps.
+struct GridArrows : QObject {
+    QGridLayout* grid;
+    explicit GridArrows(QGridLayout* g) : QObject(g), grid(g) {}
+    bool eventFilter(QObject* o, QEvent* e) override {
+        if (e->type() != QEvent::KeyPress) return false;
+        const int key = static_cast<QKeyEvent*>(e)->key();
+        const int dr = key == Qt::Key_Down ? 1 : key == Qt::Key_Up ? -1 : 0;
+        const int dc = key == Qt::Key_Right ? 1 : key == Qt::Key_Left ? -1 : 0;
+        if (!dr && !dc) return false;
+        int row, col, rs, cs;
+        grid->getItemPosition(grid->indexOf(static_cast<QWidget*>(o)), &row, &col, &rs, &cs);
+        for (int r = row + dr, c = col + dc; r >= 0 && r < grid->rowCount() && c >= 0 && c < grid->columnCount();
+             r += dr, c += dc)
+            if (auto* item = grid->itemAtPosition(r, c); item && item->widget()) {
+                item->widget()->setFocus(Qt::TabFocusReason);
+                break;
+            }
+        return true;
+    }
+};
+}  // namespace
+
 static QWidget* periodicTable(const std::function<void(int)>& picked) {
     auto* w = new QWidget;
     auto* grid = new QGridLayout(w);
+    auto* arrows = new GridArrows(grid);
     grid->setSpacing(2);
     grid->setContentsMargins(6, 6, 6, 6);
     auto place = [&](int z, int row, int col) {
@@ -929,8 +956,11 @@ static QWidget* periodicTable(const std::function<void(int)>& picked) {
         auto* b = new QToolButton;
         b->setText(sym);
         b->setToolTip(QString("%1 (%2)").arg(sym).arg(z));
+        b->setAccessibleName(QString::fromStdString(chem::elementName(z)));
         b->setFixedSize(30, 26);
         b->setAutoRaise(true);
+        b->setFocusPolicy(Qt::StrongFocus);
+        b->installEventFilter(arrows);
         static const QSet<int> organic{1, 5, 6, 7, 8, 9, 14, 15, 16, 17, 35, 53};
         if (organic.contains(z)) {
             QFont f = b->font();
@@ -1028,6 +1058,11 @@ void MainWindow::buildTools() {
         b->setDefaultAction(a);
         b->setIconSize({26, 26});
         b->setAutoRaise(true);
+        b->setFocusPolicy(Qt::StrongFocus);  // Tab reaches every tool; Space picks it
+        // Screen readers: the tool's name ("Benzene"), with the whole tip as its description.
+        static const QRegularExpression end(R"(\s*(:| \(| —).*$)");
+        b->setAccessibleName(QString(a->toolTip()).remove(end));
+        b->setAccessibleDescription(a->toolTip());
         grid->addWidget(b, slot / 2, slot % 2);
         ++slot;
         return b;
@@ -1117,7 +1152,9 @@ void MainWindow::buildTools() {
                                       canvas_->setTool(T::Fill);
                                       fillTool->setChecked(true);
                                       fillTool->setIcon(fillIcon());
-                                  }));
+                                  },
+                                  {tr("Blue"), tr("Rose"), tr("Green"), tr("Amber"), tr("Lavender"), tr("Pink"),
+                                   tr("Grey"), tr("Yellow")}));
         }
     section();
 
@@ -1243,6 +1280,7 @@ void MainWindow::buildTools() {
         auto* b = new QToolButton;
         b->setDefaultAction(action);
         b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        b->setFocusPolicy(Qt::StrongFocus);
         grid->addWidget(b, slot / 2, 0, 1, 2);
         slot += 2;
     };

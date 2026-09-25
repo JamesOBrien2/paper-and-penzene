@@ -745,8 +745,9 @@ const std::vector<Theme>& themes() {
          QColor("#0F6E56"), QColor("#0F6E56"), QColor("#FBF8F1"), QColor("#FFFFFF"), QColor("#2C2C2A")},
         {"Dark", true, QColor("#22211F"), QColor("#F1EFE8"), QColor(255, 105, 97),
          QColor("#5DCAA5"), QColor("#5DCAA5"), QColor("#22211F"), QColor("#2C2C2A"), QColor("#F1EFE8")},
-        // https://catppuccin.com/palette: base, mantle, surface0, text, red, blue, green
-        cat("Catppuccin Latte", false, "#eff1f5", "#e6e9ef", "#ccd0da", "#4c4f69", "#d20f39", "#1e66f5", "#40a02b"),
+        // https://catppuccin.com/palette: base, mantle, surface0, text, red, blue, green (hotspot)
+        // Latte's teal, not its green, for the hotspot: the green is under 3:1 on its base.
+        cat("Catppuccin Latte", false, "#eff1f5", "#e6e9ef", "#ccd0da", "#4c4f69", "#d20f39", "#1e66f5", "#179299"),
         cat("Catppuccin Frappé", true, "#303446", "#292c3c", "#414559", "#c6d0f5", "#e78284", "#8caaee", "#a6d189"),
         cat("Catppuccin Macchiato", true, "#24273a", "#1e2030", "#363a4f", "#cad3f5", "#ed8796", "#8aadf4", "#a6da95"),
         cat("Catppuccin Mocha", true, "#1e1e2e", "#181825", "#313244", "#cdd6f4", "#f38ba8", "#89b4fa", "#a6e3a1"),

@@ -74,6 +74,7 @@ int bestToward(int count, QPointF dir, double minDot, F vectorOf) {
 Canvas::Canvas(QUndoStack* undo, QWidget* parent) : QGraphicsView(parent), undo_(undo) {
     setScene(new QGraphicsScene(-5000, -5000, 10000, 10000, this));
     setMouseTracking(true);
+    setAccessibleName(tr("Drawing"));
     setRenderHint(QPainter::Antialiasing);
     setViewportUpdateMode(FullViewportUpdate);
     setTransformationAnchor(AnchorUnderMouse);
@@ -94,6 +95,7 @@ void Canvas::setDocumentSilently(const Document& doc) {
     if (hoverAtom_ >= int(doc_.atoms.size())) hoverAtom_ = -1;
     if (hoverBond_ >= int(doc_.bonds.size())) hoverBond_ = -1;
     refresh();
+    announceHotspot();
     emit documentChanged();
 }
 
@@ -212,6 +214,42 @@ void Canvas::drawBackground(QPainter* p, const QRectF& rect) {
             }
     }
     picture_.play(p);
+}
+
+// Screen readers hear the hotspot as the canvas's description, updated after every key and
+// mouse event (the only things that move it) and document change.
+bool Canvas::event(QEvent* e) {
+    const bool done = QGraphicsView::event(e);
+    announceHotspot();
+    return done;
+}
+
+bool Canvas::viewportEvent(QEvent* e) {
+    const bool done = QGraphicsView::viewportEvent(e);
+    announceHotspot();
+    return done;
+}
+
+void Canvas::announceHotspot() {
+    if (announced_ == std::pair(hoverAtom_, hoverBond_)) return;
+    announced_ = {hoverAtom_, hoverBond_};
+    auto name = [this](int i) {
+        const Atom& a = doc_.atoms[i];
+        return (a.label.isEmpty() ? QString::fromStdString(chem::symbol(a.z)) : a.label) + QString::number(i + 1);
+    };
+    QString text;
+    if (hoverAtom_ >= 0 && hoverAtom_ < int(doc_.atoms.size()))
+    {
+        const int n = int(doc_.neighbors(hoverAtom_).size());
+        text = n == 1 ? tr("Hotspot: atom %1, 1 bond").arg(name(hoverAtom_))
+                      : tr("Hotspot: atom %1, %2 bonds").arg(name(hoverAtom_)).arg(n);
+    }
+    else if (hoverBond_ >= 0 && hoverBond_ < int(doc_.bonds.size())) {
+        const Bond& b = doc_.bonds[hoverBond_];
+        const QString order = b.order == 3 ? tr("triple") : b.order == 2 ? tr("double") : tr("single");
+        text = tr("Hotspot: %1 bond, %2 to %3").arg(order, name(b.a), name(b.b));
+    }
+    setAccessibleDescription(text);
 }
 
 void Canvas::drawForeground(QPainter* p, const QRectF&) {

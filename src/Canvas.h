@@ -91,6 +91,8 @@ protected:
     void keyPressEvent(QKeyEvent* e) override;
     void wheelEvent(QWheelEvent* e) override;
     void contextMenuEvent(QContextMenuEvent* e) override;
+    bool event(QEvent* e) override;          // keys: then announce the hotspot
+    bool viewportEvent(QEvent* e) override;  // the mouse: likewise
 
 private:
     int atomAt(QPointF p) const;
@@ -119,6 +121,8 @@ private:
 
     QSet<int> selectedAtoms_, selectedArrows_, selectedTexts_;
     int hoverAtom_ = -1, hoverBond_ = -1;
+    std::pair<int, int> announced_{-1, -1};  // the hotspot last given to screen readers
+    void announceHotspot();
 
     // Drag state
     enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan, Scale, Rotate3D } drag_ = Drag::None;

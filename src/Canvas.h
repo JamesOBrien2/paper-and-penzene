@@ -121,7 +121,6 @@ private:
 
     QSet<int> selectedAtoms_, selectedArrows_, selectedTexts_;
     int hoverAtom_ = -1, hoverBond_ = -1;
-    std::pair<int, int> announced_{-1, -1};  // the hotspot last given to screen readers
     void announceHotspot();
 
     // Drag state

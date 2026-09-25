@@ -231,8 +231,6 @@ bool Canvas::viewportEvent(QEvent* e) {
 }
 
 void Canvas::announceHotspot() {
-    if (announced_ == std::pair(hoverAtom_, hoverBond_)) return;
-    announced_ = {hoverAtom_, hoverBond_};
     auto name = [this](int i) {
         const Atom& a = doc_.atoms[i];
         return (a.label.isEmpty() ? QString::fromStdString(chem::symbol(a.z)) : a.label) + QString::number(i + 1);
@@ -249,7 +247,7 @@ void Canvas::announceHotspot() {
         const QString order = b.order == 3 ? tr("triple") : b.order == 2 ? tr("double") : tr("single");
         text = tr("Hotspot: %1 bond, %2 to %3").arg(order, name(b.a), name(b.b));
     }
-    setAccessibleDescription(text);
+    if (text != accessibleDescription()) setAccessibleDescription(text);  // also after an edit in place
 }
 
 void Canvas::drawForeground(QPainter* p, const QRectF&) {

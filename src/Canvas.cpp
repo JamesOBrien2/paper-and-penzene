@@ -1127,6 +1127,11 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
         if (key == Qt::Key_Left || key == Qt::Key_Right) rotateSelection(key == Qt::Key_Left ? -15 : 15);
         return;
     }
+    const bool selection = !selectedAtoms_.isEmpty() || !selectedArrows_.isEmpty() || !selectedTexts_.isEmpty();
+    if (arrow && selection && !(e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier))) {  // nudge: 1 pt, Shift 10
+        const QPointF by = arrowDirection(key) * ((e->modifiers() & Qt::ShiftModifier) ? 10 : 1);
+        return transformSelection(QTransform::fromTranslate(by.x(), by.y()), tr("Nudge"));
+    }
     if (arrow && !(e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)))
         return moveHotspot(arrowDirection(key), e->modifiers() & Qt::ShiftModifier);
     if (arrow && (e->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)))
@@ -1157,7 +1162,32 @@ void Canvas::keyPressEvent(QKeyEvent* e) {
     const QString t = e->text();
     Document next = doc_;
 
-    if (hoverAtom_ >= 0 && t == "/") return editAtomProperties(hoverAtom_);
+    // ChemDraw: Enter takes a selected molecule to a hotspot, Space takes a hotspot to its molecule.
+    if (selection && (key == Qt::Key_Return || key == Qt::Key_Enter) && !selectedAtoms_.isEmpty()) {
+        hoverAtom_ = *std::min_element(selectedAtoms_.begin(), selectedAtoms_.end()), hoverBond_ = -1;
+        return setSelection({});
+    }
+    if ((hoverAtom_ >= 0 || hoverBond_ >= 0) && t == " ") {
+        const int from = hoverAtom_ >= 0 ? hoverAtom_ : doc_.bonds[hoverBond_].a;
+        QSet<int> molecule{from};
+        std::vector<int> stack{from};
+        while (!stack.empty()) {
+            const int i = stack.back();
+            stack.pop_back();
+            for (int nb : doc_.neighbors(i))
+                if (!molecule.contains(nb)) molecule.insert(nb), stack.push_back(nb);
+        }
+        hoverAtom_ = hoverBond_ = -1;
+        emit toolKey(" ");  // the Select tool, as ChemDraw's marquee
+        return setSelection(molecule);
+    }
+    if (t == "g" && (hoverAtom_ >= 0 || hoverBond_ >= 0)) {  // grab: the hotspot's atom or bond, selected
+        const QSet<int> atoms = hoverAtom_ >= 0 ? QSet<int>{hoverAtom_} : QSet<int>{doc_.bonds[hoverBond_].a, doc_.bonds[hoverBond_].b};
+        hoverAtom_ = hoverBond_ = -1;
+        emit toolKey(" ");
+        return setSelection(atoms);
+    }
+    if (hoverAtom_ >= 0 && (t == "/" || t == "?")) return editAtomProperties(hoverAtom_);
     if (hoverAtom_ >= 0 && (key == Qt::Key_Return || key == Qt::Key_Enter || t == "=" || t == "t"))
         return editLabel(hoverAtom_);
     if (hoverAtom_ < 0 && hoverBond_ < 0) {  // no hotspot: tool keys

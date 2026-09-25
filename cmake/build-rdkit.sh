@@ -54,7 +54,7 @@ cmake -G Ninja -S rdkit -B build -DCMAKE_BUILD_TYPE=Release \
     -DRDK_BUILD_CAIRO_SUPPORT=OFF -DRDK_BUILD_YAEHMOP_SUPPORT=OFF -DRDK_BUILD_FREESASA_SUPPORT=OFF \
     -DRDK_BUILD_AVALON_SUPPORT=OFF -DRDK_BUILD_PUBCHEMSHAPE_SUPPORT=OFF \
     -DRDK_USE_BOOST_SERIALIZATION=OFF -DRDK_USE_BOOST_IOSTREAMS=OFF \
-    -DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS="$work/better-enums" -DFETCHCONTENT_FULLY_DISCONNECTED=ON "${extra[@]}"
+    -DFETCHCONTENT_SOURCE_DIR_BETTER_ENUMS="$work/better-enums" -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${extra[@]+"${extra[@]}"}  # macOS bash 3.2: empty array under set -u
 cmake --build build
 cmake --install build
 echo "RDKit (no ChemDraw library) in $prefix"

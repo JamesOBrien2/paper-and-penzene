@@ -343,7 +343,7 @@ QString labelHotkey(const QString& key) {
         {"p", "P"},   {"f", "F"},    {"l", "Cl"},    {"C", "Cl"},   {"b", "Br"},  {"i", "I"},
         {"h", "H"},   {"d", "H"},    {"B", "B"},     {"S", "Si"},   {"L", "Li"},  {"m", "Me"},
         {"e", "Et"},  {"A", "Ac"},   {"P", "Ph"},    {"F", "CF3"},  {"N", "NO2"}, {"O", "OMe"},
-        {"E", "CO2Me"}, {"Z", "N3"}, {"M", "MgBr"},  {"Q", "Fmoc"}, {"H", "Cbz"}, {"Y", "Boc"},
+        {"E", "CO2Me"}, {"Z", "N3"}, {"M", "MgBr"},  {"Q", "Fmoc"}, {"H", "Cbz"}, {"Y", "Boc"}, {"y", "Boc"},
         {"x", "X"},   {"r", "R"},
     };
     return k.value(key);
@@ -435,7 +435,7 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
     } else if (t == "1" || t == "2" || t == "3") {
         b.order = t.toInt(), b.stereo = BondStereo::None, b.position = BondPosition::Auto;
         straightenSp(doc, h.bond);
-    } else if (t == "w" || t == "h" || t == "H") {
+    } else if (t == "w" || t == "h" || t == "H" || t == "W") {
         BondStereo s = t == "w" ? BondStereo::Wedge : BondStereo::Hash;
         if (b.stereo == s) std::swap(b.a, b.b);  // again: flip which end is narrow
         b.stereo = s, b.order = 1;

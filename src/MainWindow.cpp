@@ -1281,7 +1281,8 @@ void MainWindow::buildMenus() {
 moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <table cellspacing="5">
 <tr><th colspan="2" align="left">Moving the hotspot</th></tr>
-<tr><td><b>←↑→↓</b></td><td>atom → bond → atom; with <b>Shift</b>: atom → atom, bond → bond</td></tr>
+<tr><td><b>←↑→↓</b></td><td>atom → bond → atom; with <b>Shift</b>: atom → atom, bond → bond (with a selection: nudge it, below)</td></tr>
+<tr><td><b>Space</b> / <b>g</b></td><td>select the hotspot's molecule / just its atom or bond</td></tr>
 <tr><td><b>Esc</b></td><td>clear hotspot and selection</td></tr>
 <tr><th colspan="2" align="left">Atom: sprout</th></tr>
 <tr><td><b>1</b> / <b>0</b></td><td>single bond, linear / cyclic mode (0 is longer on 2°/3° carbons)</td></tr>
@@ -1291,37 +1292,41 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>6 7 u v</b></td><td>cyclohexane, cyclopentane, cyclobutane, cyclopropane (spiro on 2°)</td></tr>
 <tr><td><b>8 9 z</b></td><td>methylidene, dimethyl / gem-dimethyl / isopropyl, alkyne</td></tr>
 <tr><td><b>k K</b></td><td>sulfonyl, t-Bu</td></tr>
-<tr><th colspan="2" align="left">Atom: label</th></tr>
+<tr><td><b>.</b> / <b>j</b> / <b>J</b></td><td>attachment point / η⁵-cyclopentadienyl / η⁶-benzene</td></tr>
+<tr><th colspan="2" align="left">Atom: label and marks</th></tr>
 <tr><td><b>c n/w o/q s p f l b i h</b></td><td>C N O S P F Cl Br I H</td></tr>
 <tr><td><b>B S L</b></td><td>B, Si, Li</td></tr>
 <tr><td><b>m e P A</b></td><td>Me, Et, Ph, Ac</td></tr>
 <tr><td><b>O N F E Z</b></td><td>OMe, NO<sub>2</sub>, CF<sub>3</sub>, CO<sub>2</sub>Me, N<sub>3</sub></td></tr>
-<tr><td><b>Y H Q M</b></td><td>Boc, Cbz, Fmoc, MgBr</td></tr>
+<tr><td><b>y/Y H Q M</b></td><td>Boc, Cbz, Fmoc, MgBr</td></tr>
+<tr><td><b>x r</b></td><td>X, R (generic atoms)</td></tr>
 <tr><td><b>+ −</b></td><td>charge</td></tr>
-<tr><td><b>Enter</b> or <b>=</b></td><td>type a label: element, abbreviation (OMe, Boc, TBS…) or SMILES</td></tr>
+<tr><td><b>:</b> / <b>*</b></td><td>lone pairs (0–3) / radical dot</td></tr>
+<tr><td><b>'</b></td><td>atom-map number (next free, or off)</td></tr>
+<tr><td><b>Enter</b>, <b>=</b> or <b>t</b></td><td>type a label: element, abbreviation (OMe, Boc, TBS…), SMILES or any text</td></tr>
+<tr><td><b>/</b> or <b>?</b></td><td>atom properties</td></tr>
 <tr><td><b>Delete</b></td><td>remove label (C stays), or delete a carbon</td></tr>
 <tr><th colspan="2" align="left">Bond</th></tr>
 <tr><td><b>1 2 3</b></td><td>single, double, triple; <b>2</b> on a double bond swaps the side of its second line</td></tr>
-<tr><td><b>w</b> / <b>h</b></td><td>wedged / hashed (press again to flip)</td></tr>
+<tr><td><b>w</b> / <b>h</b>, <b>W</b>, <b>H</b></td><td>wedged / hashed (press again to flip)</td></tr>
 <tr><td><b>a z</b></td><td>fuse benzene / cyclopentadiene</td></tr>
 <tr><td><b>v 4–8</b></td><td>fuse ring of that size (v = 3)</td></tr>
 <tr><td><b>9</b> / <b>0</b></td><td>fuse chair cyclohexane (two orientations)</td></tr>
 <tr><td><b>d b y</b></td><td>dashed, bold, wavy</td></tr>
 <tr><td><b>D</b> / <b>B</b></td><td>dashed double / bold double</td></tr>
 <tr><td><b>i</b></td><td>interaction: H-bond or contact, dotted, not a bond</td></tr>
-<tr><td><b>:</b> / <b>*</b> (atom)</td><td>lone pairs (0–3) / radical dot</td></tr>
-<tr><td><b>Shift+Alt+← → ↑ ↓</b></td><td>rotate 15° out of the page (3D), keeping stereo; Shift+Alt+drag rotates freely</td></tr>
-<tr><td><b>.</b> / <b>j</b> / <b>J</b> (atom)</td><td>attachment point / η⁵-cyclopentadienyl / η⁶-benzene</td></tr>
-<tr><td><b>/</b> (atom)</td><td>atom properties</td></tr>
-<tr><td><b>f</b> (bond)</td><td>bring to front: bonds it crosses get a gap</td></tr>
 <tr><td><b>p</b> / <b>P</b></td><td>partial bond forming or breaking / partial double (transition states)</td></tr>
 <tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
+<tr><td><b>f</b></td><td>bring to front: bonds it crosses get a gap</td></tr>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>
 <tr><td><b>x X j e t Space</b></td><td>bond, chain, benzene, arrow, text, select tool</td></tr>
 <tr><th colspan="2" align="left">Selection</th></tr>
+<tr><td><b>←↑→↓</b></td><td>nudge 1 pt; with <b>Shift</b> 10 pt</td></tr>
+<tr><td><b>Enter</b></td><td>back to a hotspot on the selection</td></tr>
 <tr><td><b>Drag onto an atom</b></td><td>merge (Select tool) &nbsp;•&nbsp; <b>Shift+drag</b> move straight; draw a bond at any angle</td></tr>
 <tr><td><b>Ctrl+←↑→↓</b></td><td>duplicate across the next arrow that way (or alongside)</td></tr>
 <tr><td><b>Alt+← →</b></td><td>rotate 15° &nbsp;•&nbsp; <b>Alt+drag</b> rotate freely • <b>double-click</b> select fragment, or edit text</td></tr>
+<tr><td><b>Shift+Alt+←↑→↓</b></td><td>rotate 15° out of the page (3D), keeping stereo &nbsp;•&nbsp; <b>Shift+Alt+drag</b> freely</td></tr>
 </table>)"));
         box.exec();
     });

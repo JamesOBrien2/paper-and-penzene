@@ -1417,3 +1417,27 @@ TEST_CASE("attachment points, π-ligands, bring to front and atom properties (#6
     CHECK(f.doc().atoms[1].lonePairs == 2);
     CHECK(chem::toSmiles(f.doc()) == "C[O-]");
 }
+
+TEST_CASE("ChemDraw shortcut parity: y, W, g, ?, Space, Enter, nudging (#157)") {
+    Fixture f;
+    Document d = *chem::fromSmiles("CCC");
+    REQUIRE(edit::hotkey(d, {2, -1}, "y").valid());
+    CHECK(d.atoms[2].label == "Boc");
+    REQUIRE(edit::hotkey(d, {-1, 0}, "W").valid());
+    CHECK(d.bonds[0].stereo == BondStereo::Hash);
+
+    f.canvas.setDocumentSilently(*chem::fromSmiles("CCO.CC"));
+    f.canvas.setTool(Canvas::Tool::Select);
+    QTest::mouseMove(f.canvas.viewport(), f.at(f.doc().atoms[1].pos));
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_G);
+    CHECK(f.canvas.selection() == QSet<int>{1});  // g grabs the hotspot atom
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Return);  // back to a hotspot
+    CHECK(f.canvas.selection().isEmpty());
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Space);  // hotspot → its molecule
+    CHECK(f.canvas.selection() == (QSet<int>{0, 1, 2}));
+    const QPointF before = f.doc().atoms[0].pos;
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Right, Qt::ShiftModifier);  // nudge 10
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Down);                      // nudge 1
+    CHECK(QLineF(f.doc().atoms[0].pos, before + QPointF(10, 1)).length() < 1e-9);
+    CHECK(QLineF(f.doc().atoms[3].pos, chem::fromSmiles("CCO.CC")->atoms[3].pos).length() < 1e-9);  // the other molecule stays
+}

@@ -1031,6 +1031,7 @@ void MainWindow::buildMenus() {
     auto* structure = menuBar()->addMenu(tr("&Structure"));
     structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
                          [this] { canvas_->flipSelection(true); });
+    structure->addAction(tr("Arrange &Scheme"), this, [this] { canvas_->arrangeScheme(); });
     auto* brackets = structure->addMenu(tr("&Brackets"));
     for (bool square : {true, false})
         brackets->addAction(square ? tr("&Square Brackets Around Selection…") : tr("&Round Brackets Around Selection…"), this,

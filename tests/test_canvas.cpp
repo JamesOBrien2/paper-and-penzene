@@ -1317,3 +1317,39 @@ TEST_CASE("Haworth and Fischer projections read with PubChem's stereo (#108)") {
     cyclohexanol.bonds[2].stereo = BondStereo::Bold;
     CHECK(chem::toSmiles(cyclohexanol) == "OC1CCCCC1");
 }
+
+TEST_CASE("Arrange Scheme lines a reaction up (#109)") {
+    Fixture f;
+    // Salicylic acid + acetic anhydride → aspirin, drawn untidily, pyridine over a tilted arrow.
+    Document d = *chem::fromSmiles("OC(=O)c1ccccc1O");
+    d.append(*chem::fromSmiles("CC(=O)OC(C)=O"), {70, 25});
+    d.texts.push_back({{35, 5}, "+"});
+    d.arrows.push_back({{110, 10}, {150, 0}});
+    d.append(*chem::fromSmiles("c1ccncc1"), {128, -35});  // the agent, over the arrow
+    d.append(*chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O"), {200, 30});
+    f.canvas.setDocumentSilently(d);
+    f.canvas.arrangeScheme();
+    const Document& out = f.doc();
+    const Arrow& arrow = out.arrows[0];
+    CHECK(std::abs(arrow.from.y() - arrow.to.y()) < 1e-9);  // straightened
+    auto centre = [&](const QString& smiles) {  // a molecule's centre, found by its SMILES
+        QPolygonF pts;
+        const auto want = chem::toSmiles(*chem::fromSmiles(smiles.toStdString()));
+        const auto parts = *chem::reactionOf(out);
+        for (const auto& r : {parts.reactants, parts.agents, parts.products})
+            for (const auto& m : r)
+                if (chem::toSmiles(m) == want) {
+                    for (const auto& a : m.atoms) pts << a.pos;
+                    return pts.boundingRect().center();
+                }
+        return QPointF(1e9, 1e9);
+    };
+    const auto r = chem::reactionOf(out);
+    REQUIRE(r);
+    CHECK(r->reactants.size() == 2);
+    CHECK(r->agents.size() == 1);
+    CHECK(r->products.size() == 1);
+    CHECK(std::abs(centre("c1ccncc1").x() - (arrow.from.x() + arrow.to.x()) / 2) < 1);  // agent centred on the arrow
+    CHECK(centre("c1ccncc1").y() < arrow.from.y());                                     // and above it
+    CHECK(std::abs(centre("CC(=O)Oc1ccccc1C(=O)O").y() - arrow.from.y()) < 1);           // product on the baseline
+}

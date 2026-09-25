@@ -785,6 +785,75 @@ void Canvas::distributeSelection(bool horizontal) {
     commit(next, tr("Distribute"));
 }
 
+// A reaction scheme on one baseline: molecules, "+" and straight arrows left to
+// right, evenly spaced; whatever sits over or under an arrow (agents, conditions)
+// is centred on it, and the arrow grows to fit.
+void Canvas::arrangeScheme() {
+    const auto ps = pieces(doc_, selectedAtoms_, selectedArrows_, selectedTexts_);
+    auto arrowOf = [&](const Piece& p) -> const Arrow* {
+        if (!p.atoms.isEmpty() || !p.texts.isEmpty() || p.arrows.size() != 1) return nullptr;
+        const Arrow& a = doc_.arrows[*p.arrows.begin()];
+        return isShape(a.kind) || a.bend ? nullptr : &a;
+    };
+    std::vector<int> owner(ps.size(), -1);  // the arrow piece an agent belongs to
+    for (size_t i = 0; i < ps.size(); ++i) {
+        if (arrowOf(ps[i])) continue;
+        const QPointF c = bounds(doc_, ps[i]).center();
+        double best = 3 * kBondLength;
+        for (size_t j = 0; j < ps.size(); ++j)
+            if (const Arrow* a = arrowOf(ps[j])) {
+                const double y = (a->from.y() + a->to.y()) / 2, off = std::abs(c.y() - y);
+                const bool over = c.x() > std::min(a->from.x(), a->to.x()) && c.x() < std::max(a->from.x(), a->to.x());
+                if (over && off > 0.2 * kBondLength && off < best) best = off, owner[i] = int(j);
+            }
+    }
+    std::vector<int> row;
+    for (size_t i = 0; i < ps.size(); ++i)
+        if (owner[i] < 0) row.push_back(int(i));
+    if (row.size() < 2) return;
+    std::sort(row.begin(), row.end(), [&](int a, int b) { return bounds(doc_, ps[a]).center().x() < bounds(doc_, ps[b]).center().x(); });
+    double baseline = 0;
+    int molecules = 0;
+    for (int i : row)
+        if (!ps[i].atoms.isEmpty()) baseline += bounds(doc_, ps[i]).center().y(), ++molecules;
+    baseline = molecules ? baseline / molecules : bounds(doc_, ps[row[0]]).center().y();
+    const double gap = kBondLength;
+    Document next = doc_;
+    double x = bounds(doc_, ps[row[0]]).left();
+    for (int i : row) {
+        if (const Arrow* a = arrowOf(ps[i])) {
+            std::vector<int> above, below;
+            for (size_t j = 0; j < ps.size(); ++j)
+                if (owner[j] == i) (bounds(doc_, ps[j]).center().y() < (a->from.y() + a->to.y()) / 2 ? above : below).push_back(int(j));
+            auto width = [&](const std::vector<int>& items) {
+                double w = 0;
+                for (int j : items) w += bounds(doc_, ps[j]).width() + (w ? gap / 2 : 0);
+                return w;
+            };
+            const double len = std::max({3 * kBondLength, width(above) + gap, width(below) + gap});
+            Arrow& out = next.arrows[*ps[i].arrows.begin()];
+            const bool leftward = a->to.x() < a->from.x();
+            out.from = {leftward ? x + len : x, baseline}, out.to = {leftward ? x : x + len, baseline};
+            for (const auto* items : {&above, &below}) {  // side by side, centred on the arrow
+                double at = x + (len - width(*items)) / 2;
+                for (int j : *items) {
+                    const QRectF r = bounds(doc_, ps[j]);
+                    const double y = items == &above ? baseline - 0.3 * kBondLength - r.height() / 2
+                                                     : baseline + 0.3 * kBondLength + r.height() / 2;
+                    shiftPiece(next, ps[j], QPointF(at - r.left(), y - r.center().y()));
+                    at += r.width() + gap / 2;
+                }
+            }
+            x += len + gap;
+        } else {
+            const QRectF r = bounds(doc_, ps[i]);
+            shiftPiece(next, ps[i], QPointF(x - r.left(), baseline - r.center().y()));
+            x += r.width() + gap;
+        }
+    }
+    commit(next, tr("Arrange scheme"));
+}
+
 void Canvas::bracketSelection(bool square, const QString& label) {
     if (selectedAtoms_.isEmpty()) return;
     std::vector<int> atoms(selectedAtoms_.begin(), selectedAtoms_.end());

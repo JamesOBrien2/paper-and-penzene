@@ -67,6 +67,8 @@
 
 static const char* kMolMime = "chemical/x-mdl-molfile";
 static const char* kPenzMime = "application/x-penzene";  // full fidelity: arrows and text too
+static const char* kDocsUrl = "https://penzene.readthedocs.io/";
+static const QSize kExampleIcon(168, 84);
 
 static QString uiStyle(const Theme& t) {
     QString border, secondary, accentBg;
@@ -106,6 +108,11 @@ static QString uiStyle(const Theme& t) {
         QDockWidget#properties, QDockWidget#templates { background: %1; color: %4; border: none; }
         QDockWidget::title { background: %2; color: %4; border: 1px solid %3; border-radius: 10px; padding: 8px; }
         QFrame#panelCard { background: %2; border: 1px solid %3; border-radius: 12px; }
+        QFrame#welcome { background: %2; border: 1px solid %3; border-radius: 16px; }
+        QLabel#welcomeTitle { font-size: 18px; font-weight: 600; }
+        QLabel#welcomeHint { color: %5; }
+        QToolButton#example { background: %1; color: %4; border: 1px solid %3; border-radius: 10px; padding: 8px; }
+        QToolButton#example:hover { background: %7; border-color: %6; }
         QTreeWidget, QTextEdit, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
             background: %2; color: %4; border: 1px solid %3; border-radius: 7px; padding: 3px;
             selection-background-color: %7; selection-color: %6;
@@ -194,6 +201,88 @@ MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_
     auto* autosaver = new QTimer(this);
     connect(autosaver, &QTimer::timeout, this, &MainWindow::autosave);
     autosaver->start(60 * 1000);
+    buildWelcome();
+}
+
+// A card over the empty canvas: examples to open, and where to learn the keys. It goes away
+// once there's a drawing, or at the first click on the canvas.
+void MainWindow::buildWelcome() {
+    welcome_ = new QFrame;
+    welcome_->setObjectName("welcome");
+    auto* layout = new QVBoxLayout(welcome_);
+    layout->setContentsMargins(22, 20, 22, 18);
+    layout->setSpacing(10);
+    auto* title = new QLabel(tr("Start drawing"));
+    title->setObjectName("welcomeTitle");
+    auto* hint = new QLabel(tr("Click anywhere on the page, or open an example:"));
+    hint->setObjectName("welcomeHint");
+    layout->addWidget(title);
+    layout->addWidget(hint);
+    auto* row = new QHBoxLayout;
+    row->setSpacing(10);
+    for (const auto& [name, doc] : exampleDocuments()) {
+        auto* b = new QToolButton;
+        b->setObjectName("example");
+        b->setText(name);
+        b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        b->setIconSize(kExampleIcon);
+        welcomeExamples_.push_back({b, doc});
+        connect(b, &QToolButton::clicked, this, [this, doc = doc] {
+            if (!maybeSave()) return;
+            undo_->clear();
+            canvas_->setDocumentSilently(doc);
+            canvas_->fitToDocument();
+            path_.clear();
+            updateTitle();
+        });
+        row->addWidget(b);
+    }
+    layout->addLayout(row);
+    auto* links = new QLabel(QString("<a href='keys'>%1</a> &nbsp;·&nbsp; <a href='%2'>%3</a>")
+                                 .arg(tr("Keyboard shortcuts"), kDocsUrl, tr("Documentation")));
+    links->setObjectName("welcomeLinks");
+    connect(links, &QLabel::linkActivated, this, [this](const QString& link) {
+        if (link == "keys") shortcutsAction_->trigger();
+        else QDesktopServices::openUrl(QUrl(link));
+    });
+    layout->addWidget(links);
+
+    auto* centre = new QGridLayout(canvas_->viewport());
+    centre->addWidget(welcome_, 0, 0, Qt::AlignCenter);
+    canvas_->viewport()->installEventFilter(this);
+    connect(canvas_, &Canvas::documentChanged, welcome_, [this] {
+        if (!canvas_->document().empty()) welcome_->hide();
+    });
+    welcome_->setVisible(canvas_->document().empty());
+    paintExamples();
+}
+
+// The examples' previews in the theme's ink (again after a theme change).
+void MainWindow::paintExamples() {
+    const QColor ink = palette().color(QPalette::WindowText);
+    const qreal ratio = devicePixelRatioF();
+    for (auto& [button, doc] : welcomeExamples_) {
+        QImage img(kExampleIcon * ratio, QImage::Format_ARGB32_Premultiplied);
+        img.setDevicePixelRatio(ratio);
+        img.fill(Qt::transparent);
+        QPainter p(&img);
+        p.setRenderHint(QPainter::Antialiasing);
+        const QRectF r = documentBounds(doc);
+        const double k = std::min(kExampleIcon.width() / r.width(), kExampleIcon.height() / r.height()) * 0.92;
+        p.translate(kExampleIcon.width() / 2.0, kExampleIcon.height() / 2.0);
+        p.scale(k, k);
+        p.translate(-r.center());
+        paintDocument(p, doc, {ink, ink});
+        p.end();
+        button->setIcon(QIcon(QPixmap::fromImage(img)));
+    }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* e) {
+    if (watched == canvas_->viewport() && e->type() == QEvent::MouseButtonPress && welcome_->isVisible() &&
+        !welcome_->geometry().contains(static_cast<QMouseEvent*>(e)->position().toPoint()))
+        welcome_->hide();  // and the click goes on to draw
+    return QMainWindow::eventFilter(watched, e);
 }
 
 void MainWindow::updateProfile() {
@@ -1156,10 +1245,12 @@ void MainWindow::applyTheme(const QString& name) {
     pal.setColor(QPalette::Highlight, active.accent);
     pal.setColor(QPalette::HighlightedText, active.paper);
     pal.setColor(QPalette::Mid, active.surface);
+    pal.setColor(QPalette::Link, active.accent);
     QApplication::setPalette(pal);
     qApp->setStyleSheet(uiStyle(active));
     canvas_->setTheme(active);
     for (auto& [action, make] : icons_) action->setIcon(make());
+    paintExamples();
     QSettings().setValue("theme", chosen.name);
 }
 
@@ -1173,6 +1264,7 @@ void MainWindow::buildMenus() {
         canvas_->setDocumentSilently(blank);
         path_.clear();
         updateTitle();
+        welcome_->show();
     });
     file->addAction(tr("&Open…"), QKeySequence::Open, this, [this] {
         if (!maybeSave()) return;
@@ -1482,7 +1574,8 @@ void MainWindow::buildMenus() {
     });
 
     auto* help = menuBar()->addMenu(tr("&Help"));
-    help->addAction(tr("&Keyboard Shortcuts"), QKeySequence(tr("F1")), this, [this] {
+    help->addAction(tr("&Documentation"), this, [] { QDesktopServices::openUrl(QUrl(kDocsUrl)); });
+    shortcutsAction_ = help->addAction(tr("&Keyboard Shortcuts"), QKeySequence(tr("F1")), this, [this] {
         QMessageBox box(this);
         box.setWindowTitle(tr("Keyboard Shortcuts"));
         box.setTextFormat(Qt::RichText);

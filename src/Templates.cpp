@@ -5,6 +5,7 @@
 #include <QtMath>
 
 #include <QDir>
+#include <QObject>
 #include <QFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -190,3 +191,35 @@ bool saveUserTemplate(const QString& name, const Document& doc) {
 }
 
 bool removeUserTemplate(const QString& name) { return QFile::remove(userDir() + "/" + name + ".penz"); }
+
+// Welcome screen examples, drawn fresh so they always match the current layout code.
+std::vector<std::pair<QString, Document>> exampleDocuments() {
+    std::vector<std::pair<QString, Document>> out;
+    if (auto aspirin = chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O")) out.push_back({QObject::tr("Aspirin"), *aspirin});
+    // Aspirin from salicylic acid (acetic anhydride, acid catalyst).
+    if (auto scheme = chem::fromReactionSmiles("OC(=O)c1ccccc1O>>CC(=O)Oc1ccccc1C(=O)O")) {
+        for (const auto& a : scheme->arrows)
+            if (a.kind == ArrowKind::Reaction)
+                scheme->texts.push_back({(a.from + a.to) / 2 + QPointF(-26, -8), "Ac2O, H2SO4"});
+        out.push_back({QObject::tr("Reaction scheme"), *scheme});
+    }
+    // Nucleophilic addition: hydroxide attacks the carbonyl carbon, the C=O π bond moves to oxygen.
+    auto oh = chem::fromSmiles("[OH-]"), acetone = chem::fromSmiles("CC(C)=O");
+    if (oh && acetone && acetone->atoms.size() == 4) {
+        Document m = *acetone;
+        const QPointF c = m.atoms[1].pos, o = m.atoms[3].pos;
+        // Turn it so the C=O points straight up.
+        const double turn = -M_PI / 2 - std::atan2(o.y() - c.y(), o.x() - c.x());
+        for (auto& a : m.atoms) {
+            const QPointF d = a.pos - c;
+            a.pos = c + QPointF(d.x() * std::cos(turn) - d.y() * std::sin(turn), d.x() * std::sin(turn) + d.y() * std::cos(turn));
+        }
+        const QPointF top = m.atoms[3].pos, nu = c + QPointF(-2.4 * kBondLength, 0);
+        Document nuc = *oh;
+        m.append(nuc, nu - nuc.atoms[0].pos);
+        m.arrows.push_back({nu + QPointF(4, -9), c + QPointF(-5, -2), ArrowKind::Reaction, 12});
+        m.arrows.push_back({(c + top) / 2 + QPointF(4, 5), top + QPointF(10, -5), ArrowKind::Reaction, -7});
+        out.push_back({QObject::tr("Mechanism"), m});
+    }
+    return out;
+}

@@ -16,3 +16,4 @@ const std::vector<Template>& builtinTemplates();
 std::vector<std::pair<QString, Document>> userTemplates();  // by name
 bool saveUserTemplate(const QString& name, const Document& doc);  // replaces one of the same name
 bool removeUserTemplate(const QString& name);
+std::vector<std::pair<QString, Document>> exampleDocuments();  // for the welcome screen

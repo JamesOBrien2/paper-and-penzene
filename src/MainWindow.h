@@ -19,7 +19,7 @@ class Canvas;
 class QLabel;
 class QPrinter;
 class QUndoStack;
-struct Document;
+#include "Document.h"
 
 // The drawing at its export size, centred on the page; shrunk to fit if it's bigger.
 bool printDocument(QPrinter& printer, const Document& doc);
@@ -47,10 +47,13 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* e) override;
+    bool eventFilter(QObject* watched, QEvent* e) override;
 
 private:
     void buildTools();
     void buildMenus();
+    void buildWelcome();
+    void paintExamples();
     bool saveTo(const QString& path, bool v3000 = false);
     bool save();
     bool saveAs();
@@ -71,6 +74,9 @@ private:
     Canvas* canvas_;
     QString path_;
     QLabel* info_;
+    class QFrame* welcome_ = nullptr;
+    class QAction* shortcutsAction_ = nullptr;
+    std::vector<std::pair<class QToolButton*, Document>> welcomeExamples_;
     class QActionGroup* themeGroup_ = nullptr;
     class QDockWidget* profileDock_;
     class QDockWidget* templateDock_;

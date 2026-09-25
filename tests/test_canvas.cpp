@@ -1659,3 +1659,29 @@ TEST_CASE("PDF: copied and exported as vectors, with the drawing attached (#228)
     CHECK(canvas->document().atoms.size() == doc.atoms.size());
     CHECK(canvas->document().texts.size() == 1);
 }
+
+TEST_CASE("welcome card: examples on an empty page, gone once drawing starts (#116)") {
+    App app;
+    MainWindow w;
+    w.resize(1100, 750);
+    w.show();
+    auto* canvas = w.findChild<Canvas*>();
+    auto* welcome = w.findChild<QFrame*>("welcome");
+    REQUIRE(welcome);
+    CHECK(welcome->isVisible());
+    QList<QToolButton*> examples;
+    for (auto* b : welcome->findChildren<QToolButton*>("example")) examples << b;
+    REQUIRE(examples.size() == 3);  // aspirin, a reaction scheme, a mechanism
+    examples[2]->click();
+    CHECK_FALSE(welcome->isVisible());
+    CHECK_FALSE(canvas->document().arrows.empty());  // the mechanism's curved arrows
+    for (auto* a : w.findChildren<QAction*>())
+        if (a->shortcut() == QKeySequence::New) a->trigger();
+    CHECK(canvas->document().empty());
+    CHECK(welcome->isVisible());
+    // A click on the page, away from the card, dismisses it and still draws.
+    canvas->setTool(Canvas::Tool::Bond);
+    QTest::mouseClick(canvas->viewport(), Qt::LeftButton, {}, QPoint(40, 40));
+    CHECK_FALSE(welcome->isVisible());
+    CHECK_FALSE(canvas->document().empty());
+}

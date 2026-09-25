@@ -7,6 +7,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 ## Unreleased
 
 - **Lab notebook look**: warm paper and teal controls, with tools grouped into Draw, Chemistry and Figure. <!-- icon: palette -->
+- **Welcome**: an empty page offers examples (aspirin, a reaction scheme, a mechanism) and links to the keys and documentation. <!-- icon: sparkles -->
 - **Documentation**: a full guide online at penzene.readthedocs.io, in light and dark. <!-- icon: book-2 -->
 - **Updates**: Help → Check for Updates, and an optional weekly check (off unless you turn it on). <!-- icon: refresh -->
 - **Sharp copies**: Copy puts a vector PDF on the clipboard for Word, PowerPoint and Keynote, and every PDF carries the drawing, so it opens or pastes back editable. <!-- icon: file-type-pdf -->

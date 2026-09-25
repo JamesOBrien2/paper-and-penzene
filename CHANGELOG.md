@@ -1,23 +1,27 @@
 # Changelog
 
-What's new in each release. The app shows the newest section once after an update.
+What's new in each release. The app shows its own version's section once after an update:
+a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name -->` from
+`resources/whatsnew/`); the rest are listed as text.
 
 ## Unreleased
 
-- Documentation site: [penzene.readthedocs.io](https://penzene.readthedocs.io).
-- Help → Check for Updates; an optional weekly check (off unless turned on in Preferences).
-- A "What's new" window after an update.
+- **Documentation**: a full guide online at penzene.readthedocs.io. <!-- icon: book-2 -->
+- **Updates**: Help → Check for Updates, and an optional weekly check (off unless you turn it on). <!-- icon: refresh -->
+- **ChemDraw files everywhere**: binary .cdx opens and saves on Windows too, and keeps arrows and text. <!-- icon: file-import -->
+- A What's New window after an update.
 - ChemDraw files: plain lines are no longer imported twice; lone pairs come through.
 
 ## 0.8.0 (2026-09-25)
 
-- Template library (View → Templates): amino acids, sugars, nucleobases, scaffolds, and your own.
-- Haworth, Fischer and Newman projections; Haworth and Fischer give the right stereo.
-- Interaction bonds (hydrogen bonds, contacts) and partial bonds for transition states.
+- **Template library**: amino acids, sugars, nucleobases, scaffolds, and your own (View → Templates). <!-- icon: books -->
+- **Projections**: Haworth, Fischer and Newman drawings; Haworth and Fischer give the right stereo. <!-- icon: hexagons -->
+- **Rotate in 3D**: Shift+Alt+drag turns a structure out of the page and keeps its stereo. <!-- icon: rotate-3d -->
+- **Interactions and transition states**: dotted H-bonds and dashed forming or breaking bonds. <!-- icon: line-dashed -->
+- **Arrange Scheme**: lines a reaction scheme up, with reagents centred over their arrows. <!-- icon: layout-distribute-horizontal -->
 - Lone pairs, radicals, δ+ and δ−, and brackets with a subscript.
 - Lines, boxes, rounded boxes and ellipses.
-- Rotate in 3D (Shift+Alt+drag), keeping stereo; stretch and squash with handles; Structure → Transform.
-- Structure → Arrange Scheme tidies a reaction scheme.
+- Stretch and squash with handles; Structure → Transform.
 - R-groups (R1, R2…) and generic atoms (X, Ar); attachment points and η-bonded rings.
 - Atom Properties; bring a bond to the front so crossings show a gap.
 - Arrow keys nudge a selection; Space and Enter move between the hotspot and its molecule.

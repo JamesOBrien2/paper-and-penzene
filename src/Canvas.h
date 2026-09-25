@@ -1,4 +1,5 @@
 #pragma once
+#include "Chem.h"
 #include "Render.h"
 
 #include <QFont>
@@ -6,6 +7,7 @@
 #include <QPainterPath>
 #include <QPicture>
 #include <QSet>
+#include <optional>
 #include <vector>
 
 class QPainter;
@@ -33,6 +35,8 @@ public:
     void insert(Document fragment, const QString& text);  // centred in view, selected
     void selectAll();
     void rotateSelection(double degrees);
+    // Out of the page, about the page's x then y axis; stereo is kept (Shift+Alt+drag or arrows).
+    void rotate3D(double aboutX, double aboutY);
     // Brackets around the selected atoms (square or round, with a subscript such as "n"); none removes theirs.
     void bracketSelection(bool square, const QString& label);
     void removeBrackets();
@@ -116,7 +120,9 @@ private:
     int hoverAtom_ = -1, hoverBond_ = -1;
 
     // Drag state
-    enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan, Scale } drag_ = Drag::None;
+    enum class Drag { None, Bond, Chain, Arrow, Ring, Move, Rotate, Rubber, Pan, Scale, Rotate3D } drag_ = Drag::None;
+    std::vector<int> moleculesOfSelection() const;  // whole molecules; all atoms if none selected
+    std::optional<chem::Pose3D> pose_;  // during a 3D rotation drag
     // Scale handles around the selection: corners scale, edges stretch along one axis.
     QRectF selectionBox() const;  // empty unless something with extent is selected
     int handleAt(QPointF p) const;  // 0..7 clockwise from the top-left corner, or -1

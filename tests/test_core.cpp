@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 TEST_CASE("SMILES gives 2D coordinates") {
     auto doc = chem::fromSmiles("c1ccccc1O");
@@ -628,4 +629,35 @@ TEST_CASE("shapes and lines: saved, exported and read from CDXML (#107)") {
         CHECK(QRectF(cdx->arrows[k].from, cdx->arrows[k].to).normalized() ==
               QRectF(doc.arrows[k].from, doc.arrows[k].to).normalized());
     }
+}
+
+TEST_CASE("3D rotation keeps stereo: (R)-alanine turned over (#173)") {
+    Document ala = *chem::fromSmiles("C[C@@H](C(=O)O)N");  // L-alanine, (S)
+    const std::string smiles = chem::toSmiles(ala);
+    auto cip = [](const Document& d) {
+        for (const auto& l : chem::stereoLabels(d))
+            if (l.atom >= 0) return l.text.toStdString();
+        return std::string();
+    };
+    REQUIRE(cip(ala) == "S");
+    std::vector<int> all(ala.atoms.size());
+    std::iota(all.begin(), all.end(), 0);
+    auto pose = chem::pose3D(ala, all);
+    REQUIRE(pose);
+    const Document same = chem::project3D(ala, *pose, 0, 0);  // no turn: the drawing
+    for (size_t i = 0; i < ala.atoms.size(); ++i) CHECK(QLineF(same.atoms[i].pos, ala.atoms[i].pos).length() < 1e-6);
+    const Document over = chem::project3D(ala, *pose, 0, 180);  // turned over left to right
+    CHECK(chem::toSmiles(over) == smiles);
+    CHECK(cip(over) == "S");
+    auto cx = [](const Document& d) {
+        double x = 0;
+        for (const auto& a : d.atoms) x += a.pos.x() / double(d.atoms.size());
+        return x;
+    };
+    int flipped = 0;  // seen from behind: left and right swap
+    for (size_t i = 0; i < ala.atoms.size(); ++i)
+        flipped += (ala.atoms[i].pos.x() - cx(ala)) * (over.atoms[i].pos.x() - cx(over)) < 0;
+    CHECK(flipped >= int(ala.atoms.size()) - 2);
+    const Document tilted = chem::project3D(ala, *pose, 35, 20);
+    CHECK(chem::toSmiles(tilted) == smiles);
 }

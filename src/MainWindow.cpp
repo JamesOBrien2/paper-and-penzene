@@ -1032,6 +1032,8 @@ void MainWindow::buildMenus() {
     structure->addAction(tr("Flip &Horizontal"), QKeySequence(tr("Ctrl+Shift+H")), this,
                          [this] { canvas_->flipSelection(true); });
     structure->addAction(tr("Arrange &Scheme"), this, [this] { canvas_->arrangeScheme(); });
+    structure->addAction(tr("Turn Over &Left to Right (3D)"), this, [this] { canvas_->rotate3D(0, 180); });
+    structure->addAction(tr("Turn Over &Top to Bottom (3D)"), this, [this] { canvas_->rotate3D(180, 0); });
     auto* brackets = structure->addMenu(tr("&Brackets"));
     for (bool square : {true, false})
         brackets->addAction(square ? tr("&Square Brackets Around Selection…") : tr("&Round Brackets Around Selection…"), this,
@@ -1308,6 +1310,7 @@ moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
 <tr><td><b>D</b> / <b>B</b></td><td>dashed double / bold double</td></tr>
 <tr><td><b>i</b></td><td>interaction: H-bond or contact, dotted, not a bond</td></tr>
 <tr><td><b>:</b> / <b>*</b> (atom)</td><td>lone pairs (0–3) / radical dot</td></tr>
+<tr><td><b>Shift+Alt+← → ↑ ↓</b></td><td>rotate 15° out of the page (3D), keeping stereo; Shift+Alt+drag rotates freely</td></tr>
 <tr><td><b>p</b> / <b>P</b></td><td>partial bond forming or breaking / partial double (transition states)</td></tr>
 <tr><td><b>l c r</b></td><td>double bond's second line left / centred / right</td></tr>
 <tr><th colspan="2" align="left">No hotspot (Esc)</th></tr>

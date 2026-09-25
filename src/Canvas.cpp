@@ -387,7 +387,8 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
                            selectedTexts_.contains(texts);
             if (shift) selectedAtoms_ |= atoms, selectedArrows_ |= arrows, selectedTexts_ |= texts;
             else if (!already) selectedAtoms_ = atoms, selectedArrows_ = arrows, selectedTexts_ = texts;
-            drag_ = (e->modifiers() & Qt::AltModifier) ? Drag::Rotate : Drag::Move;
+            drag_ = !(e->modifiers() & Qt::AltModifier) ? Drag::Move : shift ? Drag::Rotate3D : Drag::Rotate;
+            if (drag_ == Drag::Rotate3D && !(pose_ = chem::pose3D(doc_, moleculesOfSelection()))) drag_ = Drag::Rotate;
         } else {
             if (!shift) selectedAtoms_.clear(), selectedArrows_.clear(), selectedTexts_.clear();
             drag_ = Drag::Rubber;
@@ -451,6 +452,12 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
         refresh();
         return;
     }
+    if (drag_ == Drag::Rotate3D) {  // four bond lengths of drag turn it half over
+        const double perUnit = 180.0 / (4 * kBondLength);
+        doc_ = chem::project3D(beforeDrag_, *pose_, (curPos_.y() - pressPos_.y()) * perUnit, (curPos_.x() - pressPos_.x()) * perUnit);
+        refresh();
+        return;
+    }
     if (drag_ == Drag::Scale) {
         const auto h = handlePoints(scaleBox_);
         const QPointF anchor = h[(scaleHandle_ + 4) % 8], from = h[scaleHandle_] - anchor, to = curPos_ - anchor;
@@ -502,6 +509,15 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
     const bool wedge = stereo == BondStereo::Wedge || stereo == BondStereo::Hash;
     const int order = wedge ? 1 : bondOrder_;
 
+    if (drag == Drag::Rotate3D) {
+        pose_.reset();
+        if (!click) {
+            Document turned = doc_;
+            doc_ = beforeDrag_;
+            commit(turned, tr("Rotate in 3D"));
+        }
+        return;
+    }
     if (drag == Drag::Scale) {
         if (!click) {
             Document scaled = doc_;
@@ -872,6 +888,28 @@ void Canvas::removeBrackets() {
     if (!(next == doc_)) commit(next, tr("Remove brackets"));
 }
 
+std::vector<int> Canvas::moleculesOfSelection() const {
+    std::vector<int> out;
+    std::vector<bool> seen(doc_.atoms.size());
+    std::vector<int> stack;
+    for (int i = 0; i < int(doc_.atoms.size()); ++i)
+        if (selectedAtoms_.isEmpty() || selectedAtoms_.contains(i)) stack.push_back(i), seen[i] = true;
+    while (!stack.empty()) {
+        const int i = stack.back();
+        stack.pop_back();
+        out.push_back(i);
+        for (int nb : doc_.neighbors(i))
+            if (!seen[nb]) seen[nb] = true, stack.push_back(nb);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+void Canvas::rotate3D(double aboutX, double aboutY) {
+    if (auto pose = chem::pose3D(doc_, moleculesOfSelection()))
+        commit(chem::project3D(doc_, *pose, aboutX, aboutY), tr("Rotate in 3D"));
+}
+
 void Canvas::rotateSelection(double degrees) {
     if (selectedAtoms_.isEmpty() && selectedArrows_.isEmpty() && selectedTexts_.isEmpty()) return;
     transformSelection(QTransform().rotate(degrees), tr("Rotate"));
@@ -1036,6 +1074,11 @@ void Canvas::editText(int i, QPointF pos) {
 void Canvas::keyPressEvent(QKeyEvent* e) {
     const int key = e->key();
     const bool arrow = key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down;
+    if (arrow && (e->modifiers() & Qt::AltModifier) && (e->modifiers() & Qt::ShiftModifier)) {  // out of the page
+        if (key == Qt::Key_Left || key == Qt::Key_Right) rotate3D(0, key == Qt::Key_Left ? -15 : 15);
+        else rotate3D(key == Qt::Key_Up ? -15 : 15, 0);
+        return;
+    }
     if (arrow && (e->modifiers() & Qt::AltModifier)) {
         if (key == Qt::Key_Left || key == Qt::Key_Right) rotateSelection(key == Qt::Key_Left ? -15 : 15);
         return;

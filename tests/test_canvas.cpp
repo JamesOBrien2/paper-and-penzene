@@ -1353,3 +1353,26 @@ TEST_CASE("Arrange Scheme lines a reaction up (#109)") {
     CHECK(centre("c1ccncc1").y() < arrow.from.y());                                     // and above it
     CHECK(std::abs(centre("CC(=O)Oc1ccccc1C(=O)O").y() - arrow.from.y()) < 1);           // product on the baseline
 }
+
+TEST_CASE("3D rotation from the mouse and keyboard keeps stereo (#173)") {
+    Fixture f;
+    const Document menthol = *chem::fromSmiles("CC(C)[C@@H]1CC[C@@H](C)C[C@H]1O");
+    const std::string smiles = chem::toSmiles(menthol);
+    f.canvas.setDocumentSilently(menthol);
+    f.canvas.setTool(Canvas::Tool::Select);
+    f.canvas.selectAll();
+    const QPointF on = f.doc().atoms[3].pos;
+    QTest::mousePress(f.canvas.viewport(), Qt::LeftButton, Qt::ShiftModifier | Qt::AltModifier, f.at(on));
+    QMouseEvent move(QEvent::MouseMove, f.at(on + QPointF(30, 12)), f.canvas.viewport()->mapToGlobal(f.at(on + QPointF(30, 12))),
+                     Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier | Qt::AltModifier);
+    QApplication::sendEvent(f.canvas.viewport(), &move);
+    QTest::mouseRelease(f.canvas.viewport(), Qt::LeftButton, Qt::ShiftModifier | Qt::AltModifier, f.at(on + QPointF(30, 12)));
+    CHECK_FALSE(f.doc() == menthol);  // it turned
+    CHECK(chem::toSmiles(f.doc()) == smiles);
+    QTest::keyClick(f.canvas.viewport(), Qt::Key_Up, Qt::ShiftModifier | Qt::AltModifier);
+    CHECK(chem::toSmiles(f.doc()) == smiles);
+    if (auto out = qgetenv("PENZENE_3D_SHOT"); !out.isEmpty()) {
+        exportDocument(menthol, QString::fromUtf8(out) + ".before.png", {150, Qt::white});
+        exportDocument(f.doc(), QString::fromUtf8(out), {150, Qt::white});
+    }
+}

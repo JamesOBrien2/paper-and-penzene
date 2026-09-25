@@ -57,7 +57,7 @@ std::string symbol(const Atom& a) { return a.label.isEmpty() ? chem::symbol(a.z)
 
 NB_MODULE(_penzene, m) {
     ensureApp();
-    m.doc() = "Penzene: ChemDraw-style 2D structures, drawn by the same engine as the app.";
+    m.doc() = "Penzene: 2D chemical structures, drawn by the same engine as the app.";
     m.attr("__version__") = PENZENE_VERSION;
 
     nb::class_<Atom>(m, "Atom", "An atom of a Document (read-only; edit through Document).")
@@ -121,7 +121,7 @@ NB_MODULE(_penzene, m) {
                 return std::make_tuple(h.atom, h.bond);
             },
             "atom"_a, "keys"_a, "bond"_a = nb::none(),
-            "Type ChemDraw hotkeys with this atom as the hotspot (or atom=-1, bond=i for a bond). "
+            "Type hotkeys with this atom as the hotspot (or atom=-1, bond=i for a bond). "
             "Returns the final (atom, bond) hotspot.")
         .def(
             "clean", [](Document& d, std::vector<int> atoms) { d = chem::clean2D(d, atoms); }, "atoms"_a = std::vector<int>{},

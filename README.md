@@ -23,7 +23,7 @@ The installers aren't signed with a paid certificate, so the first time you open
 ## Features
 
 - Draw atoms, bonds (single/double/triple, wedge/hash), chains and rings with the mouse
-- **ChemDraw-style hotkeys**: point at an atom or bond and type. `1111` draws a chain,
+- **Keyboard drawing**: point at an atom or bond and type. `1111` draws a chain,
   `2` sprouts a carbonyl, `a` a phenyl, `O` an OMe. The arrow keys walk the molecule
   (Help → Keyboard Shortcuts)
 - Open/save `.penz`, MOL and SDF; open ChemDraw `.cdxml` (molecules, arrows, text) and `.cdx` (molecules); paste or import SMILES; Clean structure (RDKit)
@@ -80,7 +80,7 @@ pixi run install-app   # macOS: self-contained app in ~/Applications
 
 | Milestone | Highlights |
 |---|---|
-| v0.1–v0.3 | Drawing and ChemDraw hotkeys, MOL/SDF/`.penz`, SMILES, Clean, SVG/PNG/PDF; schemes (arrows, text), abbreviations, formula/MW/InChI, CDXML import; themes, ring fill, ACS/JDP/RSC styles |
+| v0.1–v0.3 | Drawing and hotkeys, MOL/SDF/`.penz`, SMILES, Clean, SVG/PNG/PDF; schemes (arrows, text), abbreviations, formula/MW/InChI, CDXML import; themes, ring fill, ACS/JDP/RSC styles |
 | v0.4 | Python package (`import penzene`), batch command line |
 | v0.5 | Polish and correctness: flip/align, context menus, colouring, preferences, autosave |
 | v0.6 | Chemistry: stereo labels, structure checks, properties panel, name ↔ structure |

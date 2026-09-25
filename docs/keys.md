@@ -1,7 +1,7 @@
 # Keyboard shortcuts
 
 Generated from Help → Keyboard Shortcuts in the app. Point at an atom or bond to make it the
-*hotspot*, then type. How these compare with ChemDraw: [ChemDraw shortcuts](shortcuts.md).
+*hotspot*, then type.
 
 
 ## Moving the hotspot

@@ -1323,7 +1323,7 @@ void MainWindow::buildMenus() {
         box.setWindowTitle(tr("Keyboard Shortcuts"));
         box.setTextFormat(Qt::RichText);
         box.setText(tr(R"(<p>Point at an atom or bond to make it the <b>hotspot</b>. It stays put when the mouse
-moves off, so you can keep typing. Follows ChemDraw's hotkeys.</p>
+moves off, so you can keep typing.</p>
 <table cellspacing="5">
 <tr><th colspan="2" align="left">Moving the hotspot</th></tr>
 <tr><td><b>←↑→↓</b></td><td>atom → bond → atom; with <b>Shift</b>: atom → atom, bond → bond (with a selection: nudge it, below)</td></tr>

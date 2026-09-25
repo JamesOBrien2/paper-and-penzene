@@ -7,7 +7,6 @@ nav:
   - Installing: install.md
   - Drawing: drawing.md
   - Keyboard shortcuts: keys.md
-  - ChemDraw shortcuts: shortcuts.md
   - Chemistry: chemistry.md
   - Figures and exports: figures.md
   - File formats: files.md
@@ -17,3 +16,4 @@ nav:
   - Contributing: contributing.md
 exclude_docs: |
   generate.py
+  shortcuts.md

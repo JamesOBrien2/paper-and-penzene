@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "penzene"
 dynamic = ["version"]
-description = "ChemDraw-style 2D chemical structures from Python: the Penzene drawing engine"
+description = "Publication-quality 2D chemical structures from Python: the Penzene drawing engine"
 readme = "python/README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }

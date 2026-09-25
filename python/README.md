@@ -1,6 +1,6 @@
 # penzene
 
-ChemDraw-style 2D chemical structures from Python, drawn by the same engine as the [Penzene](https://github.com/JamesOBrien2/penzene) desktop app.
+Publication-quality 2D chemical structures from Python, drawn by the same engine as the [Penzene](https://github.com/JamesOBrien2/penzene) desktop app.
 
 ```python
 import penzene as pz
@@ -12,7 +12,7 @@ doc.save("aspirin.penz")         # open and keep editing in the app
 doc.formula, doc.mw               # ('C9H8O4', 180.16…)
 doc                               # renders inline in Jupyter
 
-# Build with ChemDraw's hotkeys: from H2N-CH3, "42n152o" makes Ala-Ala
+# Build with hotkeys: from H2N-CH3, "42n152o" makes Ala-Ala
 m = pz.Document()
 n = m.add_atom("N"); c = m.add_atom("C", x=14.4); m.add_bond(n, c)
 m.hotkeys(c, "42n152o")

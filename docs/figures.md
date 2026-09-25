@@ -2,7 +2,7 @@
 
 ## Drawing styles
 
-**Structure → Drawing Style** sets a document's style, the way ChemDraw's stationery does. Exports
+**Structure → Drawing Style** sets a document's style. Exports
 come out at the style's real size.
 
 | Style | Bond length | Line | Bold | Double-bond gap | Font |

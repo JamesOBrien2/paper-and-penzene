@@ -63,7 +63,7 @@ Molecular formula, Hill order, all molecules together
 
 ### `hotkeys(self, atom: int, keys: str, bond: int | None = None) -> tuple[int, int]`
 
-Type ChemDraw hotkeys with this atom as the hotspot (or atom=-1, bond=i for a bond). Returns the final (atom, bond) hotspot.
+Type hotkeys with this atom as the hotspot (or atom=-1, bond=i for a bond). Returns the final (atom, bond) hotspot.
 
 ### `Document.mw`
 

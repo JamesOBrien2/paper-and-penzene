@@ -21,7 +21,7 @@ def keys_page():
     table = re.search(r'<table cellspacing="5">(.*?)</table>', src, re.S).group(1)
     out = ["# Keyboard shortcuts", "",
            "Generated from Help → Keyboard Shortcuts in the app. Point at an atom or bond to make it the",
-           "*hotspot*, then type. How these compare with ChemDraw: [ChemDraw shortcuts](shortcuts.md).", ""]
+           "*hotspot*, then type.", ""]
     for row in re.findall(r"<tr>(.*?)</tr>", table, re.S):
         if "<th" in row:
             out += ["", "## " + text(row), "", "| Keys | |", "|---|---|"]

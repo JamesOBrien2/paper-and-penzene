@@ -10,6 +10,7 @@
 #include <QIcon>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSettings>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -97,6 +98,7 @@ int main(int argc, char** argv) {
     QApplication::setApplicationName("Penzene");
     QApplication::setOrganizationName("Penzene");
     QApplication::setWindowIcon(QIcon(":/logo.svg"));
+    MainWindow::installTranslations(QSettings().value("language").toString());  // Preferences → Language
     MainWindow w;
     if (argc == 2) w.openFile(QString::fromLocal8Bit(argv[1]));
     w.show();

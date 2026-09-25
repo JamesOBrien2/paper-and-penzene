@@ -32,6 +32,8 @@ wheel = "python -m pip wheel . --no-build-isolation --no-deps -w dist"
 
 [target.unix.tasks]
 run = { cmd = "build/bin/penzene", depends-on = ["build"] }
+# Collects the interface strings into a translation: pixi run lupdate -ts translations/penzene_de.ts
+lupdate = "lupdate6 src -locations none"
 
 [target.osx.tasks]
 run = { cmd = "build/bin/penzene.app/Contents/MacOS/penzene", depends-on = ["build"] }
@@ -46,3 +48,4 @@ cp -R build/deploy/penzene.app ~/Applications/"Penzene.app" && echo "Installed ~
 
 [target.win.tasks]
 run = { cmd = "build/bin/penzene.exe", depends-on = ["build"] }
+lupdate = "lupdate src -locations none"

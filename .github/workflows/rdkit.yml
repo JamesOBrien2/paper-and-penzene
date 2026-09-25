@@ -1,0 +1,30 @@
+name: RDKit
+
+# Builds and caches the RDKit that release packages ship (cmake/build-rdkit.sh: no ChemDraw
+# library, #233). Tag builds can only use caches saved on main, so this runs there whenever
+# the script or the lock file changes; release.yml and wheels.yml restore the same key.
+on:
+  push:
+    branches: [main]
+    paths: ['cmake/build-rdkit.sh', 'pixi.lock', '.github/workflows/rdkit.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        runner: [macos-14, macos-15-intel, ubuntu-22.04]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: rdkit-prefix
+          key: rdkit-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/build-rdkit.sh', 'pixi.lock') }}
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        if: steps.cache.outputs.cache-hit != 'true'
+        with: {cache: true}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: pixi run bash cmake/build-rdkit.sh rdkit-prefix

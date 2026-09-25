@@ -43,6 +43,10 @@ public:
     static QString autosavePath();
     QStringList recentFiles() const;
     void showPreferences();  // theme, default style, export resolution and background
+    // Interface languages: those with a translation built in (:/i18n/penzene_<code>.qm), and
+    // installing one (empty: the system's language; "en": none, the source strings).
+    static QStringList languages();
+    static bool installTranslations(const QString& language);
     QWidget* checkStructure();  // lists problems; clicking one selects its atoms
 
 protected:

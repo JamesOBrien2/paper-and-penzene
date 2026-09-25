@@ -78,6 +78,14 @@ qt_add_resources(penzene_ui "changelog" PREFIX "/" FILES CHANGELOG.md)  # What's
 file(GLOB whatsnew_icons RELATIVE ${CMAKE_SOURCE_DIR}/resources ${CMAKE_SOURCE_DIR}/resources/whatsnew/*.svg)
 list(TRANSFORM whatsnew_icons PREPEND resources/)
 qt_add_resources(penzene_ui "art" PREFIX "/" BASE resources FILES resources/logo.svg ${whatsnew_icons})
+# Translations: each translations/penzene_<lang>.ts is compiled and embedded as :/i18n/penzene_<lang>.qm.
+find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
+file(GLOB penzene_ts CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/translations/penzene_*.ts)
+if(penzene_ts)
+    qt_add_lrelease(TS_FILES ${penzene_ts} LRELEASE_TARGET penzene_lrelease NO_GLOBAL_TARGET
+                    QM_OUTPUT_DIRECTORY i18n QM_FILES_OUTPUT_VARIABLE penzene_qm)
+    qt_add_resources(penzene_ui "i18n" PREFIX "/i18n" BASE ${CMAKE_CURRENT_BINARY_DIR}/i18n FILES ${penzene_qm})
+endif()
 # The build shown in the title bar: git describe tells builds between releases
 # apart (0.5.0-12-gabc1234; 0.6.0-dev-gabc1234 once bumped, before the tag);
 # a tagged or git-less build is just the version.
@@ -127,6 +135,10 @@ add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
 # GuiPrivate: tests inject input the way the window system does (QWindowSystemInterface).
 find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
 target_link_libraries(penzene_tests PRIVATE penzene_ui Qt6::Test Qt6::GuiPrivate Catch2::Catch2WithMain)
+# A tiny made-up language ("xx"), to test that a translation is found and applied.
+qt_add_lrelease(TS_FILES tests/data/penzene_xx.ts LRELEASE_TARGET penzene_tests_lrelease NO_GLOBAL_TARGET
+                QM_OUTPUT_DIRECTORY test-i18n QM_FILES_OUTPUT_VARIABLE test_qm)
+qt_add_resources(penzene_tests "test_i18n" PREFIX "/i18n" BASE ${CMAKE_CURRENT_BINARY_DIR}/test-i18n FILES ${test_qm})
 add_test(NAME core COMMAND penzene_tests)
 add_test(NAME version COMMAND penzene --version)
 # --help prints usage; it must not open a window that tries to read "--help" as a file.

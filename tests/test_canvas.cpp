@@ -20,6 +20,7 @@
 #include <QFrame>
 #include <QStackedWidget>
 #include <QElapsedTimer>
+#include <QMenuBar>
 #include <QTest>
 
 #include <QComboBox>
@@ -921,10 +922,12 @@ TEST_CASE("preferences: default style for new documents, export resolution and b
     QTimer::singleShot(0, [] {
         auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
         REQUIRE(dialog);
-        auto boxes = dialog->findChildren<QComboBox*>();  // theme, style, background
-        REQUIRE(boxes.size() == 3);
-        boxes[1]->setCurrentText("RSC");
-        boxes[2]->setCurrentIndex(1);  // white
+        auto* style = dialog->findChild<QComboBox*>("defaultStyle");
+        auto* background = dialog->findChild<QComboBox*>("exportBackground");
+        REQUIRE(style);
+        REQUIRE(background);
+        style->setCurrentText("RSC");
+        background->setCurrentIndex(1);  // white
         dialog->findChild<QSpinBox*>()->setValue(150);
         dialog->accept();
     });
@@ -1723,4 +1726,27 @@ TEST_CASE("drawing and chemistry time grow linearly with the drawing (#114)") {
     const double small = best(page(160)), large = best(page(640));  // 2080 and 8320 atoms
     INFO("4x the atoms took " << large / small << "x as long");
     CHECK(large / small < 8);  // linear is ~4, quadratic ~16
+}
+
+TEST_CASE("translations: a built-in language is offered, and applies to the menus (#113)") {
+    App app;
+    CHECK(MainWindow::languages().contains("xx"));  // the test build's made-up language
+    REQUIRE(MainWindow::installTranslations("xx"));
+    {
+        MainWindow w;
+        CHECK(w.menuBar()->actions().value(0)->text() == "&Fichier-xx");
+    }
+    REQUIRE(MainWindow::installTranslations("en"));  // back to the source strings
+    MainWindow w;
+    CHECK(w.menuBar()->actions().value(0)->text() == "&File");
+    // Preferences lists it under Language.
+    bool offered = false;
+    QTimer::singleShot(0, [&] {
+        if (auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget())) {
+            if (auto* box = dialog->findChild<QComboBox*>("language")) offered = box->findData("xx") >= 0;
+            dialog->reject();
+        }
+    });
+    w.showPreferences();
+    CHECK(offered);
 }

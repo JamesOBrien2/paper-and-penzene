@@ -45,6 +45,8 @@
 #include <QGridLayout>
 #include <QFrame>
 #include <QDir>
+#include <QLibraryInfo>
+#include <QTranslator>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <algorithm>
@@ -470,6 +472,30 @@ static ExportOptions exportOptions() {
             s.value("exportMargin", 0).toDouble()};
 }
 
+QStringList MainWindow::languages() {
+    QStringList out;
+    for (const QString& f : QDir(":/i18n").entryList({"penzene_*.qm"}))
+        out << f.mid(QString("penzene_").size()).chopped(QString(".qm").size());
+    return out;
+}
+
+bool MainWindow::installTranslations(const QString& language) {
+    static QTranslator* own = nullptr;
+    static QTranslator* qt = nullptr;  // Qt's own dialogs and buttons
+    for (QTranslator** t : {&own, &qt})
+        if (*t) QCoreApplication::removeTranslator(*t), delete *t, *t = nullptr;
+    if (language == "en") return true;
+    const QLocale locale = language.isEmpty() ? QLocale() : QLocale(language);
+    own = new QTranslator;
+    const bool found = language.isEmpty() ? own->load(locale, "penzene", "_", ":/i18n")
+                                          : own->load(":/i18n/penzene_" + language);
+    if (found) QCoreApplication::installTranslator(own);
+    qt = new QTranslator;
+    if (qt->load(locale, "qtbase", "_", QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
+        QCoreApplication::installTranslator(qt);
+    return found;
+}
+
 void MainWindow::showPreferences() {
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Preferences"));
@@ -478,6 +504,7 @@ void MainWindow::showPreferences() {
     for (const auto& t : themes()) themeBox->addItem(t.name);
     themeBox->setCurrentText(theme(QSettings().value("theme", "System").toString()).name);
     auto* styleBox = new QComboBox;
+    styleBox->setObjectName("defaultStyle");
     for (const auto& s : drawingStyles()) styleBox->addItem(s.name);
     styleBox->setCurrentText(drawingStyle(QSettings().value("defaultStyle").toString()).name);
     auto* dpiBox = new QSpinBox;
@@ -486,9 +513,21 @@ void MainWindow::showPreferences() {
     dpiBox->setSuffix(tr(" dpi"));
     dpiBox->setValue(int(exportDpi()));
     auto* backgroundBox = new QComboBox;
+    backgroundBox->setObjectName("exportBackground");
     backgroundBox->addItems({tr("Clear"), tr("White")});
     backgroundBox->setCurrentIndex(exportBackground().alpha() ? 1 : 0);
+    auto* languageBox = new QComboBox;
+    languageBox->setObjectName("language");
+    languageBox->addItem(tr("System default"), QString());
+    languageBox->addItem("English", "en");
+    for (const QString& code : languages()) {
+        const QString name = QLocale(code).nativeLanguageName();
+        languageBox->addItem(name.isEmpty() ? code : name, code);
+    }
+    languageBox->setCurrentIndex(std::max(0, languageBox->findData(QSettings().value("language").toString())));
     form->addRow(tr("Theme:"), themeBox);
+    form->addRow(tr("Language:"), languageBox);
+    form->addRow(QString(), new QLabel(tr("A new language takes effect when Penzene restarts.")));
     form->addRow(tr("Drawing style for new documents:"), styleBox);
     form->addRow(tr("PNG resolution:"), dpiBox);
     form->addRow(tr("Export and copy background:"), backgroundBox);
@@ -523,6 +562,7 @@ void MainWindow::showPreferences() {
     settings.setValue("exportScale", scaleBox->value());
     settings.setValue("exportMargin", marginBox->value());
     settings.setValue("updates/auto", updates->isChecked());
+    settings.setValue("language", languageBox->currentData().toString());
     applyTheme(themeBox->currentText());
     for (auto* a : themeGroup_->actions()) a->setChecked(a->text() == themeBox->currentText());
 }

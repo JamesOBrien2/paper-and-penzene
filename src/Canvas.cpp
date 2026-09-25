@@ -287,6 +287,9 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
             p->setBrush(theme_.paper);
             const double s = 2.5 / transform().m11();
             for (QPointF h : handlePoints(box)) p->drawRect(QRectF(h - QPointF(s, s), h + QPointF(s, s)));
+            const QPointF knob = *rotateHandle();
+            p->drawLine(QPointF(box.center().x(), box.top()), knob + QPointF(0, 1.4 * s));
+            p->drawEllipse(knob, 1.4 * s, 1.4 * s);
         }
     }
     p->setBrush(Qt::NoBrush);
@@ -412,6 +415,10 @@ void Canvas::mousePressEvent(QMouseEvent* e) {
 
     switch (tool_) {
     case Tool::Select: {
+        if (const auto knob = rotateHandle(); knob && len(*knob - pressPos_) < 5 / transform().m11()) {
+            drag_ = Drag::Rotate;
+            break;
+        }
         if (int h = handleAt(pressPos_); h >= 0) {  // a scale handle wins over what's under it
             drag_ = Drag::Scale, scaleHandle_ = h, scaleBox_ = selectionBox();
             break;
@@ -481,6 +488,10 @@ void Canvas::mouseMoveEvent(QMouseEvent* e) {
         c /= std::max<double>(1, pts.size());
         double ang = std::atan2(curPos_.y() - c.y(), curPos_.x() - c.x()) -
                      std::atan2(pressPos_.y() - c.y(), pressPos_.x() - c.x());
+        if (drag_ == Drag::Rotate) {  // Shift: 15° steps; Ctrl: 45° steps
+            const double step = e->modifiers() & Qt::ControlModifier ? 45 : shift_ ? 15 : 0;
+            if (step) ang = qDegreesToRadians(step * std::round(qRadiansToDegrees(ang) / step));
+        }
         for (QPointF* p : pts) {
             if (drag_ == Drag::Move) {
                 *p += curPos_ - pressPos_;
@@ -983,6 +994,12 @@ QRectF Canvas::selectionBox() const {
     const QRectF r = pts.boundingRect();
     if (pts.size() < 2 || (r.width() < 1e-6 && r.height() < 1e-6)) return {};
     return r.adjusted(-6, -6, 6, 6);  // clear of the atoms' labels' centres
+}
+
+std::optional<QPointF> Canvas::rotateHandle() const {
+    const QRectF box = selectionBox();
+    if (box.isNull()) return std::nullopt;
+    return QPointF(box.center().x(), box.top() - 16 / transform().m11());
 }
 
 int Canvas::handleAt(QPointF p) const {

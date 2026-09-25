@@ -1856,4 +1856,30 @@ TEST_CASE("the Figure tools include a dashed ellipse (#222)") {
     REQUIRE(canvas->document().arrows.size() == 1);
     CHECK(canvas->document().arrows[0].kind == ArrowKind::Ellipse);
     CHECK(canvas->document().arrows[0].dashed);
+TEST_CASE("the selection's rotate handle turns it; Shift snaps to 15°, Ctrl to 45° (#218)") {
+    Fixture f;
+    f.canvas.setTool(Canvas::Tool::Select);
+    Document d;
+    d.atoms = {{{0, 0}}, {{kBondLength, 0}}};
+    d.bonds = {{0, 1}};
+    // Drags the handle to `degrees` clockwise from straight up, about the pair's middle.
+    auto turn = [&](double degrees, Qt::KeyboardModifiers mods) {
+        f.canvas.setDocumentSilently(d);
+        f.canvas.setSelection({0, 1});
+        const auto knob = f.canvas.rotateHandle();
+        REQUIRE(knob);
+        const QPointF c(kBondLength / 2, 0);
+        const double r = QLineF(*knob, c).length(), a = qDegreesToRadians(degrees);
+        const QPoint to = f.at(c + r * QPointF(std::sin(a), -std::cos(a)));
+        QTest::mousePress(f.canvas.viewport(), Qt::LeftButton, mods, f.at(*knob));
+        QMouseEvent move(QEvent::MouseMove, to, f.canvas.viewport()->mapToGlobal(to), Qt::NoButton, Qt::LeftButton, mods);
+        QApplication::sendEvent(f.canvas.viewport(), &move);
+        QTest::mouseRelease(f.canvas.viewport(), Qt::LeftButton, mods, to);
+        const QPointF v = f.doc().atoms[1].pos - f.doc().atoms[0].pos;  // was (1, 0)
+        return qRadiansToDegrees(std::atan2(v.y(), v.x()));
+    };
+    CHECK(std::abs(turn(90, {}) - 90) < 1.5);
+    CHECK(std::abs(turn(70, Qt::ShiftModifier) - 75) < 0.01);
+    CHECK(std::abs(turn(70, Qt::ControlModifier) - 90) < 0.01);
+    CHECK(f.canvas.document().bonds.size() == 1);  // turned, not redrawn
 }

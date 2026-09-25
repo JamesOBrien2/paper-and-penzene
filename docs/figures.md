@@ -15,17 +15,40 @@ Preferences sets the style for new documents.
 
 ## Export, copy and print
 
-- **File → Export** writes SVG, PNG or PDF of the selection, or of everything. **Copy** puts the same
-  picture on the clipboard (vector PDF, PNG and SVG) together with MOL, SMILES, CDX and the Penzene
-  drawing, so pasting into Word, PowerPoint, Keynote or ChemDraw each gets what it understands, and
-  Office and Keynote get sharp vectors rather than pixels.
-- Exported SVG, PNG and PDF files carry the drawing inside them (a PDF also has the MOL file
-  attached). Open or paste one back into Penzene and it's editable again, not a picture.
-- **Preferences** sets the PNG resolution, a clear or white background, a scale (e.g. 85% to fit a
-  journal column) and a margin.
-- **File → Print** prints at the same size as an export, centred on the page.
-- The canvas can follow the system's light or dark mode or use a theme (View → Theme). Exports are
-  always black on clear or white.
+::::{container} features-grid
+
+```{feature} file-export
+:title: Export and copy
+**File → Export** writes SVG, PNG or PDF of the selection, or of everything. **Copy** puts the same
+picture on the clipboard (vector PDF, PNG and SVG) together with MOL, SMILES, CDX and the Penzene
+drawing, so Word, PowerPoint, Keynote and ChemDraw each get what they understand, and Office and
+Keynote get sharp vectors rather than pixels.
+```
+
+```{feature} file-type-pdf
+:title: Figures that reopen
+Exported SVG, PNG and PDF files carry the drawing inside them (a PDF also has the MOL file
+attached). Open or paste one back into Penzene and it's editable again, not a picture.
+```
+
+```{feature} adjustments
+:title: Resolution, background and scale
+**Preferences** sets the PNG resolution, a clear or white background, a scale (e.g. 85% to fit a
+journal column) and a margin.
+```
+
+```{feature} printer
+:title: Print
+**File → Print** prints at the same size as an export, centred on the page.
+```
+
+```{feature} moon
+:title: Light and dark
+The canvas can follow the system's light or dark mode or use a theme (**View → Theme**). Exports
+are always black on clear or white.
+```
+
+::::
 
 ## Page mode
 

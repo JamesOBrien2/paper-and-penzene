@@ -1,6 +1,6 @@
 # Flatpak manifest, for Flathub (a pull request to flathub/flathub once approved).
 # Everything builds from source with no network: RDKit's own downloads (InChI,
-# RingDecomposerLib, the ChemDraw library, better-enums) are listed as sources below.
+# RingDecomposerLib, better-enums) are listed as sources below.
 # CI (.github/workflows/flatpak.yml) builds this from the checkout; for Flathub the
 # last module's source becomes the release tag.
 id: io.github.jamesobrien2.penzene
@@ -52,7 +52,7 @@ modules:
       - -DRDK_BUILD_CPP_TESTS=OFF
       - -DRDK_BUILD_CONTRIB=OFF
       - -DRDK_BUILD_INCHI_SUPPORT=ON
-      - -DRDK_BUILD_CHEMDRAW_SUPPORT=ON
+      - -DRDK_BUILD_CHEMDRAW_SUPPORT=OFF  # Penzene reads and writes CDX with its own copy
       - -DRDK_BUILD_COORDGEN_SUPPORT=OFF
       - -DRDK_BUILD_MAEPARSER_SUPPORT=OFF
       - -DRDK_BUILD_FREETYPE_SUPPORT=OFF
@@ -77,11 +77,6 @@ modules:
         url: https://github.com/rareylab/RingDecomposerLib/archive/v1.1.3_rdkit.tar.gz
         sha256: 944b5816712a48bbf88aa25d4300ce11871ddf6e971218eac08f90ed2192f715
         dest: External/RingFamilies/RingDecomposerLib
-      - type: archive
-        url: https://codeload.github.com/Glysade/chemdraw/tar.gz/refs/tags/v1.0.14
-        archive-type: tar-gzip
-        sha256: bedd75643b9bfaee1663fc41814370ac9329c8d0934e970179929cb355a82aff
-        dest: External/ChemDraw/chemdraw
       - type: archive
         url: https://github.com/aantron/better-enums/archive/c35576bed0295689540b39873126129adfa0b4c8.tar.gz
         sha256: 9b78dcef7f88d1345b6f25335bfbcba5f024b08990c7d6dc605b833f4128b8dd

@@ -96,9 +96,11 @@ void showWhatsNewDialog(QWidget* parent, const QString& changelog, const QString
             auto* text = new QVBoxLayout;
             text->setSpacing(2);
             auto* name = new QLabel(h.title);
+            name->setTextFormat(Qt::PlainText);  // changelog text, never markup
             name->setStyleSheet("font-weight: 600;");
             auto* detail = new QLabel(h.detail);
             detail->setObjectName("detail");
+            detail->setTextFormat(Qt::PlainText);
             detail->setWordWrap(true);
             text->addWidget(name);
             text->addWidget(detail);

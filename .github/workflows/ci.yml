@@ -26,3 +26,6 @@ jobs:
         with:
           cache: true
       - run: pixi run test
+      - name: Fuzz (fixed seed, 3000 sequences; the nightly run tries 100000)
+        if: runner.os == 'Linux'
+        run: PYTHONPATH=build/python pixi run python tests/fuzz.py --seed 1

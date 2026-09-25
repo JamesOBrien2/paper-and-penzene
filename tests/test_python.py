@@ -24,6 +24,9 @@ assert len(doc.atoms) == 13 and doc.atoms[0].symbol == "C"
 again = pz.read(os.path.join(out, "aspirin.penz"))
 assert again.to_smiles() == doc.to_smiles()
 assert pz.from_json(doc.to_json()).to_smiles() == doc.to_smiles()
+for ext in ("cdxml", "cdx"):  # ChemDraw, both ways
+    doc.save(os.path.join(out, "aspirin." + ext))
+    assert pz.read(os.path.join(out, "aspirin." + ext)).to_smiles() == doc.to_smiles(), ext
 assert pz.read(os.path.join(os.environ["PENZENE_TEST_DATA"], "aspirin.mol")).formula == "C9H8O4"
 
 # The hotkey builder: ChemDraw's cheat-sheet dipeptide, 42n152o from H2N-CH3.

@@ -4,6 +4,7 @@
 #include "Render.h"
 
 #include <QBuffer>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
 #include <nanobind/nanobind.h>
@@ -43,12 +44,15 @@ Document readPath(const std::string& path) {
 }
 
 void save(const Document& doc, const std::string& path) {
-    const bool penz = qs(path).endsWith(".penz", Qt::CaseInsensitive);
-    const QByteArray data = penz ? doc.toJson() : QByteArray::fromStdString(chem::toMolBlock(doc));
+    const QString ext = QFileInfo(qs(path)).suffix().toLower();
+    const QByteArray data = ext == "penz"    ? doc.toJson()
+                            : ext == "cdxml" ? chem::toCdxml(doc)
+                            : ext == "cdx"   ? chem::toCdx(doc)
+                                             : QByteArray::fromStdString(chem::toMolBlock(doc));
     FILE* f = std::fopen(path.c_str(), "wb");
-    if (!f || std::fwrite(data.constData(), 1, data.size(), f) != size_t(data.size()))
-        throw nb::value_error(("cannot write " + path).c_str());
-    std::fclose(f);
+    const bool written = f && std::fwrite(data.constData(), 1, data.size(), f) == size_t(data.size());
+    if (f) std::fclose(f);
+    if (!written) throw nb::value_error(("cannot write " + path).c_str());
 }
 
 std::string symbol(const Atom& a) { return a.label.isEmpty() ? chem::symbol(a.z) : a.label.toStdString(); }
@@ -147,7 +151,7 @@ NB_MODULE(_penzene, m) {
         .def_prop_ro("mw", [](const Document& d) { auto p = chem::properties(d); return p ? p->mw : 0.0; }, "Molecular weight")
         .def_prop_ro("exact_mass", [](const Document& d) { auto p = chem::properties(d); return p ? p->exactMass : 0.0; },
                      "Monoisotopic mass")
-        .def("save", &save, "path"_a, "Write .penz (full fidelity) or MOL for any other extension.")
+        .def("save", &save, "path"_a, "Write .penz (full fidelity), ChemDraw .cdxml or .cdx, or MOL for any other extension.")
         .def(
             "export",
             [](const Document& d, const std::string& path) {

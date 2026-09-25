@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Penzene
+GenericName=Chemical Structure Editor
+Comment=Draw chemical structures, reaction schemes and publication figures
+Exec=penzene %f
+Icon=io.github.jamesobrien2.penzene
+Terminal=false
+Categories=Science;Chemistry;Education;
+Keywords=chemistry;molecule;structure;SMILES;reaction;drawing;
+MimeType=chemical/x-mdl-molfile;chemical/x-mdl-sdfile;chemical/x-cdxml;chemical/x-mdl-rxnfile;

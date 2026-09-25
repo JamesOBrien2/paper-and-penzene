@@ -16,6 +16,7 @@ else()
 endif()
 option(PENZENE_APP "Build the desktop app and its tests" ${app_default})
 option(PENZENE_PYTHON "Build the penzene Python module" ${python_default})
+option(PENZENE_TESTS "Build the tests (needs Catch2)" ${app_default})
 
 find_package(Qt6 REQUIRED COMPONENTS Gui Svg)
 find_package(RDKit REQUIRED CONFIG)
@@ -111,6 +112,15 @@ set_target_properties(penzene PROPERTIES
     MACOSX_BUNDLE_ICON_FILE penzene.icns
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
+if(UNIX AND NOT APPLE)  # Linux desktop integration: Flatpak and distribution packages
+    include(GNUInstallDirs)
+    set(app_id io.github.jamesobrien2.penzene)
+    install(TARGETS penzene RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES packaging/linux/${app_id}.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES packaging/linux/${app_id}.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+    install(FILES resources/logo.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps RENAME ${app_id}.svg)
+endif()
+if(PENZENE_TESTS)
 find_package(Catch2 3 REQUIRED)
 enable_testing()
 add_executable(penzene_tests tests/test_core.cpp tests/test_canvas.cpp)
@@ -129,6 +139,7 @@ add_test(NAME render COMMAND penzene --render ${CMAKE_SOURCE_DIR}/tests/data/asp
 set_tests_properties(render PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen
                      PASS_REGULAR_EXPRESSION "aspirin\\.png.*structure\\.png")
 target_compile_definitions(penzene_tests PRIVATE PENZENE_TEST_DATA="${CMAKE_SOURCE_DIR}/tests/data")
+endif()
 endif()
 
 if(PENZENE_PYTHON)
@@ -152,7 +163,7 @@ if(PENZENE_PYTHON)
         # Importable from build/python during development and in ctest.
         set_target_properties(_penzene PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/python/penzene)
         configure_file(python/penzene/__init__.py ${CMAKE_BINARY_DIR}/python/penzene/__init__.py COPYONLY)
-        if(PENZENE_APP)
+        if(PENZENE_APP AND PENZENE_TESTS)
             add_test(NAME python COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_python.py)
             set_tests_properties(python PROPERTIES ENVIRONMENT
                 "PYTHONPATH=${CMAKE_BINARY_DIR}/python;PENZENE_TEST_DATA=${CMAKE_SOURCE_DIR}/tests/data")

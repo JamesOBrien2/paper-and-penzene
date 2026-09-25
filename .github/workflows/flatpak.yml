@@ -1,0 +1,25 @@
+# Builds the Flatpak (packaging/flatpak) the way Flathub would, to keep the manifest working.
+name: Flatpak
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['packaging/flatpak/**', 'packaging/linux/**', '.github/workflows/flatpak.yml', 'CMakeLists.txt']
+jobs:
+  flatpak:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.9
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: penzene.flatpak
+          manifest-path: packaging/flatpak/io.github.jamesobrien2.penzene.yml
+          cache-key: flatpak-${{ hashFiles('packaging/flatpak/*.yml') }}
+      - name: Smoke test
+        run: |
+          flatpak install -y --user penzene.flatpak
+          flatpak run --command=penzene io.github.jamesobrien2.penzene --version
+          flatpak run --env=QT_QPA_PLATFORM=offscreen --command=penzene io.github.jamesobrien2.penzene --render "CC(=O)Oc1ccccc1C(=O)O" /tmp/aspirin.svg
+          test -s /tmp/aspirin.svg

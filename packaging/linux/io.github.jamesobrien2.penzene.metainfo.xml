@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jamesobrien2.penzene</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Penzene</name>
+  <summary>Draw chemical structures and reaction schemes</summary>
+  <developer id="io.github.jamesobrien2">
+    <name>James O'Brien</name>
+  </developer>
+  <description>
+    <p>
+      Penzene is an open-source chemical structure editor for drawing molecules, reaction
+      schemes and publication figures quickly, with the mouse or the keyboard.
+    </p>
+    <ul>
+      <li>Fast drawing: point at an atom and type to add bonds, rings, groups and labels</li>
+      <li>Live formula and mass, stereo labels, structure checks and a properties panel</li>
+      <li>ACS, RSC and JDP drawing styles; reaction arrows, electron pushing, templates</li>
+      <li>SVG, PNG and PDF export that reopens as an editable drawing</li>
+      <li>MOL, SDF, SMILES, InChI, RXN and CDXML files</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.jamesobrien2.penzene.desktop</launchable>
+  <url type="homepage">https://github.com/JamesOBrien2/penzene</url>
+  <url type="bugtracker">https://github.com/JamesOBrien2/penzene/issues</url>
+  <url type="help">https://penzene.readthedocs.io</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/JamesOBrien2/penzene/main/docs/screenshot.png</image>
+      <caption>Drawing aspirin</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>penzene</binary>
+  </provides>
+  <releases>
+    <release version="0.8.0" date="2026-09-25"/>
+  </releases>
+</component>

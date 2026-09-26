@@ -5,7 +5,7 @@
 An open-source, native desktop chemical structure editor.
 Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www.rdkit.org).
 
-> Status: beta. **Documentation: [penzene.readthedocs.io](https://penzene.readthedocs.io)**.
+> **Documentation: [penzene.readthedocs.io](https://penzene.readthedocs.io)**.
 > See the [roadmap](https://github.com/users/JamesOBrien2/projects/1) and [issues](https://github.com/JamesOBrien2/penzene/issues).
 
 ## Install
@@ -22,18 +22,18 @@ The installers aren't signed with a paid certificate, so the first time you open
 
 ## Features
 
-- Draw atoms, bonds (single/double/triple, wedge/hash), chains and rings with the mouse
-- **Keyboard drawing**: point at an atom or bond and type. `1111` draws a chain,
-  `2` sprouts a carbonyl, `a` a phenyl, `O` an OMe. The arrow keys walk the molecule
-  (Help → Keyboard Shortcuts)
-- Open/save `.penz`, MOL and SDF; open ChemDraw `.cdxml` (molecules, arrows, text) and `.cdx` (molecules); paste or import SMILES; Clean structure (RDKit)
-- Reaction, equilibrium, resonance, retrosynthesis, curved and fishhook arrows; text with automatic formula subscripts (H2O → H₂O)
-- Live formula, MW and exact mass for the selection; copy as InChI / InChIKey
-- Export SVG, PNG and PDF; copy as image + MOL + SMILES
-- Abbreviations (Me, OMe, CO2Me, Boc, TBS, Ts, Bpin…) drawn as labels and expanded for chemistry; Structure → Expand draws them out
-- Ring fill: click inside a ring with the fill tool to shade it
-- Themes: follow the OS, Light, Dark, or Catppuccin Latte / Frappé / Macchiato / Mocha (View → Theme); exports always stay black on clear
-- ACS 1996 drawing style, implicit hydrogens and valence warnings
+- **Keyboard drawing**: point at an atom or bond and type. `1111` draws a chain, `2` a carbonyl,
+  `a` a phenyl, `O` an OMe, and the arrow keys walk the molecule.
+- **Works with ChemDraw**: opens `.cdxml` and `.cdx` drawings with their arrows, text and shapes,
+  and pastes from ChemDraw.
+- **Reaction schemes and mechanisms**: reaction, equilibrium and retrosynthesis arrows, curved and
+  fishhook arrows, lone pairs, radicals and partial charges.
+- **Chemistry built in**: formula, mass, cLogP, TPSA and drug-likeness checks as you draw, stereo
+  labels, name ↔ structure, and descriptor tables for whole datasets.
+- **Figures that stay editable**: SVG, PNG and PDF exports carry the drawing, so they open or paste
+  back into Penzene. Copy pastes sharp vector images into Word, PowerPoint and Keynote.
+- **Figures at final size**: lay a figure out on a page or a journal's column width.
+- **Scriptable**: the same engine from the command line and from Python.
 
 ## Command line
 
@@ -78,18 +78,7 @@ pixi run install-app   # macOS: self-contained app in ~/Applications
 
 ## Roadmap
 
-| Milestone | Highlights |
-|---|---|
-| v0.1–v0.3 | Drawing and hotkeys, MOL/SDF/`.penz`, SMILES, Clean, SVG/PNG/PDF; schemes (arrows, text), abbreviations, formula/MW/InChI, CDXML import; themes, ring fill, ACS/JDP/RSC styles |
-| v0.4 | Python package (`import penzene`), batch command line |
-| v0.5 | Polish and correctness: flip/align, context menus, colouring, preferences, autosave |
-| v0.6 | Chemistry: stereo labels, structure checks, properties panel, name ↔ structure |
-| v0.7 | Interop: editable exports, reactions, more formats, paste from ChemDraw |
-| v0.8 | Templates, brackets and electron dots, shapes, projections |
-| v0.9 | Beta: documentation site, signed installers, PyPI, accessibility |
-| v1.0 | Stable `.penz` format and Python API |
-
-Details and progress on the [project board](https://github.com/users/JamesOBrien2/projects/1).
+Plans and progress are on the [project board](https://github.com/users/JamesOBrien2/projects/1).
 
 ## Acknowledgements
 

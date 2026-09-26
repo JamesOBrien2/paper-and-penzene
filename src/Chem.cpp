@@ -386,8 +386,11 @@ static std::vector<LabelNode> chemDrawGraphics(const QByteArray& xml, Document& 
         const auto at = r.attributes();
         const int parentLabel = stack.empty() ? -1 : stack.back().label;
         stack.push_back({tag});
-        if (tag == "CDXML" && at.hasAttribute("BondLength")) {
-            scale = kBondLength / std::max(1.0, at.value("BondLength").toDouble());
+        if (tag == "CDXML") {
+            const double bond = at.hasAttribute("BondLength") ? std::max(1.0, at.value("BondLength").toDouble()) : 30;
+            scale = kBondLength / bond;
+            // The file's labels relative to its bonds, which may be far from our styles' (#203).
+            if (at.hasAttribute("LabelSize")) doc.labelRatio = at.value("LabelSize").toDouble() / bond;
         } else if (tag == "b") {
             ++bondCount[at.value("B").toInt()], ++bondCount[at.value("E").toInt()];
         } else if (tag == "n") {
@@ -568,6 +571,7 @@ std::optional<Document> fromChemDraw(const QByteArray& data) {
             if (best >= 0) doc.atoms[best].lonePairs = std::min(3, doc.atoms[best].lonePairs + 1);
         }
         doc.arrows = graphics.arrows;
+        doc.labelRatio = graphics.labelRatio;
         doc.texts.insert(doc.texts.end(), graphics.texts.begin(), graphics.texts.end());
     }
     // Any dummy atom left unbonded and unlabelled is an artefact of the expansion.
@@ -785,6 +789,7 @@ QByteArray toCdxml(const Document& in) {
     auto pt3 = [&](QPointF p) { return pt(p) + " 0"; };
     w.writeStartElement("CDXML");
     w.writeAttribute("BondLength", QString::number(kBondLength));
+    if (doc.labelRatio > 0) w.writeAttribute("LabelSize", QString::number(doc.labelRatio * kBondLength));
     w.writeAttribute("CreationProgram", "Penzene");
     w.writeStartElement("page");
     w.writeAttribute("id", QString::number(id++));

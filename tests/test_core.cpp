@@ -8,6 +8,7 @@
 #include <QPainter>
 #include <QTemporaryDir>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <algorithm>
 #include <cmath>
@@ -206,6 +207,24 @@ TEST_CASE("SMILES export never writes text that doesn't parse (#266)") {
     const std::string smi = chem::toSmiles(doc);
     INFO(smi);
     CHECK((smi.empty() || chem::fromSmiles(smi)));
+}
+
+TEST_CASE("a ChemDraw file's label size relative to its bonds is kept (#203)") {
+    auto cdxml = [](const QString& attrs) {
+        return QString(R"(<?xml version="1.0"?><CDXML %1><page><fragment>
+            <n id="1" p="100 100"/><n id="2" p="126 115" NodeType="Element" Element="8"><t><s>OH</s></t></n>
+            <b B="1" E="2"/></fragment></page></CDXML>)").arg(attrs).toUtf8();
+    };
+    auto small = chem::fromChemDraw(cdxml(R"(BondLength="30" LabelSize="6")"));
+    REQUIRE(small);
+    CHECK(small->labelRatio == Catch::Approx(0.2));
+    CHECK(documentStyle(*small).fontSize == Catch::Approx(0.2 * kBondLength));  // 6 pt labels on 30 pt bonds
+    CHECK(documentStyle(*small).labelRadius < drawingStyle("").labelRadius);
+    CHECK(chem::fromChemDraw(cdxml(R"(BondLength="30")"))->labelRatio == 0);  // no LabelSize: the style's own
+    // Kept through .penz and CDXML.
+    CHECK(Document::fromJson(small->toJson())->labelRatio == Catch::Approx(0.2));
+    CHECK(chem::fromChemDraw(chem::toCdxml(*small))->labelRatio == Catch::Approx(0.2));
+    CHECK_FALSE(Document().toJson().contains("labelRatio"));  // absent unless set
 }
 
 TEST_CASE("j onto a ring already there makes that ring Cp⁻ (#254)") {

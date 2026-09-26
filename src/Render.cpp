@@ -53,6 +53,15 @@ static bool hasLabel(const Document& doc, int i, const std::vector<int>& degree)
 
 // ---------------------------------------------------------------- rendering
 
+DrawingStyle documentStyle(const Document& doc) {
+    DrawingStyle st = drawingStyle(doc.style);
+    if (doc.labelRatio > 0) {  // text and the bonds' clearance around labels scale together
+        const double k = doc.labelRatio * kBondLength / st.fontSize;
+        st.fontSize *= k, st.labelRadius *= k;
+    }
+    return st;
+}
+
 QFont labelFont(const DrawingStyle& s, double scale) {
     QFont f(s.font);
     f.setWeight(s.weight);
@@ -405,7 +414,7 @@ QPainterPath textPath(const Text& t, const DrawingStyle& st) {
 }
 
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
-    const DrawingStyle& st = drawingStyle(doc.style);
+    const DrawingStyle st = documentStyle(doc);
     const double lineWidth = style.lineWidth > 0 ? style.lineWidth : st.lineWidth;
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
@@ -638,7 +647,7 @@ void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style) {
 }
 
 QRectF documentBounds(const Document& doc) {
-    const DrawingStyle& st = drawingStyle(doc.style);
+    const DrawingStyle st = documentStyle(doc);
     const double fs = st.fontSize;
     if (doc.empty()) return {};
     // Not QRectF::united: it ignores zero-size rects.

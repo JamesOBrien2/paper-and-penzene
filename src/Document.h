@@ -98,6 +98,7 @@ struct Document {
     QString style;  // drawing style preset name; empty means ACS 1996
     enum class CarbonLabels { None, Terminal, All } carbonLabels = CarbonLabels::None;  // skeletal by default
     bool hideImplicitH = false;  // labels without their implicit H (NH2 drawn as N)
+    double labelRatio = 0;  // label size over bond length, as a ChemDraw file sets it; 0 = the style's own
     bool showStereo = false;  // draw CIP (R)/(S) and (E)/(Z) labels
     bool showAtomNumbers = false;  // draw each atom's index (from 1)
     bool aromaticCircles = false;  // default for every aromatic ring

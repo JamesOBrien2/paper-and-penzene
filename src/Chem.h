@@ -1,6 +1,7 @@
 #pragma once
 // The only file that talks to RDKit. Everything else sees a Document.
 #include "Document.h"
+#include <QStringList>
 #include <array>
 #include <optional>
 #include <string>
@@ -74,6 +75,11 @@ struct Profile {
 };
 std::optional<Profile> profile(const Document& doc);  // nullopt if empty or invalid
 std::string toInchi(const Document& doc);                   // "" if invalid
+// One CSV row per record: identifiers and descriptors (docs/cli.md defines them). A record that
+// isn't valid chemistry keeps its row, with the reason under "error". columns: a subset, in order.
+QStringList descriptorColumns();
+std::string descriptorsCsv(const std::vector<Record>& records, const QStringList& columns = {});
+std::vector<Document> molecules(const Document& doc);  // each connected piece of a drawing
 std::string toInchiKey(const Document& doc);
 
 // Smallest set of smallest rings, each in ring order (abbreviations excluded).

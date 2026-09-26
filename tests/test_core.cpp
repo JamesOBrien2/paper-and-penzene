@@ -198,6 +198,22 @@ TEST_CASE("hotkeys without a canvas: ChemDraw's dipeptide example") {
     CHECK_FALSE(edit::hotkey(doc, {0, -1}, "~").valid());  // not a hotkey
 }
 
+TEST_CASE("descriptor table: a row per record, invalid ones kept with the reason (#152)") {
+    const std::vector<chem::Record> records{
+        {"aspirin", chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O")}, {"broken", std::nullopt}, {"a, \"quoted\" name", chem::fromSmiles("c1ccccc1")}};
+    const QStringList lines = QString::fromStdString(chem::descriptorsCsv(records)).split('\n', Qt::SkipEmptyParts);
+    REQUIRE(lines.size() == 4);
+    CHECK(lines[0] == chem::descriptorColumns().join(','));
+    CHECK(lines[1].startsWith("1,aspirin,CC(=O)Oc1ccccc1C(=O)O,BSYNRYMUTXBXSQ-UHFFFAOYSA-N,C9H8O4,180.16,180.0423,1.31,63.60,1,3,2,13,1,0,true,"));
+    CHECK(lines[2] == "2,broken" + QString(",").repeated(chem::descriptorColumns().size() - 3) + ",unreadable");
+    CHECK(lines[3].startsWith("3,\"a, \"\"quoted\"\" name\",c1ccccc1,"));
+    // Chosen columns, in the order given.
+    CHECK(QString::fromStdString(chem::descriptorsCsv(records, {"name", "tpsa"})).startsWith("name,tpsa\naspirin,63.60\nbroken,\n"));
+    // The molecules of a drawing, each its own row.
+    Document two = *chem::fromSmiles("CCO.c1ccccc1");
+    CHECK(chem::molecules(two).size() == 2);
+}
+
 TEST_CASE("SMILES export never writes text that doesn't parse (#266)") {
     // From the fuzzer: an H label with four bonds, a charge and a stereocentre.
     Document doc;

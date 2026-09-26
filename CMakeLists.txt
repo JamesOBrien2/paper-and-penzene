@@ -158,6 +158,11 @@ add_test(NAME render COMMAND penzene --render ${CMAKE_SOURCE_DIR}/tests/data/asp
          --out ${CMAKE_BINARY_DIR}/render-test --format png --drawing-style RSC --clean)
 set_tests_properties(render PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen
                      PASS_REGULAR_EXPRESSION "aspirin\\.png.*structure\\.png")
+# Descriptors CLI: a SMILES and a MOL file, chosen columns, to standard output.
+add_test(NAME descriptors COMMAND penzene --descriptors "CC(=O)Oc1ccccc1C(=O)O" ${CMAKE_SOURCE_DIR}/tests/data/aspirin.mol
+         --columns name,formula,tpsa)
+set_tests_properties(descriptors PROPERTIES ENVIRONMENT QT_QPA_PLATFORM=offscreen
+                     PASS_REGULAR_EXPRESSION "name,formula,tpsa\n\"?structure\"?,C9H8O4,63\\.60\naspirin,C9H8O4,63\\.60")
 target_compile_definitions(penzene_tests PRIVATE PENZENE_TEST_DATA="${CMAKE_SOURCE_DIR}/tests/data")
 endif()
 endif()

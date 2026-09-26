@@ -721,6 +721,20 @@ void MainWindow::exportImage() {
         QMessageBox::warning(this, tr("Export"), tr("Nothing to export, or cannot write %1").arg(path));
 }
 
+// One CSV row per molecule in the selection, or on the page (the columns are in docs/cli.md).
+void MainWindow::exportDescriptors() {
+    const QString base = path_.isEmpty() ? QString("structure") : QFileInfo(path_).completeBaseName();
+    const QString path = QFileDialog::getSaveFileName(this, tr("Export Descriptors"), base + ".csv", tr("CSV (*.csv)"));
+    if (path.isEmpty()) return;
+    std::vector<chem::Record> records;
+    for (auto& m : chem::molecules(canvas_->selectedSubset()))
+        records.push_back({QString("%1-%2").arg(base).arg(records.size() + 1), std::move(m)});
+    QFile f(path);
+    const QByteArray csv = QByteArray::fromStdString(chem::descriptorsCsv(records));
+    if (records.empty() || !f.open(QIODevice::WriteOnly) || f.write(csv) != csv.size())
+        QMessageBox::warning(this, tr("Export Descriptors"), tr("Nothing to export, or cannot write %1").arg(path));
+}
+
 void MainWindow::importSmiles() {
     bool ok = false;
     QString s = QInputDialog::getText(this, tr("Import SMILES"), tr("SMILES:"), QLineEdit::Normal, {}, &ok);
@@ -1362,6 +1376,7 @@ void MainWindow::buildMenus() {
     file->addAction(tr("Import &SMILES…"), QKeySequence(tr("Ctrl+Shift+I")), this, &MainWindow::importSmiles);
     file->addAction(tr("Import &Name from PubChem…"), this, &MainWindow::importName);
     file->addAction(tr("&Export…"), QKeySequence(tr("Ctrl+E")), this, &MainWindow::exportImage);
+    file->addAction(tr("Export &Descriptors…"), this, &MainWindow::exportDescriptors);
     file->addAction(tr("&Print…"), QKeySequence::Print, this, &MainWindow::print);
     file->addSeparator();
     file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);

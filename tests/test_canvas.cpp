@@ -1740,6 +1740,32 @@ TEST_CASE("the window and What's New share one lab notebook palette (#246)") {
     CHECK(chrome(theme("Catppuccin Mocha")).secondary == theme("Catppuccin Mocha").text);  // keeps its own
 }
 
+TEST_CASE("template thumbnails are drawn in the theme's ink (#261)") {
+    App app;
+    auto lightest = [](const QIcon& icon) {
+        const QImage img = icon.pixmap(56, 40).toImage();
+        int most = 0;
+        for (int y = 0; y < img.height(); ++y)
+            for (int x = 0; x < img.width(); ++x)
+                if (qAlpha(img.pixel(x, y)) > 128) most = std::max(most, QColor(img.pixel(x, y)).lightness());
+        return most;
+    };
+    for (QString t : {"Dark", "Light"}) {
+        QSettings().setValue("theme", t);
+        MainWindow w;
+        w.show();
+        auto* dock = w.findChild<QDockWidget*>("templates");
+        REQUIRE(dock);
+        dock->show();
+        auto* tree = dock->findChild<QTreeWidget*>();
+        REQUIRE(tree->topLevelItemCount() > 0);
+        const int ink = lightest(tree->topLevelItem(0)->child(0)->icon(0));
+        if (t == "Dark") CHECK(ink > 200);  // light strokes on the dark panel
+        else CHECK(ink < 100);
+    }
+    QSettings().remove("theme");
+}
+
 TEST_CASE("drawing and chemistry time grow linearly with the drawing (#114)") {
     App app;
     Document one = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");

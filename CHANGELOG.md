@@ -4,6 +4,10 @@ What's new in each release. The app shows its own version's section once after a
 a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name -->` from
 `resources/whatsnew/`); the rest are listed as text.
 
+## Unreleased
+
+- The .penz format is documented, with a JSON Schema (penzene.readthedocs.io, File formats), and every release's files are tested to keep opening.
+
 ## 0.9.0 (2026-09-26)
 
 - **Lab notebook look**: warm paper and teal controls, with tools grouped into Draw, Chemistry and Figure. <!-- icon: palette -->

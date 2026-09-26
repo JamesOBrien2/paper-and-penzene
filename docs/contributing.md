@@ -69,10 +69,12 @@ same as the app.
 4. In `CHANGELOG.md`, rename `Unreleased` to `X.Y.Z (YYYY-MM-DD)`.
 5. Add `<release version="X.Y.Z" date="YYYY-MM-DD"/>` at the top of the releases in
    `packaging/linux/io.github.jamesobrien2.penzene.metainfo.xml`.
-6. Merge that, then tag it: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-7. Check the release once the workflows finish:
+6. Save a drawing with the new version as `tests/data/penz/vX.Y.Z.penz`, so later releases are
+   tested against it (see [the .penz format](files.md)).
+7. Merge that, then tag it: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+8. Check the release once the workflows finish:
    - It has 9 assets: 2 macOS `.dmg`, the Windows `.zip` and installer, the Linux AppImage, and
      4 wheels.
    - The new version is on [PyPI](https://pypi.org/project/penzene/).
    - The documentation built on Read the Docs.
-8. Close the milestone and update the project board.
+9. Close the milestone and update the project board.

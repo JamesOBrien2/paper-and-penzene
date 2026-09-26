@@ -70,3 +70,22 @@ else:
     assert os.path.exists(os.path.join(package, "_penzene.pyi")), "the wheel has no type stubs"
 assert os.path.exists(os.path.join(package, "py.typed"))
 assert set(pz.__all__) == {n for n in dir(pz) if not n.startswith("_")} | {"__version__"}, "__all__ is the public API"
+
+# .penz: every earlier release's example file, and what this release writes from each, fit the
+# published schema (docs/_static/penz.schema.json). Skipped where jsonschema isn't installed.
+if importlib.util.find_spec("jsonschema"):
+    import glob
+    import json
+
+    import jsonschema
+
+    root = os.path.join(os.path.dirname(os.environ["PENZENE_TEST_DATA"]), "..")
+    with open(os.path.join(root, "docs", "_static", "penz.schema.json")) as f:
+        schema = json.load(f)
+    jsonschema.Draft202012Validator.check_schema(schema)
+    examples = sorted(glob.glob(os.path.join(os.environ["PENZENE_TEST_DATA"], "penz", "v*.penz")))
+    assert len(examples) >= 8
+    for path in examples:
+        with open(path) as f:
+            jsonschema.validate(json.load(f), schema)
+        jsonschema.validate(json.loads(pz.read(path).to_json()), schema)

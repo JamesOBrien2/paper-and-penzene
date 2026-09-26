@@ -8,6 +8,7 @@ librdkit-dev = ">=2025.9,<2027"  # RDKit C++ headers + libs
 libboost-devel = "*"             # RDKit public headers include Boost
 qt6-main = ">=6.8,<7"            # Widgets, Svg, PDF
 catch2 = ">=3.5,<4"
+jsonschema = ">=4"              # tests: .penz files against docs/_static/penz.schema.json
 expat = ">=2.5"                  # XML parsing for the vendored ChemDraw file library
 zlib = "*"                       # headers for building RDKit without ChemDraw (#233)
 cmake = ">=3.28"

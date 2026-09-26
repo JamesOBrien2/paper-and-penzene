@@ -73,6 +73,7 @@ QByteArray Document::toJson() const {
     if (!style.isEmpty()) root["style"] = style;
     if (carbonLabels != CarbonLabels::None) root["carbonLabels"] = carbonLabels == CarbonLabels::All ? "all" : "terminal";
     if (hideImplicitH) root["hideImplicitH"] = true;
+    if (labelRatio > 0) root["labelRatio"] = labelRatio;
     if (showStereo) root["showStereo"] = true;
     if (showAtomNumbers) root["showAtomNumbers"] = true;
     if (aromaticCircles) root["aromaticCircles"] = true;
@@ -132,6 +133,7 @@ std::optional<Document> Document::fromJson(const QByteArray& data) {
                        : carbons == "terminal" ? Document::CarbonLabels::Terminal
                                                : Document::CarbonLabels::None;
     doc.hideImplicitH = root["hideImplicitH"].toBool();
+    doc.labelRatio = std::max(0.0, root["labelRatio"].toDouble());
     doc.showStereo = root["showStereo"].toBool();
     doc.showAtomNumbers = root["showAtomNumbers"].toBool();
     doc.aromaticCircles = root["aromaticCircles"].toBool();

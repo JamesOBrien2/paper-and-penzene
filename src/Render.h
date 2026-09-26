@@ -49,6 +49,7 @@ struct DrawingStyle {
 };
 const std::vector<DrawingStyle>& drawingStyles();  // ACS 1996 first
 const DrawingStyle& drawingStyle(const QString& name);  // unknown or empty: ACS 1996
+DrawingStyle documentStyle(const Document& doc);  // its style, with labels sized by doc.labelRatio if set
 
 // Paints a document in its drawing style. Shared by the canvas and export.
 void paintDocument(QPainter& p, const Document& doc, const RenderStyle& style = {});

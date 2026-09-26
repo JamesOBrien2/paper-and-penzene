@@ -17,6 +17,8 @@
     "style": {"type": "string", "description": "Drawing style name, e.g. \"ACS 1996\"; unknown names fall back to the default."},
     "carbonLabels": {"enum": ["all", "terminal"], "description": "Absent: no carbon labels."},
     "hideImplicitH": {"type": "boolean"},
+    "labelRatio": {"type": "number", "exclusiveMinimum": 0,
+                   "description": "Label font size over bond length, from a ChemDraw file. Absent: the drawing style's own."},
     "showStereo": {"type": "boolean"},
     "showAtomNumbers": {"type": "boolean"},
     "aromaticCircles": {"type": "boolean"},

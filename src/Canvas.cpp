@@ -279,7 +279,7 @@ void Canvas::drawForeground(QPainter* p, const QRectF&) {
     for (int i : selectedAtoms_) p->drawEllipse(doc_.atoms[i].pos, 4, 4);
 
     for (int i : selectedArrows_) p->strokePath(arrowPath(doc_.arrows[i]), QPen(sel, 4, Qt::SolidLine, Qt::RoundCap));
-    for (int i : selectedTexts_) p->drawRect(textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect().adjusted(-1.5, -1.5, 1.5, 1.5));
+    for (int i : selectedTexts_) p->drawRect(textPath(doc_.texts[i], documentStyle(doc_)).boundingRect().adjusted(-1.5, -1.5, 1.5, 1.5));
 
     p->setBrush(hover);
     if (hoverAtom_ >= 0) {
@@ -342,7 +342,7 @@ int Canvas::arrowAt(QPointF p) const {
 
 int Canvas::textAt(QPointF p) const {
     for (int i = int(doc_.texts.size()) - 1; i >= 0; --i)
-        if (textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
+        if (textPath(doc_.texts[i], documentStyle(doc_)).boundingRect().adjusted(-2, -2, 2, 2).contains(p)) return i;
     return -1;
 }
 
@@ -618,7 +618,7 @@ void Canvas::mouseReleaseEvent(QMouseEvent* e) {
         for (int i = 0; i < int(doc_.arrows.size()); ++i)
             if (r.contains(doc_.arrows[i].from) && r.contains(doc_.arrows[i].to)) selectedArrows_.insert(i);
         for (int i = 0; i < int(doc_.texts.size()); ++i)
-            if (r.intersects(textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect())) selectedTexts_.insert(i);
+            if (r.intersects(textPath(doc_.texts[i], documentStyle(doc_)).boundingRect())) selectedTexts_.insert(i);
     } else if (drag == Drag::Arrow) {
         if (int hit = arrowAt(pressPos_); click && hit >= 0) {  // click an arrow: restyle, or flip a curve
             Arrow& a = next.arrows[hit];
@@ -823,7 +823,7 @@ void Canvas::flipSelection(bool horizontal) {
         a.from = mirror(a.from), a.to = mirror(a.to), a.bend = -a.bend;
     }
     for (int i : all.texts) {  // text moves but reads the right way round
-        const QRectF box = textPath(doc_.texts[i], drawingStyle(doc_.style)).boundingRect();
+        const QRectF box = textPath(doc_.texts[i], documentStyle(doc_)).boundingRect();
         next.texts[i].pos += mirror(box.center()) - box.center();
     }
     commit(next, horizontal ? tr("Flip Horizontal") : tr("Flip Vertical"));
@@ -1170,7 +1170,7 @@ void Canvas::editText(int i, QPointF pos) {
     dialog.setOption(QInputDialog::UsePlainTextEditForTextInput);
     dialog.setTextValue(i >= 0 ? doc_.texts[i].text : QString());
     if (auto* edit = dialog.findChild<QPlainTextEdit*>()) {
-        QFont f = labelFont(drawingStyle(doc_.style));
+        QFont f = labelFont(documentStyle(doc_));
         f.setPixelSize(16);
         edit->setFont(f);
         edit->setTabStopDistance(kTabSpaces * QFontMetricsF(f).horizontalAdvance(' '));

@@ -45,4 +45,6 @@ Every Penzene release reads the files of every earlier one. Examples from each r
 
 CDXML import keeps what the file draws: molecules with their labels and abbreviations, arrows, text,
 lines, boxes, ovals and lone-pair symbols. Pasting from ChemDraw works on macOS (and on Windows
-where ChemDraw offers CDXML). Penzene doesn't import ChemDraw's orbitals or TLC plates.
+where ChemDraw offers CDXML). The file's label size relative to its bond length comes with it, so
+crowded drawings with small labels look as drawn; choosing a drawing style goes back to that style's
+own. Penzene doesn't import ChemDraw's orbitals or TLC plates.

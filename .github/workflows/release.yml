@@ -44,7 +44,12 @@ jobs:
           dist/penzene.app/Contents/MacOS/penzene --version
           dist/penzene.app/Contents/MacOS/penzene --render 'c1ccccc1O' smoke.svg
           mv .pixi-hidden .pixi
-          hdiutil create -volname "Penzene" -srcfolder dist -ov -format UDZO penzene-macos-${{ matrix.arch }}.dmg
+          # hdiutil sometimes finds the volume "Resource busy" on hosted runners; try again.
+          for i in 1 2 3 4 5; do
+            hdiutil create -volname "Penzene" -srcfolder dist -ov -format UDZO penzene-macos-${{ matrix.arch }}.dmg && break
+            [ $i = 5 ] && exit 1
+            sleep $((i * 10))
+          done
       - uses: actions/upload-artifact@v4
         with: {name: 'macos-${{ matrix.arch }}', path: 'penzene-macos-${{ matrix.arch }}.dmg'}
 

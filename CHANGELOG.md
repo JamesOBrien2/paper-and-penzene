@@ -7,6 +7,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 ## Unreleased
 
 - The .penz format is documented, with a JSON Schema (penzene.readthedocs.io, File formats), and every release's files are tested to keep opening.
+- The j hotkey (η⁵-cyclopentadienyl) on a ring that's already there makes that ring Cp⁻, instead of corrupting memory; Python scripts no longer crash now and then as they exit.
 
 ## 0.9.0 (2026-09-26)
 

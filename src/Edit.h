@@ -19,7 +19,7 @@ void link(Document& doc, int a, int b, int order = 1, BondStereo stereo = BondSt
 std::vector<int> addRing(Document& doc, const std::vector<QPointF>& verts, bool aromatic);
 std::vector<QPointF> polygon(QPointF centre, QPointF firstVertex, int n);
 double circumradius(int n);  // of a ring with standard bonds
-void ringAt(Document& doc, QPointF centre, int n, bool aromatic);
+std::vector<int> ringAt(Document& doc, QPointF centre, int n, bool aromatic);
 std::vector<int> ringOnAtom(Document& doc, int atom, int n, bool aromatic);
 void ringOnBond(Document& doc, int bond, int n, bool aromatic);
 void chairOnBond(Document& doc, int bond, int edge);

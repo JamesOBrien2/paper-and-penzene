@@ -76,6 +76,37 @@ int render(const QStringList& args) {
     return failed ? 1 : 0;
 }
 
+// penzene --descriptors IN... [--columns a,b,...] [--out FILE.csv]
+int descriptors(const QStringList& args) {
+    QCommandLineParser p;
+    p.addOption({"descriptors", "Write descriptors as CSV, one row per structure."});
+    p.addOption({{"o", "out"}, "CSV file to write (default: standard output).", "file"});
+    p.addOption({"columns", "Columns to write, comma-separated, in order (default: all).", "list"});
+    p.addPositionalArgument("inputs", "SMILES, .smi, .sdf, .inchi, .mol, .penz or .cdxml");
+    if (!p.parse(args) || p.positionalArguments().isEmpty()) {
+        std::fprintf(stderr, "usage: penzene --descriptors IN... [--columns a,b,...] [--out FILE.csv]\n");
+        return 2;
+    }
+    const QStringList columns = p.value("columns").split(',', Qt::SkipEmptyParts);
+    for (const QString& c : columns)
+        if (!chem::descriptorColumns().contains(c)) {
+            std::fprintf(stderr, "penzene: no column \"%s\"; choose from %s\n", qPrintable(c),
+                         qPrintable(chem::descriptorColumns().join(',')));
+            return 2;
+        }
+    std::vector<Record> all;
+    for (const QString& in : p.positionalArguments())
+        for (auto& r : records(in)) all.push_back(std::move(r));
+    const std::string csv = chem::descriptorsCsv(all, columns);
+    if (!p.isSet("out")) return std::fwrite(csv.data(), 1, csv.size(), stdout) == csv.size() ? 0 : 1;
+    QFile f(p.value("out"));
+    if (!f.open(QIODevice::WriteOnly) || f.write(csv.data(), qint64(csv.size())) != qint64(csv.size())) {
+        std::fprintf(stderr, "penzene: could not write %s\n", qPrintable(p.value("out")));
+        return 1;
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -87,6 +118,7 @@ int main(int argc, char** argv) {
             std::printf("usage: penzene [FILE]\n"
                         "       penzene --render IN... (OUT.svg|png|pdf | --out DIR) "
                         "[--format svg|png|pdf] [--drawing-style NAME] [--clean]\n"
+                        "       penzene --descriptors IN... [--columns a,b,...] [--out FILE.csv]\n"
                         "       penzene --version\n");
             return 0;
         }
@@ -95,6 +127,7 @@ int main(int argc, char** argv) {
         qputenv("QT_PLUGIN_PATH", QByteArray(appdir) + "/usr/plugins");
     QApplication app(argc, argv);
     if (argc > 1 && !std::strcmp(argv[1], "--render")) return render(app.arguments());
+    if (argc > 1 && !std::strcmp(argv[1], "--descriptors")) return descriptors(app.arguments());
     QApplication::setApplicationName("Penzene");
     QApplication::setOrganizationName("Penzene");
     QApplication::setWindowIcon(QIcon(":/logo.svg"));

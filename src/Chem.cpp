@@ -631,7 +631,7 @@ static std::optional<Document> grid(const std::vector<Record>& records) {
 
 // ---------------------------------------------------------------- reactions
 
-static std::vector<Document> molecules(const Document& doc) {
+std::vector<Document> molecules(const Document& doc) {
     std::vector<Document> out;
     std::vector<int> seen(doc.atoms.size(), 0);
     for (int start = 0; start < int(doc.atoms.size()); ++start) {
@@ -971,6 +971,45 @@ std::optional<Profile> profile(const Document& doc) {
     p.lipinskiViolations = (p.basic.mw > 500) + (p.logP > 5) + (p.hbd > 5) + (p.hba > 10);
     p.veber = p.rotatable <= 10 && p.tpsa <= 140;
     return p;
+}
+
+QStringList descriptorColumns() {
+    return {"id", "name", "smiles", "inchikey", "formula", "mw", "exact_mass", "clogp", "tpsa", "hbd", "hba",
+            "rotatable_bonds", "heavy_atoms", "aromatic_rings", "lipinski_violations", "veber", "error"};
+}
+
+std::string descriptorsCsv(const std::vector<Record>& records, const QStringList& columns) {
+    const QStringList cols = columns.isEmpty() ? descriptorColumns() : columns;
+    auto quote = [](QString s) {
+        static const QRegularExpression special("[\",\n]");
+        return s.contains(special) ? '"' + s.replace('"', "\"\"") + '"' : s;
+    };
+    QString out = cols.join(',') + '\n';
+    int id = 0;
+    for (const auto& r : records) {
+        QHash<QString, QString> v{{"id", QString::number(++id)}, {"name", r.name}};
+        const auto p = r.doc ? profile(*r.doc) : std::nullopt;
+        if (!p) {
+            v["error"] = r.doc ? "not valid chemistry" : "unreadable";
+        } else {
+            const Document& d = *r.doc;
+            auto num = [](double x, int places) { return QString::number(x, 'f', places); };
+            v["smiles"] = QString::fromStdString(toSmiles(d));
+            v["inchikey"] = QString::fromStdString(toInchiKey(d));
+            v["formula"] = QString::fromStdString(p->basic.formula);
+            v["mw"] = num(p->basic.mw, 2), v["exact_mass"] = num(p->basic.exactMass, 4);
+            v["clogp"] = num(p->logP, 2), v["tpsa"] = num(p->tpsa, 2);
+            v["hbd"] = QString::number(p->hbd), v["hba"] = QString::number(p->hba);
+            v["rotatable_bonds"] = QString::number(p->rotatable), v["heavy_atoms"] = QString::number(p->heavyAtoms);
+            v["aromatic_rings"] = QString::number(aromaticRings(d).size());
+            v["lipinski_violations"] = QString::number(p->lipinskiViolations);
+            v["veber"] = p->veber ? "true" : "false";
+        }
+        QStringList row;
+        for (const QString& c : cols) row << quote(v.value(c));
+        out += row.join(',') + '\n';
+    }
+    return out.toStdString();
 }
 
 std::string toInchi(const Document& doc) {

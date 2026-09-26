@@ -63,6 +63,7 @@ private:
     bool saveAs();
     bool maybeSave();
     void exportImage();
+    void exportDescriptors();
     void importSmiles();
     void importName();
     void print();

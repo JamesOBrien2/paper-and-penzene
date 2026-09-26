@@ -19,7 +19,8 @@ Penzene keeps the drawing and hands its chemistry to RDKit. Everything below upd
 The status bar shows the formula, molecular weight and exact mass of the selection, or of the whole
 drawing. **View → Properties Panel** (Ctrl+I) adds elemental analysis, cLogP, TPSA, H-bond donors
 and acceptors, rotatable bonds, heavy atoms, and Lipinski and Veber checks, with **Copy as Text**
-for a supporting-information table.
+for a supporting-information table. **File → Export Descriptors…** writes them as a CSV, one row
+per molecule ([descriptor tables](cli.md#descriptor-tables)).
 ```
 
 ```{feature} atom

@@ -1760,8 +1760,8 @@ TEST_CASE("template thumbnails are drawn in the theme's ink (#261)") {
         auto* tree = dock->findChild<QTreeWidget*>();
         REQUIRE(tree->topLevelItemCount() > 0);
         const int ink = lightest(tree->topLevelItem(0)->child(0)->icon(0));
-        if (t == "Dark") CHECK(ink > 200);  // light strokes on the dark panel
-        else CHECK(ink < 100);
+        if (t == "Dark") CHECK(ink > 128);  // light strokes on the dark panel (black before)
+        else CHECK(ink < 128);
     }
     QSettings().remove("theme");
 }

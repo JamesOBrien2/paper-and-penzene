@@ -29,6 +29,9 @@ configure = "cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release -DPENZENE_P
 build = { cmd = "cmake --build build", depends-on = ["configure"] }
 test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"], env = { QT_QPA_PLATFORM = "offscreen" } }
 
+# The documentation's screenshots, light and dark, into docs/_static.
+screenshots = { cmd = "build/bin/penzene_tests \"main window screenshots\"", env = { PENZENE_SCREENSHOTS = "docs/_static" }, depends-on = ["build"] }
+
 # The Python wheel, built against this environment's RDKit and Qt (not yet self-contained, see #77).
 wheel = "python -m pip wheel . --no-build-isolation --no-deps -w dist"
 

@@ -13,6 +13,8 @@ pixi run install-app   # macOS: a self-contained app in ~/Applications
 
 `python docs/generate.py` rebuilds the generated reference pages (keys, Python API); a test fails
 if they're out of date.
+`pixi run screenshots` retakes the documentation's screenshots, light and dark, into `docs/_static`;
+run it when the interface changes.
 
 - Pick an issue from the project board; comment to claim it.
 - Branch `feat/<issue>-<slug>` or `fix/<issue>-<slug>`; open a PR with `Closes #<issue>`.

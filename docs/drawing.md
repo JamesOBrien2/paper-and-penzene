@@ -48,6 +48,16 @@ or a bond (fused). On a bond, `a z v 4–8 9 0` fuse rings, `9` and `0` chair cy
 and Haworth, Fischer and Newman projections. Haworth and Fischer drawings give the right stereo
 when converted to SMILES. **Structure → Save Selection as Template** adds your own.
 
+```{image} _static/templates-light.png
+:alt: The Templates panel open beside aspirin, showing the amino acids
+:class: shot only-light
+```
+
+```{image} _static/templates-dark.png
+:alt: The Templates panel open beside aspirin, showing the amino acids, dark theme
+:class: shot only-dark
+```
+
 ## Selecting and arranging
 
 - Drag to select; double-click selects a whole molecule. Drag a selection to move it, and drop an

@@ -2,6 +2,16 @@
 
 Penzene keeps the drawing and hands its chemistry to RDKit. Everything below updates as you draw.
 
+```{image} _static/properties-light.png
+:alt: The Properties panel for aspirin: formula, masses, cLogP, TPSA and the Lipinski and Veber checks
+:class: shot only-light
+```
+
+```{image} _static/properties-dark.png
+:alt: The Properties panel for aspirin: formula, masses, cLogP, TPSA and the Lipinski and Veber checks, dark theme
+:class: shot only-dark
+```
+
 ::::{container} features-grid
 
 ```{feature} scale

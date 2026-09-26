@@ -157,16 +157,38 @@ TEST_CASE("insert centres the fragment and selects it") {
     CHECK(f.canvas.selection() == QSet<int>{3, 4, 5});
 }
 
-TEST_CASE("main window screenshot") {
+// The documentation's screenshots: `pixi run screenshots` writes them to docs/_static.
+TEST_CASE("main window screenshots") {
     App app;
-    QSettings().setValue("theme", qEnvironmentVariable("PENZENE_THEME", "Light"));
-    QSettings().remove("element");  // the periodic-table icon, as on first run
-    MainWindow w;
-    w.resize(1000, 800);
-    w.show();
-    REQUIRE(w.openFile(QString(PENZENE_TEST_DATA) + "/aspirin.mol"));
-    QApplication::processEvents();
-    if (auto out = qgetenv("PENZENE_SCREENSHOT"); !out.isEmpty()) w.grab().save(out);
+    const QString dir = qEnvironmentVariable("PENZENE_SCREENSHOTS");
+    struct Shot {
+        const char *name, *example, *dock;  // a Welcome example, with a panel open
+    };
+    for (QString theme : {"Light", "Dark"}) {
+        QSettings().setValue("theme", theme);
+        QSettings().remove("element");  // the periodic-table icon, as on first run
+        for (auto s : {Shot{"screenshot", "Aspirin", nullptr}, Shot{"templates", "Aspirin", "templates"},
+                       Shot{"properties", "Aspirin", "properties"}, Shot{"scheme", "Reaction scheme", nullptr}}) {
+            MainWindow w;
+            w.resize(1000, 800);
+            w.show();
+            if (s.dock) {
+                auto* dock = w.findChild<QDockWidget*>(s.dock);
+                REQUIRE(dock);
+                dock->show();
+                if (auto* tree = dock->findChild<QTreeWidget*>()) tree->topLevelItem(0)->setExpanded(true);
+            }
+            QApplication::processEvents();  // lay out the panel before the example fits the view
+            QToolButton* example = nullptr;
+            for (auto* b : w.findChildren<QToolButton*>("example"))
+                if (b->text() == s.example) example = b;
+            REQUIRE(example);
+            example->click();
+            QApplication::processEvents();
+            if (!dir.isEmpty()) w.grab().save(QString("%1/%2-%3.png").arg(dir, s.name, theme.toLower()));
+        }
+    }
+    QSettings().remove("theme");
 }
 
 // #42: a ring on a terminal atom must continue straight on, so the substituent

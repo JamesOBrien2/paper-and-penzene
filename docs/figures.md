@@ -62,3 +62,13 @@ Draw molecules either side of a reaction arrow, with reagents over or under it, 
 **Structure → Arrange Scheme** to line them up. **Edit → Copy as Reaction SMILES** and saving as
 `.rxn` treat everything before the arrow as reactants, things over or under it as agents, and
 things after it as products.
+
+```{image} _static/scheme-light.png
+:alt: A reaction scheme: salicylic acid to aspirin with Ac₂O and H₂SO₄ over the arrow
+:class: shot only-light
+```
+
+```{image} _static/scheme-dark.png
+:alt: A reaction scheme: salicylic acid to aspirin with Ac₂O and H₂SO₄ over the arrow, dark theme
+:class: shot only-dark
+```

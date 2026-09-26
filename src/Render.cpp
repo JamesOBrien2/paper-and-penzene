@@ -218,6 +218,29 @@ static void drawBond(QPainter& p, const Document& doc, const Bond& b, const Draw
             line(ia + o, ie + o, false);
         }
     }
+
+    // A bold line ends flat, so at a skeletal atom fill the bevel to each other bond there, as a pen
+    // joins a polyline: no notch at ring corners (#217). Labels keep their clearance.
+    if (b.stereo != BondStereo::Bold || (b.order == 2 && doubleBondSide(doc, b, at) == 0) || b.order == 3) return;
+    p.save();
+    p.setPen(Qt::NoPen);
+    p.setBrush(pen.color());
+    for (int end : {b.a, b.b}) {
+        if (labeled[end]) continue;
+        const QPointF c = doc.atoms[end].pos, out = unit(doc.atoms[end == b.a ? b.b : b.a].pos - c);
+        for (int other : at[end]) {
+            const Bond& o = doc.bonds[other];
+            if (std::minmax(o.a, o.b) == std::minmax(b.a, b.b)) continue;  // this bond (b may be a copy)
+            const QPointF dir = unit(doc.atoms[o.a == end ? o.b : o.a].pos - c);
+            const double w = st.boldWidth / 2, w2 = o.stereo == BondStereo::Bold ? w : pen.widthF() / 2;
+            std::vector<QPointF> quad{c + perp(out) * w, c - perp(out) * w, c + perp(dir) * w2, c - perp(dir) * w2};
+            std::sort(quad.begin(), quad.end(), [&](QPointF x, QPointF y) {
+                return std::atan2(x.y() - c.y(), x.x() - c.x()) < std::atan2(y.y() - c.y(), y.x() - c.x());
+            });
+            p.drawPolygon(QPolygonF(QList<QPointF>(quad.begin(), quad.end())));
+        }
+    }
+    p.restore();
 }
 
 // ---- arrows and text

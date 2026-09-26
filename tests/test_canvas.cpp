@@ -14,6 +14,7 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QListWidget>
+#include <QToolBar>
 
 #include <QLabel>
 #include <QDockWidget>
@@ -1615,41 +1616,55 @@ TEST_CASE("the colour swatch opens CPK colours; the pick paints atoms and bonds 
     CHECK(canvas->document().bonds[0].color == blue);
 }
 
-TEST_CASE("Lab notebook theme groups the tools into modes (#214)") {
+TEST_CASE("Lab notebook theme; tools on a rail whose groups open beside it (#214, #220)") {
     CHECK(theme("Light").paper == QColor("#FBF8F1"));
     CHECK(theme("Light").accent == QColor("#0F6E56"));
     CHECK(theme("Dark").paper == QColor("#22211F"));
     CHECK(theme("Dark").accent == QColor("#5DCAA5"));
     App app;
-    const QVariant previousTheme = QSettings().value("theme");
-    QSettings().setValue("theme", "Light");
     MainWindow w;
-    auto* pages = w.findChild<QStackedWidget*>("toolPages");
-    auto* card = w.findChild<QFrame*>("toolCard");
-    CHECK(card);
-    REQUIRE(pages);
-    CHECK(pages->count() == 3);
-    CHECK(pages->currentIndex() == 0);
-    auto* chemistry = w.findChild<QToolButton*>("modeChemistry");
-    auto* figure = w.findChild<QToolButton*>("modeFigure");
-    auto* draw = w.findChild<QToolButton*>("modeDraw");
-    REQUIRE(chemistry);
-    REQUIRE(figure);
-    REQUIRE(draw);
-    chemistry->click();
-    CHECK(pages->currentIndex() == 1);
-    CHECK(chemistry->isChecked());
-    CHECK_FALSE(draw->isChecked());
-    CHECK(pages->currentWidget()->findChildren<QToolButton*>().size() > 2);
-    figure->click();
-    CHECK(pages->currentIndex() == 2);
-    draw->click();
-    CHECK(pages->currentIndex() == 0);
+    w.resize(1000, 700);
+    w.show();
+    CHECK(w.findChild<QFrame*>("toolCard"));
+    CHECK_FALSE(w.findChild<QToolBar*>("modeBar"));  // no Draw / Chemistry / Figure switch
+    QHash<QString, QToolButton*> rail;
+    for (auto* b : w.findChildren<QToolButton*>("railButton")) rail[b->text()] = b;
+    CHECK(rail.keys().size() == 6);
+    for (const char* g : {"Select", "Bonds", "Rings", "Atoms", "Arrows", "Shapes"}) REQUIRE(rail.contains(g));
+    CHECK(rail["Bonds"]->isChecked());  // the single bond, chosen at start
+    auto flyout = [&](const QString& g) {
+        for (auto* f : w.findChildren<QFrame*>("toolFlyout"))
+            if (f->findChild<QLabel*>("flyoutTitle")->text() == g.toUpper()) return f;
+        return static_cast<QFrame*>(nullptr);
+    };
+    auto* rings = flyout("Rings");
+    REQUIRE(rings);
+    CHECK_FALSE(rings->isVisible());
+    rail["Rings"]->click();
+    CHECK(rings->isVisible());
+    CHECK(rail["Rings"]->isChecked());
+    CHECK(rings->findChildren<QToolButton*>().size() >= 8);
+    rail["Arrows"]->click();  // one flyout at a time
+    CHECK_FALSE(rings->isVisible());
+    CHECK(flyout("Arrows")->isVisible());
+    // Picking a tool closes the flyout, unless it's pinned.
+    auto pick = [](QFrame* f, int i) {
+        auto tools = f->findChildren<QToolButton*>();
+        tools.removeIf([](QToolButton* b) { return b->objectName() == "pin"; });
+        tools[i]->click();
+    };
+    pick(flyout("Arrows"), 1);
+    CHECK_FALSE(flyout("Arrows")->isVisible());
+    rail["Rings"]->click();
+    rings->findChild<QToolButton*>("pin")->click();
+    pick(rings, 2);
+    CHECK(rings->isVisible());
+    // Properties and Templates are in the View menu, not the palette.
     CHECK(w.findChild<QDockWidget*>("properties"));
     CHECK(w.findChild<QDockWidget*>("templates"));
     CHECK(w.findChildren<QFrame*>("panelCard").size() == 2);
-    if (previousTheme.isValid()) QSettings().setValue("theme", previousTheme);
-    else QSettings().remove("theme");
+    for (auto* f : w.findChildren<QFrame*>("toolFlyout"))
+        for (auto* b : f->findChildren<QToolButton*>()) CHECK(b->toolButtonStyle() != Qt::ToolButtonTextOnly);
 }
 
 TEST_CASE("PDF: copied and exported as vectors, with the drawing attached (#228)") {
@@ -1872,7 +1887,9 @@ TEST_CASE("accessibility: named, focusable tools; arrow keys in the periodic tab
     w.resize(1100, 750);
     w.show();
     QToolButton* benzene = nullptr;
-    for (auto* b : w.findChild<QWidget*>("toolPages")->findChildren<QToolButton*>()) {
+    QList<QToolButton*> tools = w.findChild<QFrame*>("toolCard")->findChildren<QToolButton*>();
+    for (auto* f : w.findChildren<QFrame*>("toolFlyout")) tools += f->findChildren<QToolButton*>();
+    for (auto* b : tools) {
         INFO(b->toolTip().toStdString());
         const QString name = QAccessible::queryAccessibleInterface(b)->text(QAccessible::Name);
         CHECK_FALSE(name.isEmpty());  // what a screen reader says

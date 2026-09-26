@@ -91,4 +91,5 @@ private:
     QLabel* profile_;
     QString profileText_;  // plain-text copy of the panel, for the Copy button
     std::vector<std::pair<QAction*, std::function<QIcon()>>> icons_;
+    std::vector<class QFrame*> flyouts_;  // the tool rail's group flyouts
 };

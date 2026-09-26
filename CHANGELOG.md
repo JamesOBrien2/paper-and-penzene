@@ -4,7 +4,7 @@ What's new in each release. The app shows its own version's section once after a
 a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name -->` from
 `resources/whatsnew/`); the rest are listed as text.
 
-## Unreleased
+## 1.1.0 (2026-09-26)
 
 - **Descriptor tables**: File → Export Descriptors… and penzene --descriptors write a CSV with one row per molecule (SMILES, InChIKey, mass, cLogP, TPSA, H-bond donors and acceptors, and more), keeping unreadable structures as rows that say why. <!-- icon: table -->
 

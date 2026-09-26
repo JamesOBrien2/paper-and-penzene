@@ -11,6 +11,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - The Drawing, Chemistry and Figures pages of the documentation show the app, in light and dark.
 - Template thumbnails are drawn in the theme's ink, so they show on dark panels, and they're sharper.
 - Bold bonds join without a notch where they meet other bonds, on screen and in exports.
+- Copy as SMILES gives nothing, rather than SMILES other programs can't read, for impossible structures such as a hydrogen with four bonds.
 
 ## 0.9.0 (2026-09-26)
 

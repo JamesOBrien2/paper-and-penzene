@@ -775,3 +775,10 @@ const Theme& theme(const QString& name) {
         if (t.name == name) return t;
     return themes()[0];
 }
+
+Chrome chrome(const Theme& t) {
+    if (t.name == "Light") return {QColor("#E4E1D6"), QColor("#5F5E5A"), QColor("#E1F5EE")};
+    if (t.name == "Dark") return {QColor("#444441"), QColor("#B4B2A9"), QColor("#0B3B30")};
+    // The Catppuccin themes keep their own colours.
+    return {t.surface.lighter(125), t.text, t.dark ? t.surface.lighter(145) : t.surface.darker(110)};
+}

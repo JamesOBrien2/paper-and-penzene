@@ -1730,6 +1730,16 @@ TEST_CASE("the logo is drawn in the lab notebook palette (#234)") {
     CHECK(svg.contains(theme("Light").paper.name()));   // on warm paper
 }
 
+TEST_CASE("the window and What's New share one lab notebook palette (#246)") {
+    const Chrome light = chrome(theme("Light")), dark = chrome(theme("Dark"));
+    CHECK(light.border == QColor("#E4E1D6"));
+    CHECK(light.secondary == QColor("#5F5E5A"));
+    CHECK(light.accentBg == QColor("#E1F5EE"));
+    CHECK(dark.border == QColor("#444441"));
+    CHECK(dark.accentBg == QColor("#0B3B30"));
+    CHECK(chrome(theme("Catppuccin Mocha")).secondary == theme("Catppuccin Mocha").text);  // keeps its own
+}
+
 TEST_CASE("drawing and chemistry time grow linearly with the drawing (#114)") {
     App app;
     Document one = *chem::fromSmiles("CC(=O)Oc1ccccc1C(=O)O");

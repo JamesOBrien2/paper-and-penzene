@@ -918,18 +918,19 @@ std::string toSmiles(const Document& doc) {
     auto mol = toRDKit(doc);
     if (!perceive(*mol)) return "";
     std::string smiles = RDKit::MolToSmiles(*mol);
+    auto parses = [](const std::string& s) {
+        try {
+            return std::unique_ptr<RWMol>(RDKit::SmilesToMol(s)) != nullptr;
+        } catch (...) {
+            return false;
+        }
+    };
     // RDKit can call a ring with an odd charged atom ([b-2]1ccccc1) aromatic yet not
     // read that SMILES back; write it in Kekulé form then.
-    std::unique_ptr<RWMol> back;
-    try {
-        back.reset(RDKit::SmilesToMol(smiles));
-    } catch (...) {
-    }
-    if (!back) {  // as drawn, without aromaticity
-        mol = toRDKit(doc);
-        if (perceive(*mol, false)) smiles = RDKit::MolToSmiles(*mol);
-    }
-    return smiles;
+    if (parses(smiles)) return smiles;
+    mol = toRDKit(doc);  // as drawn, without aromaticity
+    if (perceive(*mol, false)) smiles = RDKit::MolToSmiles(*mol);
+    return parses(smiles) ? smiles : "";  // e.g. a hydrogen with four bonds (#266)
 }
 
 std::optional<Properties> properties(const Document& doc) {

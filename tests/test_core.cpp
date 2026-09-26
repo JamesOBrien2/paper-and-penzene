@@ -198,6 +198,16 @@ TEST_CASE("hotkeys without a canvas: ChemDraw's dipeptide example") {
     CHECK_FALSE(edit::hotkey(doc, {0, -1}, "~").valid());  // not a hotkey
 }
 
+TEST_CASE("SMILES export never writes text that doesn't parse (#266)") {
+    // From the fuzzer: an H label with four bonds, a charge and a stereocentre.
+    Document doc;
+    edit::Hotspot h{doc.addAtom({0, 0}), -1};
+    for (QChar k : QString("i0JKl4dy:+d")) h = edit::hotkey(doc, h, k);
+    const std::string smi = chem::toSmiles(doc);
+    INFO(smi);
+    CHECK((smi.empty() || chem::fromSmiles(smi)));
+}
+
 TEST_CASE("j onto a ring already there makes that ring Cp⁻ (#254)") {
     Document doc;
     doc.addAtom({0, 0});

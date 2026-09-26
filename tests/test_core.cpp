@@ -198,6 +198,17 @@ TEST_CASE("hotkeys without a canvas: ChemDraw's dipeptide example") {
     CHECK_FALSE(edit::hotkey(doc, {0, -1}, "~").valid());  // not a hotkey
 }
 
+TEST_CASE("j onto a ring already there makes that ring Cp⁻ (#254)") {
+    Document doc;
+    doc.addAtom({0, 0});
+    // A plain five-ring exactly where j puts its Cp: j merges into it, adding no ring atoms.
+    edit::ringAt(doc, doc.atoms[0].pos + doc.awayDirection(0) * (1.6 * kBondLength), 5, false);
+    REQUIRE(edit::hotkey(doc, {0, -1}, "j").valid());
+    CHECK(doc.atoms.size() == 7);  // the atom, the ring and its centroid
+    CHECK(std::count_if(doc.atoms.begin(), doc.atoms.end(), [](const Atom& a) { return a.charge == -1; }) == 1);
+    CHECK(std::count_if(doc.bonds.begin(), doc.bonds.end(), [](const Bond& b) { return b.order == 2; }) == 2);
+}
+
 TEST_CASE("clean keeps bond display styles and double-bond positions (#84)") {
     auto d = chem::fromSmiles("CC=CC(C)C");
     REQUIRE(d);

@@ -97,8 +97,8 @@ std::vector<QPointF> polygon(QPointF centre, QPointF firstVertex, int n) {
 
 double circumradius(int n) { return kBondLength / (2 * std::sin(M_PI / n)); }
 
-void ringAt(Document& doc, QPointF centre, int n, bool aromatic) {
-    addRing(doc, polygon(centre, centre + QPointF(0, -circumradius(n)), n), aromatic);
+std::vector<int> ringAt(Document& doc, QPointF centre, int n, bool aromatic) {
+    return addRing(doc, polygon(centre, centre + QPointF(0, -circumradius(n)), n), aromatic);
 }
 
 // Ring through the atom, pointing away from its bonds so they bisect the ring's outside angle.
@@ -391,13 +391,13 @@ Hotspot hotkey(Document& doc, Hotspot h, const QString& t) {
         }
         if (t == "j" || t == "J") {  // η5-cyclopentadienyl / η6-benzene, bonded through the ring's centre
             // ponytail: η-bonds have no SMILES or MOL form; the centroid is a bare dummy (*) there.
-            const int n = t == "j" ? 5 : 6, first = int(doc.atoms.size());
+            const int n = t == "j" ? 5 : 6;
             const QPointF centre = doc.atoms[at].pos + doc.awayDirection(at) * (1.6 * kBondLength);
-            ringAt(doc, centre, n, n == 6);
+            const auto ring = ringAt(doc, centre, n, n == 6);  // may reuse atoms already there
             if (n == 5) {  // Cp⁻: two double bonds and the charge
-                doc.bonds[doc.bondBetween(first, first + 1)].order = 2;
-                doc.bonds[doc.bondBetween(first + 2, first + 3)].order = 2;
-                doc.atoms[first + 4].charge = -1;
+                doc.bonds[doc.bondBetween(ring[0], ring[1])].order = 2;
+                doc.bonds[doc.bondBetween(ring[2], ring[3])].order = 2;
+                doc.atoms[ring[4]].charge = -1;
             }
             link(doc, at, doc.addAtom(centre, 0));
             return h;

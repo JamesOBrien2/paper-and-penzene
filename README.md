@@ -1,8 +1,8 @@
-<p align="center"><img src="resources/logo.svg" width="160" alt="Penzene logo: a benzene ring drawn in blue ink"></p>
+<p align="center"><img src="resources/logo.svg" width="160" alt="Penzene logo: a benzene ring drawn in teal ink"></p>
 
 <h1 align="center">Penzene</h1>
 
-An open-source, native desktop chemical structure editor — a free alternative to ChemDraw.
+An open-source, native desktop chemical structure editor.
 Runs on macOS, Linux and Windows. Built with C++20, Qt 6 and [RDKit](https://www.rdkit.org).
 
 > Status: beta. **Documentation: [penzene.readthedocs.io](https://penzene.readthedocs.io)**.

@@ -1,5 +1,6 @@
 #include "WhatsNew.h"
 #include "Online.h"
+#include "Render.h"
 
 #include <QApplication>
 #include <QDialog>
@@ -20,9 +21,10 @@ struct Tokens {
 
 // The lab notebook look: warm paper, one teal accent; its dark twin when the app is dark.
 Tokens tokens(const QWidget* w) {
-    if (w->palette().color(QPalette::Window).lightness() < 128)
-        return {"#22211F", "#2C2C2A", "#444441", "#F1EFE8", "#B4B2A9", "#5DCAA5", "#0B3B30"};
-    return {"#FBF8F1", "#FFFFFF", "#E4E1D6", "#2C2C2A", "#5F5E5A", "#0F6E56", "#E1F5EE"};
+    const Theme& t = theme(w->palette().color(QPalette::Window).lightness() < 128 ? "Dark" : "Light");
+    const Chrome c = chrome(t);
+    return {t.window.name(), t.surface.name(), c.border.name(), t.text.name(), c.secondary.name(), t.accent.name(),
+            c.accentBg.name()};
 }
 
 // An SVG from the resources, drawn in `color` (the icons use currentColor).

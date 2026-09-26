@@ -73,20 +73,7 @@ static const char* kDocsUrl = "https://penzene.readthedocs.io/";
 static const QSize kExampleIcon(168, 84);
 
 static QString uiStyle(const Theme& t) {
-    QString border, secondary, accentBg;
-    if (t.name == "Light") {
-        border = "#E4E1D6";
-        secondary = "#5F5E5A";
-        accentBg = "#E1F5EE";
-    } else if (t.name == "Dark") {
-        border = "#444441";
-        secondary = "#B4B2A9";
-        accentBg = "#0B3B30";
-    } else {  // the Catppuccin themes keep their own colours
-        border = t.surface.lighter(125).name();
-        secondary = t.text.name();
-        accentBg = (t.dark ? t.surface.lighter(145) : t.surface.darker(110)).name();
-    }
+    const Chrome c = chrome(t);
     return QString(R"(
         QMainWindow, QDialog { background: %1; color: %4; }
         QMenuBar, QStatusBar { background: %1; color: %4; border: none; }
@@ -129,7 +116,8 @@ static QString uiStyle(const Theme& t) {
         QScrollBar::handle:hover { background: %5; }
         QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
         QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
-    )").arg(t.window.name(), t.surface.name(), border, t.text.name(), secondary, t.accent.name(), accentBg);
+    )").arg(t.window.name(), t.surface.name(), c.border.name(), t.text.name(), c.secondary.name(), t.accent.name(),
+              c.accentBg.name());
 }
 
 MainWindow::MainWindow() : undo_(new QUndoStack(this)), canvas_(new Canvas(undo_, this)) {

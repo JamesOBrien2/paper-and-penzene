@@ -28,6 +28,11 @@ struct Theme {
 };
 const std::vector<Theme>& themes();  // "System" first; "System" follows the OS light/dark
 const Theme& theme(const QString& name);
+// The interface's colours beyond the palette: borders, secondary text and the accent's tint.
+struct Chrome {
+    QColor border, secondary, accentBg;
+};
+Chrome chrome(const Theme& t);
 
 // A document style preset, like ChemDraw stationery. Lengths in points.
 // Geometry is always drawn with 14.4 pt bonds, so every length here is in

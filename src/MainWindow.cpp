@@ -249,24 +249,27 @@ void MainWindow::buildWelcome() {
 }
 
 // The examples' previews in the theme's ink (again after a theme change).
+// A drawing as an icon in the interface's ink, so it reads on light and dark panels alike.
+static QIcon drawingIcon(const Document& doc, QSize size, QColor ink, qreal ratio) {
+    QImage img(size * ratio, QImage::Format_ARGB32_Premultiplied);
+    img.setDevicePixelRatio(ratio);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing);
+    const QRectF r = documentBounds(doc);
+    const double k = std::min(size.width() / r.width(), size.height() / r.height()) * 0.92;
+    p.translate(size.width() / 2.0, size.height() / 2.0);
+    p.scale(k, k);
+    p.translate(-r.center());
+    paintDocument(p, doc, {ink, ink});
+    p.end();
+    return QIcon(QPixmap::fromImage(img));
+}
+
 void MainWindow::paintExamples() {
     const QColor ink = palette().color(QPalette::WindowText);
-    const qreal ratio = devicePixelRatioF();
-    for (auto& [button, doc] : welcomeExamples_) {
-        QImage img(kExampleIcon * ratio, QImage::Format_ARGB32_Premultiplied);
-        img.setDevicePixelRatio(ratio);
-        img.fill(Qt::transparent);
-        QPainter p(&img);
-        p.setRenderHint(QPainter::Antialiasing);
-        const QRectF r = documentBounds(doc);
-        const double k = std::min(kExampleIcon.width() / r.width(), kExampleIcon.height() / r.height()) * 0.92;
-        p.translate(kExampleIcon.width() / 2.0, kExampleIcon.height() / 2.0);
-        p.scale(k, k);
-        p.translate(-r.center());
-        paintDocument(p, doc, {ink, ink});
-        p.end();
-        button->setIcon(QIcon(QPixmap::fromImage(img)));
-    }
+    for (auto& [button, doc] : welcomeExamples_)
+        button->setIcon(drawingIcon(doc, kExampleIcon, ink, devicePixelRatioF()));
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* e) {
@@ -600,13 +603,12 @@ bool printDocument(QPrinter& printer, const Document& doc) {
     return p.end();
 }
 
-static QIcon templateIcon(const Document& doc) {
-    QImage img = renderImage(doc, {40});
-    return QIcon(QPixmap::fromImage(img.scaled(56, 40, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
-}
-
 void MainWindow::fillTemplates() {
     templates_->clear();
+    const QColor ink = palette().color(QPalette::WindowText);
+    auto templateIcon = [&](const Document& doc) {
+        return drawingIcon(doc, templates_->iconSize(), ink, devicePixelRatioF());
+    };
     QHash<QString, QTreeWidgetItem*> groups;
     auto group = [&](const QString& name) {
         if (!groups.contains(name)) groups[name] = new QTreeWidgetItem(templates_, {name});
@@ -1321,6 +1323,7 @@ void MainWindow::applyTheme(const QString& name) {
     canvas_->setTheme(active);
     for (auto& [action, make] : icons_) action->setIcon(make());
     paintExamples();
+    if (templates_->topLevelItemCount()) fillTemplates();  // repaint the thumbnails in the new ink
     QSettings().setValue("theme", chosen.name);
 }
 

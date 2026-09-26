@@ -10,6 +10,7 @@ a bullet with a **bold title** is a highlight (with an optional `<!-- icon: name
 - The j hotkey (η⁵-cyclopentadienyl) on a ring that's already there makes that ring Cp⁻, instead of corrupting memory; Python scripts no longer crash now and then as they exit.
 - The Drawing, Chemistry and Figures pages of the documentation show the app, in light and dark.
 - Template thumbnails are drawn in the theme's ink, so they show on dark panels, and they're sharper.
+- Bold bonds join without a notch where they meet other bonds, on screen and in exports.
 
 ## 0.9.0 (2026-09-26)
 

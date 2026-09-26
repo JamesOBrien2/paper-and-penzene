@@ -1721,6 +1721,35 @@ TEST_CASE("welcome card: examples on an empty page, gone once drawing starts (#1
     CHECK_FALSE(canvas->document().empty());
 }
 
+TEST_CASE("bold bonds meet without a notch at a skeletal atom (#217)") {
+    App app;
+    // Two bold bonds in a V from the carbon at the origin; bold is 2 pt wide, so each half is 1 pt.
+    const double h = kBondLength * std::sqrt(3.0) / 2, v = kBondLength / 2;
+    for (bool boldBoth : {true, false}) {
+        Document doc;
+        doc.addAtom({0, 0});
+        doc.addAtom({-h, v});
+        doc.addAtom({h, v});
+        doc.bonds.push_back({0, 1});
+        doc.bonds.push_back({0, 2});
+        doc.bonds[0].stereo = BondStereo::Bold;
+        if (boldBoth) doc.bonds[1].stereo = BondStereo::Bold;
+        QImage img(400, 400, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        QPainter p(&img);
+        p.translate(200, 200);
+        p.scale(40, 40);
+        paintDocument(p, doc);
+        p.end();
+        auto inked = [&](QPointF at) { return qAlpha(img.pixel((at * 40 + QPointF(200, 200)).toPoint())) > 128; };
+        INFO((boldBoth ? "two bold bonds" : "bold and plain"));
+        // Just past the bold bond's flat end, on the outside of the corner.
+        CHECK(inked({-0.25, -0.55}));
+        if (boldBoth) CHECK(inked({0, -0.7}));
+        CHECK_FALSE(inked({0, -1.3}));  // and nothing sticks out beyond the bonds' width
+    }
+}
+
 TEST_CASE("the logo is drawn in the lab notebook palette (#234)") {
     App app;
     QFile f(":/logo.svg");

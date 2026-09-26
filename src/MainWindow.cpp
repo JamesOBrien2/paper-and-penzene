@@ -90,11 +90,16 @@ static QString uiStyle(const Theme& t) {
         QToolBar#tools QToolButton::menu-button { background: transparent; border: none; width: 10px; }
         QCheckBox::indicator { width: 14px; height: 14px; background: %2; border: 1px solid %5; border-radius: 4px; }
         QCheckBox::indicator:checked { background: %6; border-color: %6; }
-        QToolBar#modeBar { background: %1; border: none; border-bottom: 1px solid %3; padding: 7px 12px; spacing: 6px; }
-        QToolBar#modeBar QToolButton { color: %5; background: transparent; border: none; border-radius: 8px;
-                                        padding: 6px 14px; font-weight: 600; }
-        QToolBar#modeBar QToolButton:hover { background: %2; }
-        QToolBar#modeBar QToolButton:checked { color: %6; background: %7; }
+        QToolBar#tools QToolButton#railButton { color: %5; font-size: 11px; padding: 6px 4px 4px; min-width: 50px; }
+        QToolBar#tools QToolButton#railButton:checked { color: %6; background: %7; font-weight: 600; }
+        QFrame#toolFlyout { background: %2; border: 1px solid %3; border-radius: 12px; }
+        QFrame#toolFlyout QToolButton { color: %4; background: transparent; border: none; border-radius: 8px; padding: 5px; }
+        QFrame#toolFlyout QToolButton:hover, QFrame#toolFlyout QToolButton:checked { background: %7; }
+        QFrame#toolFlyout QToolButton:focus { border: 2px solid %6; }
+        QFrame#toolFlyout QToolButton::menu-button { background: transparent; border: none; width: 10px; }
+        QFrame#toolFlyout QToolButton#pin { color: %5; font-size: 11px; padding: 2px 8px; border: 1px solid %3; }
+        QFrame#toolFlyout QToolButton#pin:checked { color: %6; background: %7; border-color: %6; }
+        QLabel#flyoutTitle { color: %5; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
         QDockWidget#properties, QDockWidget#templates { background: %1; color: %4; border: none; }
         QDockWidget::title { background: %2; color: %4; border: 1px solid %3; border-radius: 10px; padding: 8px; }
         QFrame#panelCard { background: %2; border: 1px solid %3; border-radius: 12px; }
@@ -273,9 +278,12 @@ void MainWindow::paintExamples() {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* e) {
-    if (watched == canvas_->viewport() && e->type() == QEvent::MouseButtonPress && welcome_->isVisible() &&
-        !welcome_->geometry().contains(static_cast<QMouseEvent*>(e)->position().toPoint()))
-        welcome_->hide();  // and the click goes on to draw
+    if (watched == canvas_->viewport() && e->type() == QEvent::MouseButtonPress) {
+        for (auto* f : flyouts_)  // drawing closes a tool flyout unless it's pinned
+            if (!f->findChild<QToolButton*>("pin")->isChecked()) f->hide();
+        if (welcome_->isVisible() && !welcome_->geometry().contains(static_cast<QMouseEvent*>(e)->position().toPoint()))
+            welcome_->hide();  // and the click goes on to draw
+    }
     return QMainWindow::eventFilter(watched, e);
 }
 
@@ -979,6 +987,7 @@ static QWidget* periodicTable(const std::function<void(int)>& picked) {
 }
 
 void MainWindow::buildTools() {
+    // A rail of tool groups; each group's tools open in a flyout beside it (#220).
     auto* bar = new QToolBar(tr("Tools"), this);
     bar->setObjectName("tools");
     addToolBar(Qt::LeftToolBarArea, bar);
@@ -986,64 +995,88 @@ void MainWindow::buildTools() {
     bar->setFloatable(false);
     auto* card = new QFrame(bar);
     card->setObjectName("toolCard");
-    auto* cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(6, 6, 6, 6);
-    auto* pages = new QStackedWidget(card);
-    pages->setObjectName("toolPages");
-    pages->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
-    cardLayout->addWidget(pages);
+    auto* rail = new QVBoxLayout(card);
+    rail->setContentsMargins(4, 6, 4, 6);
+    rail->setSpacing(3);
+    rail->setAlignment(Qt::AlignTop);
     bar->addWidget(card);
-    std::array<QWidget*, 3> palettes;
-    std::array<QGridLayout*, 3> grids;
-    for (int i = 0; i < 3; ++i) {
-        palettes[i] = new QWidget;
-        grids[i] = new QGridLayout(palettes[i]);
-        grids[i]->setSpacing(2);
-        grids[i]->setContentsMargins(2, 2, 2, 2);
-        grids[i]->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
-        pages->addWidget(palettes[i]);
-    }
-    auto* modes = new QToolBar(tr("Workspace"), this);
-    modes->setObjectName("modeBar");
-    modes->setMovable(false);
-    modes->setFloatable(false);
-    addToolBar(Qt::TopToolBarArea, modes);
-    auto* modeGroup = new QButtonGroup(modes);
-    modeGroup->setExclusive(true);
-    const QStringList modeNames{tr("Draw"), tr("Chemistry"), tr("Figure")};
-    const QStringList modeIds{"modeDraw", "modeChemistry", "modeFigure"};
-    for (int i = 0; i < 3; ++i) {
-        auto* b = new QToolButton(modes);
-        b->setObjectName(modeIds[i]);
-        b->setText(modeNames[i]);
-        b->setCheckable(true);
-        modeGroup->addButton(b, i);
-        modes->addWidget(b);
-        connect(b, &QToolButton::clicked, pages, [pages, i] { pages->setCurrentIndex(i); });
-        if (i == 0) b->setChecked(true);
-    }
-    // Each mode keeps its own two-column palette while tool shortcuts stay available.
-    int mode = 0;
-    std::array<int, 3> positions{};
-    auto* palette = palettes[mode];
-    auto* grid = grids[mode];
-    int slot = 0;  // next free cell, counted left to right
-    auto useMode = [&](int next) {
-        positions[mode] = slot;
-        mode = next;
-        slot = positions[mode];
-        palette = palettes[mode];
-        grid = grids[mode];
+    auto* railGroup = new QActionGroup(card);  // exclusive: the group of the current tool is marked
+    struct Group {
+        QToolButton* railButton;
+        QFrame* flyout;
+        QGridLayout* grid;
+        QAction* last = nullptr;  // the tool a click on the rail button picks again
     };
-    auto section = [&] {
-        if (slot % 2) ++slot;
-        auto* line = new QFrame;
-        line->setObjectName("toolDivider");
-        line->setFrameShape(QFrame::NoFrame);
-        line->setFixedHeight(1);
-        grid->addWidget(line, slot / 2, 0, 1, 2);
-        slot += 2;
+    auto groups = std::make_shared<std::vector<Group>>();
+    auto showFlyout = [this, groups](int i) {
+        const Group& g = (*groups)[i];
+        for (auto* f : flyouts_)
+            if (f != g.flyout) f->hide();
+        g.flyout->adjustSize();
+        QPoint at = g.railButton->mapTo(this, QPoint(g.railButton->width() + 12, 0));
+        at.setY(std::min(at.y(), height() - g.flyout->height() - 8));
+        g.flyout->move(at);
+        g.flyout->raise();
+        g.flyout->show();
     };
+    QGridLayout* grid = nullptr;
+    QWidget* palette = nullptr;  // the current group's flyout
+    int slot = 0;  // next free cell in it, left to right, four to a row
+    constexpr int kColumns = 4;
+    auto startGroup = [&](const QString& name, const IconMaker& icon) {
+        auto* fly = new QFrame(this);
+        fly->setObjectName("toolFlyout");
+        fly->hide();
+        auto* layout = new QVBoxLayout(fly);
+        layout->setContentsMargins(10, 8, 10, 10);
+        layout->setSpacing(6);
+        auto* head = new QHBoxLayout;
+        auto* title = new QLabel(name.toUpper());
+        title->setObjectName("flyoutTitle");
+        auto* pin = new QToolButton;
+        pin->setObjectName("pin");
+        pin->setCheckable(true);
+        pin->setFocusPolicy(Qt::StrongFocus);
+        pin->setText(tr("Pin"));
+        pin->setToolTip(tr("Keep open while drawing"));
+        pin->setAccessibleName(tr("Keep %1 open").arg(name));
+        head->addWidget(title);
+        head->addStretch();
+        head->addWidget(pin);
+        layout->addLayout(head);
+        grid = new QGridLayout;
+        grid->setSpacing(2);
+        layout->addLayout(grid);
+        auto* escape = new QAction(fly);
+        escape->setShortcut(Qt::Key_Escape);
+        escape->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        connect(escape, &QAction::triggered, fly, &QWidget::hide);
+        fly->addAction(escape);
+        flyouts_.push_back(fly);
+
+        auto* railAction = new QAction(icon(), name, this);
+        railAction->setCheckable(true);
+        railGroup->addAction(railAction);
+        icons_.push_back({railAction, icon});
+        auto* b = new QToolButton;
+        b->setObjectName("railButton");
+        b->setDefaultAction(railAction);
+        b->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        b->setIconSize({24, 24});
+        b->setFocusPolicy(Qt::StrongFocus);
+        b->setAccessibleName(name);
+        rail->addWidget(b);
+        const int index = int(groups->size());
+        groups->push_back({b, fly, grid});
+        connect(railAction, &QAction::triggered, this, [groups, index, showFlyout] {
+            (*groups)[index].railButton->defaultAction()->setChecked(true);
+            if (auto* last = (*groups)[index].last) last->trigger();
+            showFlyout(index);
+        });
+        palette = fly;
+        slot = 0;
+    };
+    auto section = [&] { slot = (slot + kColumns - 1) / kColumns * kColumns; };  // a new row
     auto* group = new QActionGroup(this);
     auto button = [&](QAction* a) {
         auto* b = new QToolButton;
@@ -1055,8 +1088,16 @@ void MainWindow::buildTools() {
         static const QRegularExpression end(R"(\s*(:| \(| —).*$)");
         b->setAccessibleName(QString(a->toolTip()).remove(end));
         b->setAccessibleDescription(a->toolTip());
-        grid->addWidget(b, slot / 2, slot % 2);
+        grid->addWidget(b, slot / kColumns, slot % kColumns);
         ++slot;
+        const int index = int(groups->size()) - 1;
+        if (!(*groups)[index].last) (*groups)[index].last = a;
+        connect(a, &QAction::triggered, this, [groups, index, a] {
+            Group& g = (*groups)[index];
+            g.last = a;
+            g.railButton->defaultAction()->setChecked(true);
+            if (!g.flyout->findChild<QToolButton*>("pin")->isChecked()) g.flyout->hide();
+        });
         return b;
     };
     auto add = [&](const IconMaker& icon, const QString& tip, auto setup) {
@@ -1082,6 +1123,7 @@ void MainWindow::buildTools() {
         p.setPen(QPen(ink, 1.2, Qt::DashLine));
         p.drawRect(QRectF(4.5, 5.5, 15, 13));
     });
+    startGroup(tr("Select"), select);
     keys[" "] = add(select, tr("Select (drag to move, Alt+drag to rotate, double-click for fragment) — Space"),
                     tool(T::Select));
     const IconMaker eraser = paintedIcon([](QPainter& p, QColor ink) {
@@ -1092,11 +1134,11 @@ void MainWindow::buildTools() {
         p.drawLine(QPointF(-2, -4), QPointF(-2, 4));
     });
     add(eraser, tr("Eraser (click an atom, bond, arrow or text)"), tool(T::Erase));
-    section();
     const QPointF bondPts[] = {{0, 0}, {0.87, -0.5}};
     auto bondIcon = [&](int order, BondStereo st = BondStereo::None) {
         return docIcon(chainDoc({std::begin(bondPts), std::end(bondPts)}, order, st));
     };
+    startGroup(tr("Bonds"), bondIcon(1));
     keys["x"] = add(bondIcon(1), tr("Single bond — x: click empty space or an atom to add a bond; drag to aim it; click a bond to change it"), bond(1));
     keys["x"]->setChecked(true);
     add(bondIcon(2), tr("Double bond: click an atom to add one, or a bond to make it double"), bond(2));
@@ -1114,7 +1156,8 @@ void MainWindow::buildTools() {
         tr("Partial bond, forming or breaking (transition states): dashed, not counted — p on a bond; P for a partial double"),
         styled(1, BondStereo::Partial));
     keys["X"] = add(docIcon(chainDoc({{0, 0}, {0.87, -0.5}, {1.73, 0}, {2.6, -0.5}})), tr("Chain — X: drag to draw a zig-zag chain; it grows with the drag"), tool(T::Chain));
-    section();
+
+    startGroup(tr("Rings"), docIcon(ringDoc(6, false)));
 
     auto ring = [this](int n, bool arom) {
         return [this, n, arom] { canvas_->setTool(T::Ring), canvas_->setRing(n, arom); };
@@ -1148,7 +1191,7 @@ void MainWindow::buildTools() {
                                   {tr("Blue"), tr("Rose"), tr("Green"), tr("Amber"), tr("Lavender"), tr("Pink"),
                                    tr("Grey"), tr("Yellow")}));
         }
-    section();
+
 
     // Element: the button shows the current element and draws it; its arrow
     // opens the periodic table, and picking one switches to the atom tool.
@@ -1165,6 +1208,7 @@ void MainWindow::buildTools() {
         for (int row = 2; row < 4; ++row) cell(2, row), cell(3, row);  // the d block
         for (int col = 1; col < 6; ++col) cell(col, 5);                 // f block underneath
     });
+    startGroup(tr("Atoms"), tableIcon);
     const IconMaker atomIcon = [element, tableIcon] {
         return element->isEmpty() ? tableIcon() : docIcon(textDoc(*element))();
     };
@@ -1179,9 +1223,8 @@ void MainWindow::buildTools() {
         if (on) statusBar()->showMessage(atom->toolTip());
     });
     connect(atom, &QAction::triggered, this, [this] { canvas_->setTool(T::Atom); });
-    if (slot % 2) ++slot;
     auto* atomButton = button(atom);
-    grid->addWidget(atomButton, (slot - 1) / 2, 0, 1, 2);  // full width
+    grid->addWidget(atomButton, (slot - 1) / kColumns, 0, 1, 2);  // two cells wide
     ++slot;
     atomButton->setPopupMode(QToolButton::MenuButtonPopup);
     atomButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -1241,7 +1284,8 @@ void MainWindow::buildTools() {
                                    tr("Fluorine"), tr("Chlorine"), tr("Bromine"), tr("Iodine"), tr("Iron"),
                                    tr("Carbon (grey)"), tr("Boron")}));
         }
-    useMode(1);
+
+    startGroup(tr("Arrows"), docIcon(arrowDoc(ArrowKind::Reaction)));
     auto arrow = [this](ArrowKind k, bool curved, bool dashed = false) {
         return [this, k, curved, dashed] { canvas_->setTool(T::Arrow), canvas_->setArrow(k, curved, dashed); };
     };
@@ -1255,9 +1299,10 @@ void MainWindow::buildTools() {
         arrow(ArrowKind::Reaction, true));
     add(docIcon(arrowDoc(ArrowKind::Fishhook, 10)), tr("Fishhook arrow, single electron (click it again to flip)"),
         arrow(ArrowKind::Fishhook, true));
-    useMode(2);
+
+    startGroup(tr("Shapes"), docIcon(arrowDoc(ArrowKind::RoundedBox)));
     const QString shape = tr(" (drag to draw; Shift for a square or circle; click one to restyle it)");
-    auto* figureDefault = add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
+    add(docIcon(arrowDoc(ArrowKind::Line)), tr("Line (drag to draw)"), arrow(ArrowKind::Line, false));
     add(docIcon(arrowDoc(ArrowKind::Line, 0, true)), tr("Dashed line (drag to draw)"), arrow(ArrowKind::Line, false, true));
     // Solid on the left, dashed on the right.
     add(docIcon(arrowDoc(ArrowKind::RoundedBox)), tr("Rounded box") + shape, arrow(ArrowKind::RoundedBox, false));
@@ -1267,25 +1312,7 @@ void MainWindow::buildTools() {
     add(docIcon(arrowDoc(ArrowKind::Box)), tr("Box") + shape, arrow(ArrowKind::Box, false));
     section();
     keys["t"] = add(docIcon(textDoc("T")), tr("Text (click to add or edit; H2O is set as H₂O) — t"), tool(T::Text));
-    useMode(1);
-    section();
-    auto panelButton = [&](QAction* action) {
-        if (slot % 2) ++slot;
-        auto* b = new QToolButton;
-        b->setDefaultAction(action);
-        b->setToolButtonStyle(Qt::ToolButtonTextOnly);
-        b->setFocusPolicy(Qt::StrongFocus);
-        grid->addWidget(b, slot / 2, 0, 1, 2);
-        slot += 2;
-    };
-    panelButton(profileDock_->toggleViewAction());
-    panelButton(templateDock_->toggleViewAction());
-    auto sizeCard = [card, pages] { card->setFixedHeight(pages->currentWidget()->sizeHint().height() + 12); };
-    connect(pages, &QStackedWidget::currentChanged, card, [sizeCard] { sizeCard(); });
-    sizeCard();
-    QTimer::singleShot(0, card, sizeCard);  // after the theme style has been applied
-    const std::array<QAction*, 3> defaults{keys["x"], keys["e"], figureDefault};
-    connect(modeGroup, &QButtonGroup::idClicked, this, [defaults](int i) { defaults[i]->trigger(); });
+    (*groups)[1].railButton->defaultAction()->setChecked(true);  // the single bond, chosen at start
     connect(canvas_, &Canvas::toolKey, this, [keys](const QString& k) {
         if (auto* a = keys.value(k)) a->trigger();
     });
